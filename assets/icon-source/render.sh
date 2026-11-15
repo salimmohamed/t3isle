@@ -54,3 +54,4 @@ cp "$TMP/icon-256.png" "$CATALOG/logo.imageset/256-mac 1.png"
 render_menu_bar_glyph
 cp "$TMP/icon.svg" "$REPO/assets/icon.svg"
 rasterize "$TMP/social-preview.svg" "$REPO/assets/social-preview.png"
+cp "$TMP/banner-light.svg" "$TMP/banner-dark.svg" "$REPO/assets/readme/"
