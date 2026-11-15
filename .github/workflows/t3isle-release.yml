@@ -68,6 +68,8 @@ jobs:
             CODE_SIGN_IDENTITY=- \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM= \
+            ENABLE_HARDENED_RUNTIME=NO \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
             ${VERSION:+"MARKETING_VERSION=$VERSION"}
 
@@ -78,6 +80,21 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
           lipo -archs "$APP/Contents/MacOS/$APP_NAME"
+          ENTITLEMENTS="$(codesign -d --entitlements - --xml "$APP")"
+          if grep -q get-task-allow <<<"$ENTITLEMENTS"; then
+            echo "::error::$APP_NAME.app is signed with get-task-allow"
+            exit 1
+          fi
+          "$APP/Contents/MacOS/$APP_NAME" > "$RUNNER_TEMP/launch.log" 2>&1 &
+          APP_PID=$!
+          sleep 10
+          if ! kill -0 "$APP_PID"; then
+            cat "$RUNNER_TEMP/launch.log"
+            echo "::error::$APP_NAME.app exited during launch"
+            exit 1
+          fi
+          pkill -9 -P "$APP_PID" || true
+          kill -9 "$APP_PID"
 
       - name: Create DMG
         run: |
