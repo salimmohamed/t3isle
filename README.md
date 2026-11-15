@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="assets/icon.svg" width="96" height="96" alt="T3 Isle icon">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/banner-dark.svg">
+    <img src="assets/readme/banner-light.svg" width="100%" alt="T3 Isle">
+  </picture>
 </p>
-
-<h1 align="center">T3 Isle</h1>
 
 <p align="center">Your T3 Code agents, right in your Mac's notch.</p>
 
