@@ -68,6 +68,7 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
     private var process: Process?
     private var pipeHandler: JSONLinesPipeHandler?
     private var streamTask: Task<Void, Never>?
+    private var terminationObserver: NSObjectProtocol?
 
     // MARK: - Initialization
     init?() {
@@ -101,6 +102,7 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
 
     deinit {
         streamTask?.cancel()
+        terminationObserver.map(NotificationCenter.default.removeObserver)
         
         if let pipeHandler = self.pipeHandler {
             Task { await pipeHandler.close()
@@ -205,6 +207,11 @@ final class NowPlayingController: ObservableObject, MediaControllerProtocol {
         
         self.process = process
         self.pipeHandler = pipeHandler
+        terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: nil
+        ) { _ in
+            if process.isRunning { process.terminate() }
+        }
 
         do {
             try process.run()
