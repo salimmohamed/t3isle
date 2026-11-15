@@ -1,0 +1,38 @@
+included:
+  - T3Isle*
+  - Packages/T3Isle*
+  - boringNotch/T3Isle*
+
+excluded:
+  - "**/.build"
+  - "**/Package.swift"
+
+allow_zero_lintable_files: true
+
+only_rules:
+  - force_unwrapping
+  - custom_rules
+
+force_unwrapping:
+  severity: error
+  ignored_literal_argument_functions: []
+
+custom_rules:
+  no_comments:
+    name: No comments
+    regex: (//|/\*)
+    match_kinds:
+      - comment
+      - comment.mark
+      - comment.url
+      - doccomment
+      - doccomment.field
+    message: Comments are not allowed. Let names and structure carry the meaning.
+    severity: error
+  no_print:
+    name: No print
+    regex: \bprint(?=\s*\()
+    match_kinds:
+      - identifier
+    message: print( is not allowed. Use a logger or remove it.
+    severity: error
