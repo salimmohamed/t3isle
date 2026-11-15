@@ -24,6 +24,7 @@ env:
 
 jobs:
   preparation:
+    if: github.repository == 'TheBoredTeam/boring.notch'
     name: Preparation
     runs-on: ubuntu-latest
     outputs:
