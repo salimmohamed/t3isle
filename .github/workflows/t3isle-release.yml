@@ -1,0 +1,134 @@
+name: T3 Isle release
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/t3isle-release.yml
+      - Configuration/dmg/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t3isle-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  APP_NAME: T3 Isle
+  DMG_NAME: T3-Isle.dmg
+
+jobs:
+  build:
+    name: Build DMG
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      DERIVED_DATA: ${{ github.workspace }}/.build/DerivedData
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "::error::Release tags must look like v1.2.3, got $GITHUB_REF_NAME"
+              exit 1
+            fi
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build app
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild build \
+            -project boringNotch.xcodeproj \
+            -scheme boringNotch \
+            -configuration Release \
+            -destination generic/platform=macOS \
+            -derivedDataPath "$DERIVED_DATA" \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ${VERSION:+"MARKETING_VERSION=$VERSION"}
+
+      - name: Check app
+        run: |
+          set -euo pipefail
+          APP="$DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+          lipo -archs "$APP/Contents/MacOS/$APP_NAME"
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/venv"
+          source "$RUNNER_TEMP/venv/bin/activate"
+          python3 -m pip install --require-hashes -r Configuration/dmg/requirements.txt
+          mkdir -p dist
+          ./Configuration/dmg/create_dmg.sh \
+            "$DERIVED_DATA/Build/Products/Release/$APP_NAME.app" \
+            "dist/$DMG_NAME" \
+            "$APP_NAME"
+          shasum -a 256 "dist/$DMG_NAME"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ env.DMG_NAME }}
+          path: dist/${{ env.DMG_NAME }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: ${{ env.DMG_NAME }}
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
+          **Install**
+
+          1. Download `T3-Isle.dmg`, open it, and drag **T3 Isle** onto **Applications**.
+          2. This build is not notarized, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to the T3 Isle message. Confirm with your password.
+
+          Or clear the download flag in Terminal: `xattr -dr com.apple.quarantine "/Applications/T3 Isle.app"`
+          NOTES
+          gh release create "$GITHUB_REF_NAME" "dist/$DMG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "T3 Isle $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes
