@@ -8,6 +8,8 @@ You can contribute in many ways: writing code, improving documentation, reportin
 
 ## Table of Contents
 
+- [Working on T3 Isle](#working-on-t3-isle)
+  - [How it talks to T3 Code](#how-it-talks-to-t3-code)
 - [Localizations](#localizations)
 - [Contributing Code](#contributing-code)
   - [Before You Start](#before-you-start)
@@ -18,6 +20,29 @@ You can contribute in many ways: writing code, improving documentation, reportin
 - [Reporting Bugs](#reporting-bugs)
 - [Feature Requests](#feature-requests)
 - [Getting Help](#getting-help)
+
+## Working on T3 Isle
+
+The T3 Code integration lives in two places. `T3IsleCore/` is a Swift package with the models, the T3 server client and the derived state, and it never imports SwiftUI or AppKit. The views are in `boringNotch/T3Isle/`.
+
+Run the package tests with:
+
+```sh
+swift test --package-path T3IsleCore
+```
+
+To work on the views without live agents, launch the app with `--demo`. Demo mode uses made-up agents, questions, plans and quota, and never contacts T3.
+
+### How it talks to T3 Code
+
+T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/userdata/server-runtime.json` (falling back to `http://127.0.0.1:3773`) and signs in with T3's own command-line tool (`t3 auth session issue`), asking only for the `orchestration:read` and `orchestration:operate` scopes. The session token is stored in the Keychain.
+
+- Threads, questions and approvals stream live over T3's WebSocket API (`orchestration.subscribeShell`). Thread details (plan, activity, question text) come from `/api/orchestration/threads/<id>/bounded`.
+- Answers, approvals, interrupts, snooze and settle are sent as T3 orchestration commands (`runtime-request.respond`, `thread.stop`, `thread.snooze`, `thread.settle`, …).
+- Usage limits come from `~/.t3/caches/<provider>.json`.
+- Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`.
+
+Set `T3CODE_HOME` to use a different T3 data directory.
 
 ## Localizations
 
