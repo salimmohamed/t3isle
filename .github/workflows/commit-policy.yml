@@ -1,0 +1,46 @@
+name: Commit policy
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  commit-messages:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - name: Check PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | .githooks/check-commit-message
+      - name: Check first-parent commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          failed=0
+          for sha in $(git rev-list --first-parent --reverse "$HEAD_SHA" "^$BASE_SHA"); do
+            if git cat-file commit "$sha" | sed '1,/^$/d' | .githooks/check-commit-message; then
+              echo "ok $sha"
+            else
+              echo "::error::Commit $sha has a message that is not one line matching ^(feat|fix): .+\$"
+              failed=1
+            fi
+          done
+          exit $failed

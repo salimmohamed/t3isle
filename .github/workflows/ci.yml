@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Lint T3 Isle paths
+        run: docker run --rm --entrypoint sh -v "$PWD:$PWD" -w "$PWD" ghcr.io/realm/swiftlint:0.65.1 .githooks/lint-swift .
+
+  script-tests:
+    name: Script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run release script tests
+        run: python3 -m unittest discover -s .github/scripts/tests -v
+
+  build-and-test:
+    name: Build and test
+    needs: swiftlint
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      XCODEBUILD_FLAGS: >-
+        -project boringNotch.xcodeproj
+        -configuration Debug
+        -destination platform=macOS,arch=arm64
+        -derivedDataPath ${{ github.workspace }}/.build/DerivedData
+        -clonedSourcePackagesDirPath ${{ github.workspace }}/.build/SourcePackages
+        -skipMacroValidation
+        -skipPackagePluginValidation
+        CODE_SIGNING_ALLOWED=NO
+        COMPILER_INDEX_STORE_ENABLE=NO
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: xcodebuild -version
+      - name: Restore Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ github.workspace }}/.build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('boringNotch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+      - name: Build app
+        run: xcodebuild build -scheme boringNotch $XCODEBUILD_FLAGS
+      - name: Test Xcode schemes
+        run: |
+          set -o pipefail
+          schemes=$(xcodebuild -list -json -project boringNotch.xcodeproj | jq -r '.project as $p | $p.schemes[] | select(. as $s | $p.targets | index($s))')
+          for scheme in $schemes; do
+            log="$RUNNER_TEMP/test-$scheme.log"
+            if xcodebuild test -scheme "$scheme" $XCODEBUILD_FLAGS 2>&1 | tee "$log"; then
+              echo "Tested scheme $scheme"
+            elif grep -q 'is not currently configured for the test action' "$log"; then
+              echo "Scheme $scheme has no tests"
+            else
+              exit 1
+            fi
+          done
+      - name: Test Swift packages
+        run: |
+          set -o pipefail
+          git ls-files -z -- '*Package.swift' | while IFS= read -r -d '' manifest; do
+            package=$(dirname "$manifest")
+            description=$(swift package --package-path "$package" describe --type json)
+            test_target_count=$(printf '%s' "$description" | jq '[.targets[] | select(.type == "test")] | length')
+            if [ "$test_target_count" -gt 0 ]; then
+              swift test --package-path "$package"
+            else
+              echo "Package $package has no test targets"
+            fi
+          done
