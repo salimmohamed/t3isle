@@ -45,7 +45,8 @@ public actor T3ServerClient {
 
     public func environment() async -> String? {
         if let environmentId { return environmentId }
-        var request = URLRequest(url: home.serverOrigin().appendingPathComponent(".well-known/t3/environment"))
+        guard let origin = home.serverOrigin() else { return home.environmentId() }
+        var request = URLRequest(url: origin.appendingPathComponent(".well-known/t3/environment"))
         request.timeoutInterval = 5
         if let (data, response) = try? await urlSession.data(for: request),
            (response as? HTTPURLResponse)?.statusCode == 200,
@@ -131,9 +132,9 @@ public actor T3ServerClient {
         let home = home
         let task = Task { [weak self] () throws -> RpcSocket in
             let token = try await signIn.token()
-            var components = URLComponents(url: home.serverOrigin().appendingPathComponent("ws"),
-                                           resolvingAgainstBaseURL: false)
-            components?.scheme = home.serverOrigin().scheme == "https" ? "wss" : "ws"
+            guard let origin = home.serverOrigin() else { throw T3Failure.notRunning }
+            var components = URLComponents(url: origin.appendingPathComponent("ws"), resolvingAgainstBaseURL: false)
+            components?.scheme = origin.scheme == "https" ? "wss" : "ws"
             components?.queryItems = [URLQueryItem(name: "orchestrationProtocol", value: Self.protocolVersion)]
             guard let url = components?.url else { throw T3Failure.notRunning }
             let socket = RpcSocket()
@@ -156,7 +157,8 @@ public actor T3ServerClient {
     }
 
     private func get(_ path: String, query: [URLQueryItem] = [], retried: Bool = false) async throws -> Data {
-        var components = URLComponents(url: home.serverOrigin(), resolvingAgainstBaseURL: false)
+        guard let origin = home.serverOrigin() else { throw T3Failure.notRunning }
+        var components = URLComponents(url: origin, resolvingAgainstBaseURL: false)
         components?.percentEncodedPath = "/" + path
         components?.queryItems = query.isEmpty ? nil : query
         guard let url = components?.url else { throw T3Failure.notRunning }

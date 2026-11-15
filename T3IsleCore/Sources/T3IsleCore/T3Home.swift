@@ -1,7 +1,7 @@
 import Foundation
 
 public struct T3Home: Sendable {
-    public static let fallbackOrigin = URL(string: "http://127.0.0.1:3773")!
+    public static let fallbackOrigin = URL(string: "http://127.0.0.1:3773")
     private static let localHosts: Set<String> = ["127.0.0.1", "localhost", "::1"]
 
     public let root: URL
@@ -23,7 +23,7 @@ public struct T3Home: Sendable {
     public var stateDatabase: URL { root.appendingPathComponent("userdata/statev2.sqlite") }
     public var cliTool: URL { root.appendingPathComponent("bin/t3") }
 
-    public func serverOrigin() -> URL {
+    public func serverOrigin() -> URL? {
         guard let data = try? Data(contentsOf: runtimeFile),
               let origin = Self.origin(fromRuntime: data)
         else { return Self.fallbackOrigin }

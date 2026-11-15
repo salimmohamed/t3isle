@@ -2,7 +2,7 @@ import XCTest
 @testable import T3IsleCore
 
 final class DerivedStateTests: XCTestCase {
-    private let now = WireDate.parse("2026-11-15T19:20:00.000Z")!
+    private let now = Date(timeIntervalSince1970: 1_794_770_400)
 
     private func shell() throws -> ShellSnapshot {
         try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))

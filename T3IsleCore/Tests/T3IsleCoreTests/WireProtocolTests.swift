@@ -23,7 +23,7 @@ final class WireProtocolTests: XCTestCase {
     }
 
     func testOrganizeAndStopCommands() throws {
-        let until = WireDate.parse("2026-11-16T09:00:00.000Z")!
+        let until = try XCTUnwrap(WireDate.parse("2026-11-16T09:00:00.000Z"))
         XCTAssertEqual(try json(.snooze(threadId: "t", until: until))["snoozedUntil"] as? String, "2026-11-16T09:00:00.000Z")
         XCTAssertEqual(try json(.unsnooze(threadId: "t"))["reason"] as? String, "user")
         XCTAssertEqual(try json(.settle(threadId: "t"))["type"] as? String, "thread.settle")
