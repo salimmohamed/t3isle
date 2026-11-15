@@ -10,14 +10,23 @@ final class ServerClientTests: XCTestCase {
         let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner))
 
         let updates = await client.shellUpdates()
+        let disconnected = expectation(description: "stream reports the disconnect")
+        let reader = Task {
+            for await update in updates {
+                if case .disconnected = update {
+                    disconnected.fulfill()
+                    return
+                }
+            }
+        }
         await fulfillment(of: [runner.started], timeout: 5)
         await client.disconnect()
         runner.release()
 
-        try await Self.until { server.accepted > 0 }
+        await fulfillment(of: [disconnected], timeout: 3)
         try await Self.until { server.openConnections == 0 }
         XCTAssertEqual(server.openConnections, 0, "socket stayed open after disconnect")
-        _ = updates
+        reader.cancel()
     }
 
     private static func home(port: UInt16) throws -> T3Home {
@@ -64,7 +73,6 @@ private final class SocketServer: @unchecked Sendable {
     private let listener: NWListener
     private let queue = DispatchQueue(label: "SocketServer")
     private let lock = NSLock()
-    private var acceptedCount = 0
     private var openCount = 0
 
     init() throws {
@@ -84,12 +92,6 @@ private final class SocketServer: @unchecked Sendable {
         listener.cancel()
     }
 
-    var accepted: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return acceptedCount
-    }
-
     var openConnections: Int {
         lock.lock()
         defer { lock.unlock() }
@@ -98,7 +100,6 @@ private final class SocketServer: @unchecked Sendable {
 
     private func accept(_ connection: NWConnection) {
         lock.lock()
-        acceptedCount += 1
         openCount += 1
         lock.unlock()
         connection.start(queue: queue)
