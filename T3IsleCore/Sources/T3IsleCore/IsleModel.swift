@@ -168,6 +168,7 @@ public final class T3IsleModel: ObservableObject {
         self.preferences = preferences
         if preferences.enabled { start() } else { stop() }
         if !preferences.keepFinishedPinned { finished.removeAll() }
+        scheduleRefresh()
         publish()
     }
 
@@ -227,7 +228,6 @@ public final class T3IsleModel: ObservableObject {
 
     private func wantsDetail(_ shell: ThreadShell) -> Bool {
         guard isShown(shell) else { return false }
-        if shell.archivedAt == nil, shell.deletedAt == nil, InboxBuilder.hasPendingRequest(shell) { return true }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
         return mood == .needsYou || mood == .working || mood == .waiting || shell.id == selectedAgentId
