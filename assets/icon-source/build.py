@@ -26,6 +26,10 @@ THREE_SPUR = 7
 CORNER = 1.5
 LOCKUP_WIDTH = T_WIDTH + LETTER_GAP + THREE_WIDTH
 LOCKUP_LEFT = (GRID - LOCKUP_WIDTH) / 2
+WORD_GAP = 22
+L_WIDTH = 34
+E_WIDTH = 34
+E_MIDDLE = 28
 
 EYE_WIDTH = 0.22
 EYE_HEIGHT = 0.30
@@ -45,6 +49,14 @@ BLOB_LIGHT = "#FFC98F"
 BLOB_BASE = "#FF9F43"
 BLOB_DEEP = "#FF8A1F"
 INK = "#121212"
+
+BANNER_WIDTH_PX = 1600
+BANNER_HEIGHT_PX = 400
+BANNER_TOP = 4
+BANNER_LETTERS = {
+    "light": ("#1F2328", "#3A4049"),
+    "dark": (LETTER_TOP, LETTER_BOTTOM),
+}
 
 BASELINE = 80
 BLOB_COVERS_LETTERS_BY = 8
@@ -93,10 +105,11 @@ def rounded_rect(x, y, w, h, tl, tr, br, bl):
     return d + "Z"
 
 
-def half_ring(cx, cy, centerline, weight):
+def half_ring(cx, cy, centerline, weight, opens_right=False):
     outer, inner = centerline + weight / 2, centerline - weight / 2
-    return (f"M{n(cx)},{n(cy-outer)}A{n(outer)},{n(outer)} 0 0 1 {n(cx)},{n(cy+outer)}"
-            f"L{n(cx)},{n(cy+inner)}A{n(inner)},{n(inner)} 0 0 0 {n(cx)},{n(cy-inner)}Z")
+    sweep = 0 if opens_right else 1
+    return (f"M{n(cx)},{n(cy-outer)}A{n(outer)},{n(outer)} 0 0 {sweep} {n(cx)},{n(cy+outer)}"
+            f"L{n(cx)},{n(cy+inner)}A{n(inner)},{n(inner)} 0 0 {1-sweep} {n(cx)},{n(cy-inner)}Z")
 
 
 def letter_t(x, y):
@@ -115,6 +128,45 @@ def letter_three(x, y):
     bottom_bar = rounded_rect(x, y + CAP_HEIGHT - BAR, bowl_x - x, BAR, CORNER, 0, 0, CORNER)
     return (top_bar + half_ring(bowl_x, upper_y, UPPER_BOWL, BAR) + spur
             + half_ring(bowl_x, lower_y, LOWER_BOWL, BAR) + bottom_bar)
+
+
+def letter_i(x, y):
+    return rounded_rect(x, y, STEM, CAP_HEIGHT, CORNER, CORNER, CORNER, CORNER)
+
+
+def letter_s(x, y):
+    upper_x = x + UPPER_BOWL + BAR / 2
+    lower_x = x + THREE_WIDTH - BAR / 2 - LOWER_BOWL
+    upper_y = y + BAR / 2 + UPPER_BOWL
+    waist_y = upper_y + UPPER_BOWL
+    lower_y = waist_y + LOWER_BOWL
+    top_bar = rounded_rect(upper_x, y, x + THREE_WIDTH - THREE_TOP_INSET - upper_x, BAR, 0, CORNER, CORNER, 0)
+    waist = rounded_rect(upper_x, waist_y - BAR / 2, lower_x - upper_x, BAR, 0, 0, 0, 0)
+    bottom_bar = rounded_rect(x, y + CAP_HEIGHT - BAR, lower_x - x, BAR, CORNER, 0, 0, CORNER)
+    return (top_bar + half_ring(upper_x, upper_y, UPPER_BOWL, BAR, opens_right=True) + waist
+            + half_ring(lower_x, lower_y, LOWER_BOWL, BAR) + bottom_bar)
+
+
+def arm(x, y, width):
+    return rounded_rect(x + STEM - CORNER, y, width - STEM + CORNER, BAR, 0, CORNER, CORNER, 0)
+
+
+def letter_l(x, y):
+    return rounded_rect(x, y, STEM, CAP_HEIGHT, CORNER, CORNER, 0, CORNER) + arm(x, y + CAP_HEIGHT - BAR, L_WIDTH)
+
+
+def letter_e(x, y):
+    return (rounded_rect(x, y, STEM, CAP_HEIGHT, CORNER, 0, 0, CORNER) + arm(x, y, E_WIDTH)
+            + arm(x, y + (CAP_HEIGHT - BAR) / 2, E_MIDDLE) + arm(x, y + CAP_HEIGHT - BAR, E_WIDTH))
+
+
+def isle(x):
+    top = BASELINE - CAP_HEIGHT
+    path = ""
+    for letter, width in ((letter_i, STEM), (letter_s, THREE_WIDTH), (letter_l, L_WIDTH), (letter_e, E_WIDTH)):
+        path += letter(x, top)
+        x += width + LETTER_GAP
+    return path, x - LETTER_GAP
 
 
 def lockup():
@@ -291,6 +343,41 @@ def menubar_svg():
             f'  <path d="{outline}{holes}" fill="#000000" fill-rule="evenodd"/>\n</svg>\n')
 
 
+def banner_svg(theme):
+    points = placed_blob()
+    blob = smooth_closed(points)
+    isle_left = LOCKUP_LEFT + LOCKUP_WIDTH + WORD_GAP
+    isle_path, right = isle(isle_left)
+    letters = lockup() + isle_path
+    left = min(LOCKUP_LEFT, min(p[0] for p in points))
+    unit = BANNER_HEIGHT_PX / (GRID - BANNER_TOP)
+    shift_x = BANNER_WIDTH_PX / 2 / unit - (left + right) / 2
+    top_color, bottom_color = BANNER_LETTERS[theme]
+    rim_top = min(p[1] for p in points)
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{BANNER_WIDTH_PX}" height="{BANNER_HEIGHT_PX}" viewBox="0 0 {BANNER_WIDTH_PX} {BANNER_HEIGHT_PX}">
+  <title>T3 Isle</title>
+  <defs>
+    <linearGradient id="letters" gradientUnits="userSpaceOnUse" x1="0" y1="{n(BASELINE-CAP_HEIGHT)}" x2="0" y2="{n(BASELINE)}">
+      <stop offset="0" stop-color="{top_color}"/><stop offset="1" stop-color="{bottom_color}"/>
+    </linearGradient>
+    <linearGradient id="rim" gradientUnits="userSpaceOnUse" x1="0" y1="{n(rim_top)}" x2="0" y2="{n(rim_top + 14)}">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    {blob_gradient(points)}
+    <filter id="cast" filterUnits="userSpaceOnUse" x="-16" y="-16" width="{GRID+32}" height="{GRID+32}"><feGaussianBlur stdDeviation="1.1"/></filter>
+    <clipPath id="letters-clip"><path d="{letters}"/></clipPath>
+    <clipPath id="blob-clip"><path d="{blob}"/></clipPath>
+    <clipPath id="frame"><rect width="{BANNER_WIDTH_PX}" height="{BANNER_HEIGHT_PX}"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <g transform="scale({n(unit)}) translate({n(shift_x)} {n(-BANNER_TOP)})">
+{icon_layers(blob, letters, small=False)}
+    </g>
+  </g>
+</svg>
+"""
+
+
 def social_svg():
     inner = icon_svg().split("\n", 2)[2].rsplit("</svg>", 1)[0]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">\n'
@@ -310,6 +397,8 @@ def main(out_dir):
     write(os.path.join(out_dir, "icon-small.svg"), icon_svg(small=True))
     write(os.path.join(out_dir, "menubar.svg"), menubar_svg())
     write(os.path.join(out_dir, "social-preview.svg"), social_svg())
+    for theme in BANNER_LETTERS:
+        write(os.path.join(out_dir, f"banner-{theme}.svg"), banner_svg(theme))
     manifest, layers = icon_composer_project()
     project = os.path.join(HERE, "AppIcon.icon")
     write(os.path.join(project, "icon.json"), json.dumps(manifest, indent=2) + "\n")
