@@ -43,6 +43,7 @@ final class IsleModelTests: XCTestCase {
         let model = try await startedModel()
         let questions = model.prompts.filter { !$0.isApproval }
         XCTAssertEqual(questions.count, 2)
+        XCTAssertEqual(questions.map(\.title), ["Retries", "Backoff"])
         model.answer(questions[0], with: .choices(["5xx"]))
         XCTAssertEqual(model.prompts.filter { !$0.isApproval }.map(\.id), [questions[1].id])
         model.answer(questions[1], with: .text("2 minutes"))

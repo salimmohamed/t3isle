@@ -339,13 +339,27 @@ public final class T3IsleModel: ObservableObject {
         let liveRequestIds = Set(live.compactMap { $0.pendingRuntimeRequest?.id })
         let candidates = detailPrompts.values.flatMap { $0 }
             .filter { liveRequestIds.contains($0.requestId) || (shells[$0.threadId]?.pendingRuntimeRequest != nil) }
-        let pending = candidates.filter { answered[$0.id] == nil }
-            .sorted { ($0.createdAt ?? .distantPast, $0.id) < ($1.createdAt ?? .distantPast, $1.id) }
+        let pending = Self.ordered(candidates.filter { answered[$0.id] == nil })
         answered = answered.filter { key, _ in candidates.contains { $0.id == key } }
         let ids = Set(pending.map(\.id))
         if !ids.subtracting(knownPromptIds).isEmpty { promptArrivals += 1 }
         knownPromptIds = ids
         if prompts != pending { prompts = pending }
+    }
+
+    static func ordered(_ prompts: [PendingPrompt]) -> [PendingPrompt] {
+        prompts.enumerated().sorted { lhs, rhs in
+            let left = (lhs.element.createdAt ?? .distantPast, lhs.element.threadId, lhs.element.requestId)
+            let right = (rhs.element.createdAt ?? .distantPast, rhs.element.threadId, rhs.element.requestId)
+            if left != right { return left < right }
+            return questionIndex(lhs.element) < questionIndex(rhs.element)
+        }
+        .map(\.element)
+    }
+
+    private static func questionIndex(_ prompt: PendingPrompt) -> Int {
+        if case .question(_, let index, _) = prompt.kind { return index }
+        return -1
     }
 
     private func publishAgents(now: Date) {
