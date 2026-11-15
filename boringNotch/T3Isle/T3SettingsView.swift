@@ -28,6 +28,7 @@ struct T3SettingsView: View {
                 Defaults.Toggle(key: .t3QuestionSound) { Text("Play a sound for new questions") }
                 Defaults.Toggle(key: .t3KeepFinishedPinned) { Text("Keep finished agents pinned as Done") }
                 Defaults.Toggle(key: .t3ThreadActions) { Text("Snooze and settle threads from the notch") }
+                Defaults.Toggle(key: .t3ShowSubagents) { Text("Show subagent threads") }
             } header: {
                 Text("Behaviour")
             }
