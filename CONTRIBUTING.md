@@ -10,6 +10,7 @@ You can contribute in many ways: writing code, improving documentation, reportin
 
 - [Working on T3 Isle](#working-on-t3-isle)
   - [How it talks to T3 Code](#how-it-talks-to-t3-code)
+  - [Syncing from boring.notch](#syncing-from-boringnotch)
 - [Localizations](#localizations)
 - [Contributing Code](#contributing-code)
   - [Before You Start](#before-you-start)
@@ -43,6 +44,10 @@ T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/u
 - Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`.
 
 Set `T3CODE_HOME` to use a different T3 data directory.
+
+### Syncing from boring.notch
+
+The upstream `cicd.yml`, `base_ref_check.yml` and `base_ref_check_comment.yml` workflows were removed on purpose. If an upstream merge hits a modify/delete conflict on them, resolve it with `git rm`.
 
 ## Localizations
 
