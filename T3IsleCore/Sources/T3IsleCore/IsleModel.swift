@@ -5,11 +5,14 @@ public struct T3Preferences: Equatable, Sendable {
     public var enabled = true
     public var threadActions = true
     public var keepFinishedPinned = true
+    public var showSubagents = false
 
-    public init(enabled: Bool = true, threadActions: Bool = true, keepFinishedPinned: Bool = true) {
+    public init(enabled: Bool = true, threadActions: Bool = true, keepFinishedPinned: Bool = true,
+                showSubagents: Bool = false) {
         self.enabled = enabled
         self.threadActions = threadActions
         self.keepFinishedPinned = keepFinishedPinned
+        self.showSubagents = showSubagents
     }
 }
 
@@ -214,7 +217,16 @@ public final class T3IsleModel: ObservableObject {
         publish()
     }
 
+    private func isShown(_ shell: ThreadShell) -> Bool {
+        preferences.showSubagents || !shell.isSubagent
+    }
+
+    private var visibleShells: [String: ThreadShell] {
+        shells.filter { isShown($0.value) }
+    }
+
     private func wantsDetail(_ shell: ThreadShell) -> Bool {
+        guard isShown(shell) else { return false }
         if shell.archivedAt == nil, shell.deletedAt == nil, InboxBuilder.hasPendingRequest(shell) { return true }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
@@ -299,7 +311,7 @@ public final class T3IsleModel: ObservableObject {
     private func publish(prune: Bool = false) {
         let names = Dictionary(providers.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let now = Date()
-        var built = InboxBuilder(providerNames: names).threads(from: Array(shells.values), projects: projects, now: now)
+        var built = InboxBuilder(providerNames: names).threads(from: Array(visibleShells.values), projects: projects, now: now)
         for index in built.indices {
             let id = built[index].id
             if built[index].mood.isBusy, let line = details[id]?.latestLine {
@@ -350,10 +362,11 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func publishPrompts() {
-        let live = shells.values.filter { InboxBuilder.hasPendingRequest($0) }
+        let visible = visibleShells
+        let live = visible.values.filter { InboxBuilder.hasPendingRequest($0) }
         let liveRequestIds = Set(live.compactMap { $0.pendingRuntimeRequest?.id })
         let candidates = detailPrompts.values.flatMap { $0 }
-            .filter { liveRequestIds.contains($0.requestId) || (shells[$0.threadId]?.pendingRuntimeRequest != nil) }
+            .filter { liveRequestIds.contains($0.requestId) || (visible[$0.threadId]?.pendingRuntimeRequest != nil) }
         let pending = Self.ordered(candidates.filter { answered[$0.id] == nil })
         answered = answered.filter { key, _ in candidates.contains { $0.id == key } }
         let ids = Set(pending.map(\.id))
@@ -378,10 +391,11 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func publishAgents(now: Date) {
+        let visible = visibleShells
         let active = threads.filter { $0.mood == .working || $0.mood == .waiting || $0.mood == .needsYou }
         let activeIds = Set(active.map(\.id))
         if preferences.keepFinishedPinned {
-            for id in wasWorking.subtracting(activeIds) where !dismissed.contains(id) && shells[id] != nil {
+            for id in wasWorking.subtracting(activeIds) where !dismissed.contains(id) && visible[id] != nil {
                 finished[id] = finished[id] ?? now
             }
         }
@@ -391,7 +405,7 @@ public final class T3IsleModel: ObservableObject {
         }
         wasWorking = activeIds
         let doneThreads = finished.keys.compactMap { id in
-            threads.first { $0.id == id } ?? shells[id].map {
+            threads.first { $0.id == id } ?? visible[id].map {
                 InboxBuilder().thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now)
             }
         }
