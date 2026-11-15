@@ -109,7 +109,7 @@ public actor T3ServerClient {
                 guard let self else { return }
                 switch event {
                 case .chunk(let values):
-                    let updates = values.compactMap(Self.shellUpdate)
+                    let updates = values.flatMap(Self.shellUpdates)
                     Task { for update in updates { await self.broadcast(update) } }
                 case .exit(let result):
                     if case .failure(let failure) = result {
@@ -202,6 +202,18 @@ public actor T3ServerClient {
     static func jsonObject(_ payload: [String: AnyWireValue]) throws -> [String: Any] {
         let data = try JSONEncoder().encode(payload)
         return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
+    static func shellUpdates(_ value: Any) -> [ShellUpdate] {
+        guard let object = value as? [String: Any], object["kind"] as? String == "snapshot",
+              object["resolvedRepositoryIdentityRoots"] != nil
+        else { return shellUpdate(value).map { [$0] } ?? [] }
+        struct Enrichment: Decodable { let snapshot: Projects }
+        struct Projects: Decodable { let projects: [ProjectShell] }
+        guard let data = try? JSONSerialization.data(withJSONObject: object),
+              let enrichment = try? WireDecoder.make().decode(Enrichment.self, from: data)
+        else { return [] }
+        return enrichment.snapshot.projects.map { .projectUpdated($0) }
     }
 
     static func shellUpdate(_ value: Any) -> ShellUpdate? {

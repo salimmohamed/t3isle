@@ -46,3 +46,20 @@ final class LiveServerTests: XCTestCase {
         await client.disconnect()
     }
 }
+
+@MainActor
+final class LiveModelTests: XCTestCase {
+    func testModelListsLiveInbox() async throws {
+        guard let token = ProcessInfo.processInfo.environment["T3ISLE_TOKEN"], !token.isEmpty else {
+            throw XCTSkip("Set T3ISLE_TOKEN to run against a live T3 server.")
+        }
+        let store = MemoryTokenStore(StoredToken(token: token, expiresAt: Date().addingTimeInterval(3600)))
+        let model = T3IsleModel(source: LiveSource(tokenStore: store), opener: { _ in })
+        model.start()
+        let deadline = Date().addingTimeInterval(6)
+        while model.threads.isEmpty && Date() < deadline { try await Task.sleep(nanoseconds: 100_000_000) }
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertFalse(model.threads.isEmpty)
+        model.stop()
+    }
+}

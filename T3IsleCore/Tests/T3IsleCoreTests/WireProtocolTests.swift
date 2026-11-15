@@ -59,6 +59,21 @@ final class WireProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.threads.count, 8)
     }
 
+    func testEnrichmentSnapshotOnlyUpdatesProjects() {
+        let enrichment: [String: Any] = [
+            "kind": "snapshot",
+            "resolvedRepositoryIdentityRoots": ["/Users/dev/web"],
+            "snapshot": ["snapshotSequence": 9, "threads": [] as [Any], "archivedThreads": [] as [Any],
+                         "projects": [["id": "p-web", "title": "web", "workspaceRoot": "/Users/dev/web"]]],
+        ]
+        let updates = T3ServerClient.shellUpdates(enrichment)
+        XCTAssertEqual(updates.count, 1)
+        guard case .projectUpdated(let project) = updates[0] else { return XCTFail("project update expected") }
+        XCTAssertEqual(project.id, "p-web")
+        let authoritative: [String: Any] = ["kind": "snapshot", "snapshot": ["threads": [] as [Any], "projects": [] as [Any], "snapshotSequence": 1]]
+        guard case .snapshot? = T3ServerClient.shellUpdates(authoritative).first else { return XCTFail("snapshot expected") }
+    }
+
     func testIssuedSessionParsing() throws {
         let data = Data(#"{"sessionId":"s1","token":"abc","expiresAt":"2026-12-15T20:03:06.708Z"}"#.utf8)
         let token = try T3SignIn.parseIssued(data)

@@ -208,6 +208,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func wantsDetail(_ shell: ThreadShell) -> Bool {
+        if shell.archivedAt == nil, shell.deletedAt == nil, InboxBuilder.hasPendingRequest(shell) { return true }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
         return mood == .needsYou || mood == .working || mood == .waiting || shell.id == selectedAgentId
