@@ -94,7 +94,7 @@ public final class T3IsleModel: ObservableObject {
 
     private let source: T3Source
     private let opener: (URL) -> Void
-    private var preferences = T3Preferences()
+    @Published private var preferences = T3Preferences()
     private var shells: [String: ThreadShell] = [:]
     private var projects: [String: ProjectShell] = [:]
     private var details: [String: AgentDetail] = [:]
@@ -128,6 +128,7 @@ public final class T3IsleModel: ObservableObject {
     public var workingCount: Int { threads.filter { $0.mood.isBusy }.count }
 
     public var closedPresence: ClosedPresence {
+        guard preferences.enabled else { return .none }
         if needsAttention || workingCount > 0 || banner != nil { return .active }
         return threads.isEmpty ? .none : .threads
     }
