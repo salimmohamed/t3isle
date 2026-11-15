@@ -238,27 +238,3 @@ final class LoopingLayerView: NSView {
         CATransaction.commit()
     }
 }
-
-struct HoverTracker: NSViewRepresentable {
-    let onChange: (Bool) -> Void
-
-    func makeNSView(context: Context) -> HoverTrackerView { HoverTrackerView(onChange: onChange) }
-    func updateNSView(_ view: HoverTrackerView, context: Context) { view.onChange = onChange }
-}
-
-final class HoverTrackerView: NSView {
-    var onChange: (Bool) -> Void
-
-    init(onChange: @escaping (Bool) -> Void) {
-        self.onChange = onChange
-        super.init(frame: .zero)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                                       owner: self))
-    }
-
-    required init?(coder: NSCoder) { nil }
-
-    override func mouseEntered(with event: NSEvent) { onChange(true) }
-    override func mouseExited(with event: NSEvent) { onChange(false) }
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-}

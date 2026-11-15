@@ -114,7 +114,7 @@ private struct AgentCardView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressScale())
-        .background(HoverTracker { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } })
+        .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } }
     }
 
     private var stateText: String {
@@ -239,7 +239,7 @@ struct IconButton: View {
         }
         .buttonStyle(PressScale())
         .help(help)
-        .background(HoverTracker { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } })
+        .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } }
     }
 }
 

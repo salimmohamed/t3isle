@@ -214,7 +214,7 @@ struct SectionHeader: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(HoverTracker { hovered = $0 })
+        .onHover { hovered = $0 }
     }
 }
 
@@ -298,13 +298,11 @@ struct ThreadRow: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hovered ? Color.white.opacity(0.07) : .clear))
-        .background {
-            HoverTracker { inside in
-                onHover(inside)
-                withAnimation(.easeOut(duration: 0.15)) {
-                    hovered = inside
-                    if !inside { choosingSnooze = false }
-                }
+        .onHover { inside in
+            onHover(inside)
+            withAnimation(.easeOut(duration: 0.15)) {
+                hovered = inside
+                if !inside { choosingSnooze = false }
             }
         }
         .onDisappear { onHover(false) }
@@ -420,7 +418,7 @@ struct RowButton: View {
         }
         .buttonStyle(PressScale())
         .help(help)
-        .background(HoverTracker { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } })
+        .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } }
     }
 }
 
@@ -460,7 +458,7 @@ private struct SnoozeChip: View {
         }
         .buttonStyle(PressScale())
         .help(help)
-        .background(HoverTracker { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } })
+        .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } }
         .opacity(shown ? 1 : 0)
         .offset(x: shown || reduceMotion ? 0 : 8)
         .onAppear { withAnimation(.easeOut(duration: 0.2).delay(delay)) { shown = true } }

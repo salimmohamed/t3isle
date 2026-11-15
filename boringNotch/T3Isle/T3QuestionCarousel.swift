@@ -190,7 +190,7 @@ struct PromptButton: View {
         }
         .buttonStyle(PressScale())
         .help(help ?? title)
-        .background(HoverTracker { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } })
+        .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovered = inside } }
     }
 
     private var foreground: Color {

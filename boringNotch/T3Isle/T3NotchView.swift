@@ -46,6 +46,7 @@ struct T3NotchView: View {
                             PromptButton(title: "Undo", style: .ghost) { model.undo() }
                         }
                     }
+                    .fixedSize()
                     .id(notice.id)
                     .transition(.opacity.combined(with: .offset(y: 4)).combined(with: .blurred))
                 } else {

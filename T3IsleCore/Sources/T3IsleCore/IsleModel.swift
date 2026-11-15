@@ -291,7 +291,12 @@ public final class T3IsleModel: ObservableObject {
         let now = Date()
         var built = InboxBuilder(providerNames: names).threads(from: Array(shells.values), projects: projects, now: now)
         for index in built.indices {
-            if built[index].mood.isBusy, let line = details[built[index].id]?.latestLine { built[index].line = line }
+            let id = built[index].id
+            if built[index].mood.isBusy, let line = details[id]?.latestLine {
+                built[index].line = line
+            } else if built[index].mood == .needsYou, let prompt = detailPrompts[id]?.first {
+                built[index].line = (prompt.detail ?? prompt.title).components(separatedBy: .newlines).first
+            }
         }
         if heldBy == nil || Self.sameLayout(rawThreads, built) {
             rawThreads = built
