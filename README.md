@@ -53,9 +53,9 @@ Tests and the details of how T3 Isle talks to T3 Code are in [CONTRIBUTING.md](C
 
 ## What's next
 
-The plan is to borrow some of my favorite features from those other notch apps and add a few of my own, like a prompter, live activities, clipboard history and a little Pomodoro timer. Each one would be optional and switched on in settings. Some of it overlaps with what Raycast already does, so a few of these are still a maybe.
+The plan is to borrow features from my favorite other notch apps and add a few of my own, like a prompter, live activities, clipboard history and a little Pomodoro timer. Honest note: ironically, a lot of this is already covered by [Raycast](https://www.raycast.com/).
 
-Feel free to open pull requests or open issues with recommendations. Open to ideas and shit.
+Feel free to open pull requests or open issues with recommendations.
 
 ## Credits
 
