@@ -16,7 +16,7 @@
 
 T3 Isle is a free, open-source notch app for macOS. It's a fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch), so everything boring.notch does still works: music controls, the calendar, HUDs, the shelf and the rest. On top of that, it shows what your [T3 Code](https://t3.codes) agents are up to and lets you answer them without switching windows.
 
-I'd been using boring.notch along with Alcove, DynamicLake Pro and NotchNook Pro, and paying for those last three got old. So I forked boring.notch and made my own, starting with T3 Code since my whole workflow revolves around it (T3 Code is goated).
+I'd been using boring.notch along with [Alcove](https://tryalcove.com/), [DynamicLake Pro](https://www.dynamiclake.com/) and [NotchNook Pro](https://getnotchnook.com/), and paying for those last three got old. So I forked boring.notch and made my own, starting with T3 Code since my whole workflow revolves around it (T3 Code is goated).
 
 ## What's in the notch
 
@@ -50,6 +50,12 @@ open "build/Build/Products/Debug/T3 Isle.app" --args --demo
 ```
 
 Tests and the details of how T3 Isle talks to T3 Code are in [CONTRIBUTING.md](CONTRIBUTING.md#working-on-t3-isle).
+
+## What's next
+
+The plan is to borrow some of my favorite features from those other notch apps and add a few of my own, like a prompter, live activities, clipboard history and a little Pomodoro timer. Each one would be optional and switched on in settings. Some of it overlaps with what Raycast already does, so a few of these are still a maybe.
+
+Feel free to open pull requests or open issues with recommendations. Open to ideas and shit.
 
 ## Credits
 
