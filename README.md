@@ -48,7 +48,7 @@ T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/u
 - Usage limits come from `~/.t3/caches/<provider>.json`.
 - Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`.
 
-Set `T3CODE_HOME` to use a different T3 data directory. Turning off "Snooze and settle threads" in Settings revokes the session.
+Set `T3CODE_HOME` to use a different T3 data directory.
 
 ## Credits
 

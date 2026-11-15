@@ -30,12 +30,6 @@ final class T3IsleRuntime {
             self?.model.apply(T3Preferences(enabled: enabled, threadActions: actions, keepFinishedPinned: pinned))
         }
         .store(in: &cancellables)
-        Defaults.publisher(.t3ThreadActions)
-            .dropFirst()
-            .filter { !$0.newValue }
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.model.signOut() }
-            .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
 
