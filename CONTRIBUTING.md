@@ -21,6 +21,7 @@ You can contribute in many ways: writing code, improving documentation, reportin
 - [Reporting Bugs](#reporting-bugs)
 - [Feature Requests](#feature-requests)
 - [Getting Help](#getting-help)
+- [Cutting a release](#cutting-a-release)
 
 ## Working on T3 Isle
 
@@ -157,6 +158,25 @@ If you need help or have questions:
 - Search existing issues for similar questions
 - Open a new issue with the "question" label
 - Join our [community Discord server](https://discord.com/servers/boring-notch-1269588937320566815)
+
+## Cutting a release
+
+T3 Isle ships through GitHub Releases only. There is no nightly channel and no in-app updater.
+
+1. Make sure `main` has what you want to ship and its checks are green.
+2. Tag that commit and push the tag:
+   ```bash
+   git fetch origin
+   git tag v0.2.0 origin/main
+   git push origin v0.2.0
+   ```
+3. The **T3 Isle release** workflow builds the app with the tag's version (`0.2.0`), packages `T3-Isle.dmg`, and publishes a GitHub Release with the DMG and generated notes.
+
+Tags must look like `vX.Y.Z`. Any other `v*` tag fails the build, and no release is created.
+
+To build a test DMG without releasing, open the workflow in the Actions tab, click **Run workflow**, and download `T3-Isle.dmg` from the run's artifacts. Pull requests that change the workflow or `Configuration/dmg/` build one the same way.
+
+The app is ad-hoc signed and not notarized, so macOS blocks the first launch until the user clicks **Open Anyway** in System Settings → Privacy & Security. Developer ID signing and notarization need a paid Apple Developer account and are not set up yet.
 
 ---
 
