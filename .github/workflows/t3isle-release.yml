@@ -139,9 +139,12 @@ jobs:
           **Install**
 
           1. Download `T3-Isle.dmg`, open it, and drag **T3 Isle** onto **Applications**.
-          2. This build is not notarized, so macOS blocks the first launch. Open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to the T3 Isle message. Confirm with your password.
+          2. Open T3 Isle. This build is not notarized, so macOS says “T3 Isle.app” Not Opened. Click **Done**.
+          3. Open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to “T3 Isle.app” was blocked to protect your Mac. Confirm with your password.
 
-          Or clear the download flag in Terminal: `xattr -dr com.apple.quarantine "/Applications/T3 Isle.app"`
+          Or skip steps 2 and 3 by clearing the download flag in Terminal: `xattr -dr com.apple.quarantine "/Applications/T3 Isle.app"`
+
+          After an update, macOS may ask for your login password so T3 Isle can read its saved key. Enter it and click **Always Allow**.
           NOTES
           gh release create "$GITHUB_REF_NAME" "dist/$DMG_NAME" \
             --repo "$GITHUB_REPOSITORY" \
