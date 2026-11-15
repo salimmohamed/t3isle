@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+source_dir=$(cd "${1:-.}" && pwd -P)
+work_dir=$(cd "$(mktemp -d)" && pwd -P)
+trap 'rm -rf "$work_dir"' EXIT
+
+cd "$source_dir"
+cp .swiftlint.yml "$work_dir/"
+find . -name '*.swift' -not -path '*/.build/*' -print0 | tar --null -cf - -T - | tar -xf - -C "$work_dir"
+
+cd "$work_dir"
+find . -name '*.swift' -exec sh -c '
+  for file; do
+    sed "s/swiftlint:/swiftlint-directive-not-allowed:/g" "$file" > "$file.neutralized"
+    mv "$file.neutralized" "$file"
+  done
+' sh {} +
+
+if ! lint_output=$(swiftlint lint --quiet --no-cache 2>&1); then
+  printf '%s\n' "$lint_output" | sed "s|$work_dir/||g"
+  exit 1
+fi

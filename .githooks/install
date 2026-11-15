@@ -1,0 +1,32 @@
+#!/bin/sh
+set -eu
+
+source_dir=$(cd "$(dirname "$0")" && pwd)
+hooks_dir="$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
+hooks_path=$(git config --get core.hooksPath || true)
+
+if [ -n "$hooks_path" ]; then
+  echo "core.hooksPath is set to $hooks_path, so hooks in $hooks_dir would not run. Unset it with: git config --unset core.hooksPath" >&2
+  exit 1
+fi
+
+git config commit.cleanup strip
+mkdir -p "$hooks_dir"
+
+for hook in pre-commit commit-msg; do
+  target="$hooks_dir/$hook"
+  if { [ -e "$target" ] || [ -L "$target" ]; } && ! cmp -s "$source_dir/dispatch" "$target"; then
+    if [ -e "$target.local" ] || [ -L "$target.local" ]; then
+      echo "Both $target and $target.local exist. Move one aside and rerun." >&2
+      exit 1
+    fi
+    mv "$target" "$target.local"
+    echo "Moved the existing $hook hook to $target.local. It still runs."
+  fi
+  cp "$source_dir/dispatch" "$target.new"
+  chmod +x "$target.new"
+  mv -f "$target.new" "$target"
+done
+
+echo "Installed hook dispatchers in $hooks_dir for every worktree of this clone."
+echo "Each runs the checked-out branch's .githooks/<hook>, then <hook>.local from that directory if present."
