@@ -1,0 +1,43 @@
+{
+  "snapshotSequence": 812,
+  "projection": {
+    "thread": {"id": "t-question", "title": "Refactor billing webhooks", "providerInstanceId": "claudeAgent",
+               "modelSelection": {"instanceId": "claudeAgent", "model": "claude-opus-5-5"}, "branch": "billing"},
+    "runs": [
+      {"id": "run-old", "ordinal": 1, "status": "completed", "requestedAt": "2026-11-15T17:00:00.000Z", "startedAt": "2026-11-15T17:00:01.000Z", "completedAt": "2026-11-15T17:30:00.000Z"},
+      {"id": "run-q", "ordinal": 2, "status": "waiting", "requestedAt": "2026-11-15T18:59:59.000Z", "startedAt": "2026-11-15T19:00:00.000Z", "completedAt": null, "workStartedAt": "2026-11-15T19:00:02.000Z",
+       "modelSelection": {"instanceId": "claudeAgent", "model": "claude-opus-5-5"}, "providerInstanceId": "claudeAgent"}
+    ],
+    "plans": [
+      {"kind": "todo_list", "id": "plan-1", "threadId": "t-question", "runId": "run-q", "nodeId": "n", "status": "active",
+       "steps": [
+         {"id": "s1", "text": "Read webhook handler", "status": "completed"},
+         {"id": "s2", "text": "Add retry policy", "status": "running"},
+         {"id": "s3", "text": "Write tests", "status": "pending"}
+       ]}
+    ],
+    "runtimeRequests": [
+      {"id": "req-old", "nodeId": "n", "providerTurnId": "pt", "kind": "command", "status": "resolved", "createdAt": "2026-11-15T19:01:00.000Z"},
+      {"id": "req-cmd", "nodeId": "n", "providerTurnId": "pt", "kind": "command", "status": "pending",
+       "responseCapability": {"type": "live", "providerSessionId": "ps", "supportsFeedback": true}, "createdAt": "2026-11-15T19:04:00.000Z"},
+      {"id": "req-q", "nodeId": "n", "providerTurnId": "pt", "kind": "user_input", "status": "pending",
+       "responseCapability": {"type": "live", "providerSessionId": "ps"}, "createdAt": "2026-11-15T19:05:00.000Z"},
+      {"id": "req-auth", "nodeId": "n", "providerTurnId": "pt", "kind": "auth_refresh", "status": "pending", "createdAt": "2026-11-15T19:06:00.000Z"}
+    ],
+    "turnItems": [
+      {"id": "i1", "type": "command_execution", "runId": "run-q", "ordinal": 1, "status": "completed", "input": "cd /Users/dev/api && swift test --filter Webhooks", "updatedAt": "2026-11-15T19:01:00.000Z"},
+      {"id": "i2", "type": "file_change", "runId": "run-q", "ordinal": 2, "status": "completed", "fileName": "/Users/dev/api/Sources/Webhooks.swift"},
+      {"id": "i3", "type": "approval_request", "runId": "run-q", "ordinal": 3, "status": "waiting", "requestId": "req-cmd", "requestKind": "command",
+       "prompt": "rm -rf .build", "reason": "Clean build", "options": [{"decision": "accept", "label": "Yes"}, {"decision": "acceptForSession", "label": "Yes, this session"}, {"decision": "decline", "label": "No"}]},
+      {"id": "i4", "type": "user_input_request", "runId": "run-q", "ordinal": 4, "status": "waiting", "requestId": "req-q",
+       "questions": [
+         {"id": "q1", "header": "Retries", "question": "Should retries run on every webhook?", "options": [{"label": "Every webhook", "description": "Retry all"}, {"label": "Only 5xx", "description": "Retry server errors", "value": "5xx"}]},
+         {"id": "q2", "header": "Backoff", "question": "Max backoff?", "options": [], "allowCustomAnswer": true}
+       ]},
+      {"id": "i5", "type": "command_execution", "runId": "run-q", "ordinal": 5, "status": "running", "input": "swift build"},
+      {"id": "i0", "type": "command_execution", "runId": "run-old", "ordinal": 0, "status": "completed", "input": "ls"}
+    ],
+    "providerSessions": [{"driver": "claudeAgent", "providerInstanceId": "claudeAgent", "status": "running", "model": "claude-opus-5-5"}],
+    "messages": [], "attempts": [], "nodes": [], "updatedAt": "2026-11-15T19:06:00.000Z"
+  }
+}

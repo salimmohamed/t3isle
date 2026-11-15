@@ -1,0 +1,12 @@
+{
+  "displayName": "Claude",
+  "enabled": true,
+  "checkedAt": "2026-11-15T19:55:00.264Z",
+  "usageLimits": {
+    "checkedAt": "2026-11-15T19:55:00.868Z",
+    "windows": [
+      {"id": "five_hour", "kind": "session", "label": "Session", "windowDurationMins": 300, "usedPercent": 22, "resetsAt": "2026-11-15T21:29:59.966Z"},
+      {"id": "seven_day", "kind": "weekly", "label": "Weekly", "windowDurationMins": 10080, "usedPercent": 21, "resetsAt": "2026-11-20T16:59:59.966Z"}
+    ]
+  }
+}
