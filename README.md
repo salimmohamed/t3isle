@@ -34,12 +34,21 @@ swift test --package-path T3IsleCore
 To try the T3 views without live agents, launch the app with `--demo`:
 
 ```sh
-open "build/Build/Products/Debug/T3 Isle.app" --args --demo
+open "path/to/T3 Isle.app" --args --demo
 ```
+
+Demo mode uses made-up agents, questions, plans and quota, and never contacts T3.
 
 ## How it talks to T3 Code
 
-T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/userdata/server-runtime.json` and signs in the way T3 links its own clients: a one-time pairing code from the `t3` command-line tool, exchanged for a token that is stored in the Keychain. Usage limits come from `~/.t3/caches/<provider>.json`.
+T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/userdata/server-runtime.json` (falling back to `http://127.0.0.1:3773`) and signs in with T3's own command-line tool (`t3 auth session issue`), asking only for the `orchestration:read` and `orchestration:operate` scopes. The session token is stored in the Keychain.
+
+- Threads, questions and approvals stream live over T3's WebSocket API (`orchestration.subscribeShell`). Thread details (plan, activity, question text) come from `/api/orchestration/threads/<id>/bounded`.
+- Answers, approvals, interrupts, snooze and settle are sent as T3 orchestration commands (`runtime-request.respond`, `thread.stop`, `thread.snooze`, `thread.settle`, …).
+- Usage limits come from `~/.t3/caches/<provider>.json`.
+- Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`.
+
+Set `T3CODE_HOME` to use a different T3 data directory. Turning off "Snooze and settle threads" in Settings revokes the session.
 
 ## Credits
 
