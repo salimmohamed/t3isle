@@ -30,6 +30,9 @@ struct SettingsView: View {
                 NavigationLink(value: "General") {
                     Label("General", systemImage: "gear")
                 }
+                NavigationLink(value: "T3") {
+                    Label("T3 Code", systemImage: "sparkles")
+                }
                 NavigationLink(value: "Appearance") {
                     Label("Appearance", systemImage: "eye")
                 }
@@ -73,6 +76,8 @@ struct SettingsView: View {
                 switch selectedTab {
                 case "General":
                     GeneralSettings()
+                case "T3":
+                    T3SettingsView()
                 case "Appearance":
                     Appearance()
                 case "Media":
@@ -865,12 +870,10 @@ struct About: View {
                     Text("Version info")
                 }
 
-                UpdaterSettingsView(updater: updaterController.updater)
-
                 HStack(spacing: 30) {
                     Spacer(minLength: 0)
                     Button {
-                        if let url = URL(string: "https://github.com/TheBoredTeam/boring.notch") {
+                        if let url = URL(string: "https://github.com/salimmohamed/t3isle") {
                             NSWorkspace.shared.open(url)
                         }
                     } label: {
@@ -889,7 +892,7 @@ struct About: View {
             }
             VStack(spacing: 0) {
                 Divider()
-                Text("Made with 🫶🏻 by not so boring not.people")
+                Text("T3 Isle is a fork of boring.notch (GPL-3.0). Not affiliated with T3 or T3 Code.")
                     .foregroundStyle(.secondary)
                     .padding(.top, 5)
                     .padding(.bottom, 7)
@@ -903,7 +906,6 @@ struct About: View {
             //                openWindow(id: "onboarding")
             //            }
             //            .controlSize(.extraLarge)
-            CheckForUpdatesView(updater: updaterController.updater)
         }
         .navigationTitle("About")
     }

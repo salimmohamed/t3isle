@@ -24,7 +24,7 @@ struct TabSelectionView: View {
     @Namespace var animation
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(tabs) { tab in
+            ForEach(T3Tabs.visible(tabs)) { tab in
                     TabButton(label: tab.label, icon: tab.icon, selected: coordinator.currentView == tab.view) {
                         withAnimation(.smooth) {
                             coordinator.currentView = tab.view

@@ -308,15 +308,12 @@ class WorkflowSmokeTests(unittest.TestCase):
             self.assertNotIn(removed, self.nightly)
 
     def test_built_product_is_named_boring_notch(self) -> None:
-        # The Xcode product and app bundle are "Boring Notch", while the public
-        # DMG keeps the legacy boringNotch.dmg name for download/appcast
-        # compatibility. The project/target/scheme remain boringNotch.
         pbxproj = (
             REPOSITORY_ROOT / "boringNotch.xcodeproj" / "project.pbxproj"
         ).read_text(encoding="utf-8")
-        self.assertEqual(pbxproj.count('PRODUCT_NAME = "Boring Notch";'), 2)
-        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleName = "Boring Notch";'), 2)
-        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleDisplayName = "Boring Notch";'), 2)
+        self.assertEqual(pbxproj.count('PRODUCT_NAME = "T3 Isle";'), 2)
+        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleName = "T3 Isle";'), 2)
+        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle";'), 2)
 
         # Reusable build: archives under the project name, exports the app under
         # APP_NAME, and publishes the compatibility DMG under PROJECT_NAME.

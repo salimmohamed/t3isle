@@ -1,0 +1,14 @@
+T3 Isle
+Copyright (C) 2025 Salim Mohamed
+
+T3 Isle is a modified version of boring.notch
+(https://github.com/TheBoredTeam/boring.notch), Copyright (C) TheBoredTeam
+and contributors, licensed under the GNU General Public License v3.0.
+
+Modifications: rebranded as T3 Isle, auto-updater disabled, and a T3 Code
+integration added (T3IsleCore and boringNotch/T3Isle). Files from
+boring.notch keep their original copyright notices.
+
+This program is distributed under the GNU General Public License v3.0;
+see LICENSE. Third-party code and its licenses are listed in
+THIRD_PARTY_LICENSES.
