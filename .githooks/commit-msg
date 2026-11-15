@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+comment_char=$(git config --get core.commentChar || printf '#')
+scissors="$comment_char ------------------------ >8 ------------------------"
+
+awk -v scissors="$scissors" '$0 == scissors { exit } { print }' "$1" | git stripspace --strip-comments | "$(dirname "$0")/check-commit-message"
