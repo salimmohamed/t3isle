@@ -165,6 +165,8 @@ struct T3Integration: ViewModifier {
                 if state == .closed {
                     openedByT3 = false
                     closeTask?.cancel()
+                } else if coordinator.currentView == .home && !coordinator.openLastTabByDefault {
+                    coordinator.currentView = T3Tabs.defaultView(fallback: .home)
                 }
             }
     }
