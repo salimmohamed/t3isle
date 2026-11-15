@@ -73,6 +73,8 @@ public actor T3ServerClient {
     }
 
     public func disconnect() {
+        connecting?.cancel()
+        connecting = nil
         socket?.close()
         socket = nil
     }
@@ -119,8 +121,12 @@ public actor T3ServerClient {
             return socket
         }
         connecting = task
-        defer { connecting = nil }
+        defer { if connecting == task { connecting = nil } }
         let socket = try await task.value
+        guard !task.isCancelled else {
+            socket.close()
+            throw T3Failure.notRunning
+        }
         self.socket = socket
         return socket
     }

@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import T3IsleCore
 
@@ -66,6 +67,21 @@ final class IsleModelTests: XCTestCase {
 
     func testClosedPresenceIsActiveWhileQuestionsWait() async throws {
         let model = try await startedModel()
+        XCTAssertEqual(model.closedPresence, .active)
+        model.stop()
+    }
+
+    func testClosedPresenceClearsWhenDisabled() async throws {
+        let model = try await startedModel()
+        var observed: [ClosedPresence] = []
+        let observer = model.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { observed.append(model.closedPresence) }
+        model.apply(T3Preferences(enabled: false))
+        try await until { observed.contains(.none) }
+        XCTAssertEqual(model.closedPresence, .none)
+        observer.cancel()
+        model.apply(T3Preferences(enabled: true))
         XCTAssertEqual(model.closedPresence, .active)
         model.stop()
     }
