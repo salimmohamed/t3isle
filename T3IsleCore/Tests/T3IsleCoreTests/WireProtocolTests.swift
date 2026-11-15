@@ -74,6 +74,17 @@ final class WireProtocolTests: XCTestCase {
         guard case .snapshot? = T3ServerClient.shellUpdates(authoritative).first else { return XCTFail("snapshot expected") }
     }
 
+    func testRequestOnClosedSocketFailsImmediately() {
+        let socket = RpcSocket()
+        socket.close()
+        var outcome: T3Failure?
+        socket.request("orchestration.subscribeShell", payload: [:]) { event in
+            if case .exit(.failure(let failure)) = event { outcome = failure }
+        }
+        XCTAssertTrue(socket.isClosed)
+        XCTAssertEqual(outcome, .notRunning)
+    }
+
     func testIssuedSessionParsing() throws {
         let data = Data(#"{"sessionId":"s1","token":"abc","expiresAt":"2026-12-15T20:03:06.708Z"}"#.utf8)
         let token = try T3SignIn.parseIssued(data)

@@ -35,9 +35,20 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
         finish(.notRunning, notify: false)
     }
 
+    var isClosed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return closed
+    }
+
     @discardableResult
     func request(_ tag: String, payload: [String: Any], handler: @escaping (Event) -> Void) -> String {
         lock.lock()
+        guard !closed else {
+            lock.unlock()
+            handler(.exit(.failure(.notRunning)))
+            return ""
+        }
         let id = String(nextId)
         nextId += 1
         handlers[id] = handler

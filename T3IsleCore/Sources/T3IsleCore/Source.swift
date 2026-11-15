@@ -6,7 +6,6 @@ public protocol T3Source: AnyObject, Sendable {
     func send(_ command: T3Command) async throws
     func environmentId() async -> String?
     func providers() -> [ProviderLimits]
-    func signOut() async
 }
 
 public final class LiveSource: T3Source {
@@ -36,9 +35,5 @@ public final class LiveSource: T3Source {
 
     public func providers() -> [ProviderLimits] {
         limits.read()
-    }
-
-    public func signOut() async {
-        await client.signOut()
     }
 }

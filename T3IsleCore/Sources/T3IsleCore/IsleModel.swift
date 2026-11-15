@@ -57,6 +57,10 @@ public struct ProjectGroup: Identifiable, Equatable, Sendable {
     public let cards: [AgentCard]
 }
 
+public enum ClosedPresence: Equatable, Sendable {
+    case none, threads, active
+}
+
 public struct PlanBanner: Identifiable, Equatable, Sendable {
     public let id = UUID()
     public let threadId: String
@@ -119,6 +123,11 @@ public final class T3IsleModel: ObservableObject {
     public var hasAgents: Bool { !threads.isEmpty || !agentGroups.isEmpty }
     public var needsAttention: Bool { !prompts.isEmpty }
     public var workingCount: Int { threads.filter { $0.mood.isBusy }.count }
+
+    public var closedPresence: ClosedPresence {
+        if needsAttention || workingCount > 0 || banner != nil { return .active }
+        return threads.isEmpty ? .none : .threads
+    }
     public var allCards: [AgentCard] { agentGroups.flatMap(\.cards) }
 
     public func detail(for threadId: String) -> AgentDetail? { details[threadId] }
@@ -199,8 +208,6 @@ public final class T3IsleModel: ObservableObject {
             projects[project.id] = project
         case .projectRemoved(let id):
             projects[id] = nil
-        case .resyncNeeded:
-            break
         case .disconnected(let failure):
             connection = .offline(failure.localizedDescription)
         }
@@ -219,7 +226,9 @@ public final class T3IsleModel: ObservableObject {
         let fresh = source.providers()
         if fresh != providers { providers = fresh }
         let now = Date()
-        answered = answered.filter { now.timeIntervalSince($0.value) < 45 }
+        answered = answered.filter { key, at in
+            now.timeIntervalSince(at) < 45 || draftAnswers.keys.contains { key.hasPrefix("\($0)#") }
+        }
         stopping = stopping.filter { now.timeIntervalSince($0.value) < 20 }
         for shell in shells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: false) }
         publish(prune: true)
@@ -523,11 +532,6 @@ public final class T3IsleModel: ObservableObject {
             heldBy = nil
             publish()
         }
-    }
-
-    public func signOut() {
-        notice = nil
-        Task { await source.signOut() }
     }
 
     public func didShowThreadChanges() {

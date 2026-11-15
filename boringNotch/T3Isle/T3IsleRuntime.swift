@@ -5,10 +5,11 @@ import SwiftUI
 import T3IsleCore
 
 @MainActor
-final class T3IsleRuntime {
+final class T3IsleRuntime: ObservableObject {
     static let shared = T3IsleRuntime()
 
     let model: T3IsleModel
+    @Published private(set) var presence: ClosedPresence = .none
     private var cancellables: Set<AnyCancellable> = []
 
     static var isDemo: Bool {
@@ -30,10 +31,15 @@ final class T3IsleRuntime {
             self?.model.apply(T3Preferences(enabled: enabled, threadActions: actions, keepFinishedPinned: pinned))
         }
         .store(in: &cancellables)
+        model.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.presence != self.model.closedPresence else { return }
+                self.presence = self.model.closedPresence
+            }
+            .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
-
-    static var isActive: Bool { Defaults[.t3Enabled] }
 }
 
 enum T3Tabs {
@@ -62,8 +68,10 @@ enum T3Tabs {
     @MainActor
     static func shouldShowClosedActivity(musicActive: Bool) -> Bool {
         guard Defaults[.t3Enabled] else { return false }
-        let model = T3IsleRuntime.shared.model
-        if model.needsAttention || model.workingCount > 0 || model.banner != nil { return true }
-        return !musicActive && !model.threads.isEmpty
+        switch T3IsleRuntime.shared.presence {
+        case .active: return true
+        case .threads: return !musicActive
+        case .none: return false
+        }
     }
 }

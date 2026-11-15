@@ -64,13 +64,6 @@ public actor T3SignIn {
         store.clear()
     }
 
-    public func signOut() async {
-        let sessionId = (cached ?? store.load())?.sessionId
-        invalidate()
-        guard let sessionId else { return }
-        _ = try? await runner.run(home.cliTool, ["auth", "session", "revoke", sessionId])
-    }
-
     private func issue() async throws -> StoredToken {
         if let issuing { return try await issuing.value }
         let task = Task { () throws -> StoredToken in

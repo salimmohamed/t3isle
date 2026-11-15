@@ -88,7 +88,7 @@ public final class DemoSource: T3Source, @unchecked Sendable {
             throw T3Failure.http(404, "Thread not found")
         }
         switch command {
-        case .approve(_, let requestId, _), .answer(_, let requestId, _), .dismissQuestion(_, let requestId):
+        case .approve(_, let requestId, _), .answer(_, let requestId, _):
             agent.requests.removeAll { $0.id == requestId }
             agent.requestItems.removeAll { $0.requestId == requestId }
         case .stop:
@@ -124,7 +124,6 @@ public final class DemoSource: T3Source, @unchecked Sendable {
         ]
     }
 
-    public func signOut() async {}
 
     private func add(_ shell: ThreadShell, plan: [String], done: Int, start: Date) {
         let steps = plan.enumerated().map { index, text in

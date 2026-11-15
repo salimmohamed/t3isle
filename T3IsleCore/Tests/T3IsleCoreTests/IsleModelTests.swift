@@ -64,6 +64,12 @@ final class IsleModelTests: XCTestCase {
         model.stop()
     }
 
+    func testClosedPresenceIsActiveWhileQuestionsWait() async throws {
+        let model = try await startedModel()
+        XCTAssertEqual(model.closedPresence, .active)
+        model.stop()
+    }
+
     func testInterruptMarksCardStopping() async throws {
         let model = try await startedModel()
         let card = try XCTUnwrap(model.allCards.first { $0.state == .working })

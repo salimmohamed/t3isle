@@ -6,7 +6,6 @@ public enum ShellUpdate: Sendable {
     case threadRemoved(String)
     case projectUpdated(ProjectShell)
     case projectRemoved(String)
-    case resyncNeeded
     case disconnected(T3Failure)
 }
 
@@ -19,7 +18,6 @@ public actor T3ServerClient {
     private let urlSession: URLSession
     private var socket: RpcSocket?
     private var connecting: Task<RpcSocket, Error>?
-    private var shellListeners: [UUID: AsyncStream<ShellUpdate>.Continuation] = [:]
     private var environmentId: String?
 
     public init(home: T3Home, signIn: T3SignIn) {
@@ -28,14 +26,6 @@ public actor T3ServerClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
         urlSession = URLSession(configuration: configuration)
-    }
-
-    public func shell() async throws -> ShellSnapshot {
-        let data = try await get("api/orchestration/shell", query: [
-            URLQueryItem(name: "omitIdleSubagents", value: "1"),
-            URLQueryItem(name: "omitOlderSettled", value: "1"),
-        ])
-        return try Self.decode(ShellSnapshot.self, data)
     }
 
     public func detail(threadId: String) async throws -> ThreadProjection {
@@ -73,13 +63,12 @@ public actor T3ServerClient {
     }
 
     public func shellUpdates() -> AsyncStream<ShellUpdate> {
-        let id = UUID()
-        let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream(bufferingPolicy: .bufferingNewest(256))
-        continuation.onTermination = { [weak self] _ in
-            Task { await self?.removeListener(id) }
+        let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()
+        continuation.onTermination = { [weak self] termination in
+            guard case .cancelled = termination else { return }
+            Task { await self?.disconnect() }
         }
-        shellListeners[id] = continuation
-        Task { await self.subscribeShell() }
+        Task { await self.subscribeShell(into: continuation) }
         return stream
     }
 
@@ -88,45 +77,31 @@ public actor T3ServerClient {
         socket = nil
     }
 
-    public func signOut() async {
-        disconnect()
-        await signIn.signOut()
-    }
-
-    private func removeListener(_ id: UUID) {
-        shellListeners[id] = nil
-        if shellListeners.isEmpty { disconnect() }
-    }
-
-    private func broadcast(_ update: ShellUpdate) {
-        for listener in shellListeners.values { listener.yield(update) }
-    }
-
-    private func subscribeShell() async {
+    private func subscribeShell(into continuation: AsyncStream<ShellUpdate>.Continuation) async {
         do {
             let socket = try await connectedSocket()
             socket.request("orchestration.subscribeShell",
-                           payload: ["omitIdleSubagents": true, "omitOlderSettled": true]) { [weak self] event in
-                guard let self else { return }
+                           payload: ["omitIdleSubagents": true, "omitOlderSettled": true]) { event in
                 switch event {
                 case .chunk(let values):
-                    let updates = values.flatMap(Self.shellUpdates)
-                    Task { for update in updates { await self.broadcast(update) } }
+                    for update in values.flatMap(Self.shellUpdates) { continuation.yield(update) }
                 case .exit(let result):
                     if case .failure(let failure) = result {
-                        Task { await self.broadcast(.disconnected(failure)) }
+                        continuation.yield(.disconnected(failure))
                     } else {
-                        Task { await self.broadcast(.disconnected(.notRunning)) }
+                        continuation.yield(.disconnected(.notRunning))
                     }
+                    continuation.finish()
                 }
             }
         } catch {
-            broadcast(.disconnected(error as? T3Failure ?? .notRunning))
+            continuation.yield(.disconnected(error as? T3Failure ?? .notRunning))
+            continuation.finish()
         }
     }
 
     private func connectedSocket() async throws -> RpcSocket {
-        if let socket { return socket }
+        if let socket, !socket.isClosed { return socket }
         if let connecting { return try await connecting.value }
         let signIn = signIn
         let home = home
@@ -239,8 +214,6 @@ public actor T3ServerClient {
             return (try? decoder.decode(Envelope.self, from: data)).map { .projectUpdated($0.project) }
         case "project.removed":
             return (object["projectId"] as? String).map { .projectRemoved($0) }
-        case "snapshot-required":
-            return .resyncNeeded
         default:
             return nil
         }

@@ -20,7 +20,6 @@ public struct T3Home: Sendable {
     public var cachesDirectory: URL { root.appendingPathComponent("caches") }
     public var runtimeFile: URL { root.appendingPathComponent("userdata/server-runtime.json") }
     public var environmentIdFile: URL { root.appendingPathComponent("userdata/environment-id") }
-    public var stateDatabase: URL { root.appendingPathComponent("userdata/statev2.sqlite") }
     public var cliTool: URL { root.appendingPathComponent("bin/t3") }
 
     public func serverOrigin() -> URL? {

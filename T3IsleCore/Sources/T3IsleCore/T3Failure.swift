@@ -2,7 +2,6 @@ import Foundation
 
 public enum T3Failure: LocalizedError, Equatable {
     case notRunning
-    case notLocal
     case cliMissing
     case cliFailed(String)
     case signInRefused(String)
@@ -16,7 +15,6 @@ public enum T3Failure: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notRunning: "T3 Code isn't running."
-        case .notLocal: "T3's server isn't on this Mac, so T3 Isle won't sign in to it."
         case .cliMissing: "T3's command-line tool is missing. Open T3 Code once to install it."
         case .cliFailed(let message): message
         case .signInRefused(let message): message

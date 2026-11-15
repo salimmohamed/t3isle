@@ -19,7 +19,6 @@ public enum QuestionAnswer: Equatable, Sendable {
 public enum T3Command: Equatable, Sendable {
     case approve(threadId: String, requestId: String, decision: ApprovalDecision)
     case answer(threadId: String, requestId: String, answers: [String: QuestionAnswer])
-    case dismissQuestion(threadId: String, requestId: String)
     case stop(threadId: String)
     case snooze(threadId: String, until: Date)
     case unsnooze(threadId: String)
@@ -28,7 +27,7 @@ public enum T3Command: Equatable, Sendable {
 
     public var threadId: String {
         switch self {
-        case .approve(let id, _, _), .answer(let id, _, _), .dismissQuestion(let id, _), .stop(let id),
+        case .approve(let id, _, _), .answer(let id, _, _), .stop(let id),
              .snooze(let id, _), .unsnooze(let id), .settle(let id), .unsettle(let id):
             id
         }
@@ -45,9 +44,6 @@ public enum T3Command: Equatable, Sendable {
             body["type"] = .string("runtime-request.respond")
             body["requestId"] = .string(requestId)
             body["answers"] = .object(answers.mapValues(\.wire))
-        case .dismissQuestion(_, let requestId):
-            body["type"] = .string("thread.user-input.dismiss")
-            body["requestId"] = .string(requestId)
         case .stop:
             body["type"] = .string("thread.stop")
             body["reason"] = .string("Interrupted from T3 Isle")

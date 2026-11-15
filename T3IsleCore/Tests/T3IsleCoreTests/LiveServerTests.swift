@@ -11,18 +11,6 @@ final class LiveServerTests: XCTestCase {
         return T3ServerClient(home: home, signIn: T3SignIn(home: home, store: store))
     }
 
-    func testFetchesShellAndEnvironment() async throws {
-        let client = try liveClient()
-        let shell = try await client.shell()
-        XCTAssertFalse(shell.projects.isEmpty)
-        let environment = await client.environment()
-        XCTAssertNotNil(environment)
-        if let thread = shell.threads.first(where: { $0.latestRunId != nil }) {
-            let detail = try await client.detail(threadId: thread.id)
-            XCTAssertEqual(detail.thread.id, thread.id)
-        }
-    }
-
     func testStreamsShellSnapshot() async throws {
         let client = try liveClient()
         let stream = await client.shellUpdates()
@@ -43,6 +31,12 @@ final class LiveServerTests: XCTestCase {
             return XCTFail("Expected a snapshot first, got \(String(describing: first))")
         }
         XCTAssertFalse(snapshot.threads.isEmpty)
+        let environment = await client.environment()
+        XCTAssertNotNil(environment)
+        if let thread = snapshot.threads.first(where: { $0.latestRunId != nil }) {
+            let detail = try await client.detail(threadId: thread.id)
+            XCTAssertEqual(detail.thread.id, thread.id)
+        }
         await client.disconnect()
     }
 }

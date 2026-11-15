@@ -120,7 +120,7 @@ private struct PromptCard: View {
                         if question.multiSelect == true {
                             if selected.contains(option.answerValue) { selected.remove(option.answerValue) } else { selected.insert(option.answerValue) }
                         } else {
-                            model.answer(prompt, with: .choices([option.answerValue]))
+                            model.answer(prompt, with: .text(option.answerValue))
                         }
                     }
                 }
