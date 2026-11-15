@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.svg" width="80" height="80" alt="T3 Isle icon">
+  <img src="assets/icon.svg" width="96" height="96" alt="T3 Isle icon">
 </p>
 
 <h1 align="center">T3 Isle</h1>
