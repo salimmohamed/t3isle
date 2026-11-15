@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+staged_swift_files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')
+
+if [ -n "$staged_swift_files" ] && git cat-file -e :.swiftlint.yml 2>/dev/null; then
+  if ! command -v swiftlint >/dev/null 2>&1; then
+    echo "SwiftLint is required to commit Swift files. Install it with: brew install swiftlint" >&2
+    exit 1
+  fi
+  snapshot=$(cd "$(mktemp -d)" && pwd -P)
+  trap 'rm -rf "$snapshot"' EXIT
+  git diff --cached --name-only --diff-filter=ACMR -z -- '*.swift' | xargs -0 git checkout-index --prefix="$snapshot/" --
+  git checkout-index --prefix="$snapshot/" -- .swiftlint.yml
+  if ! "$(dirname "$0")/lint-swift" "$snapshot" >&2; then
+    echo "SwiftLint failed on staged files." >&2
+    exit 1
+  fi
+fi

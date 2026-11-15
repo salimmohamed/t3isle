@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+message=$(cat; printf x)
+message=${message%x}
+newline='
+'
+subject=${message%"$newline"}
+
+case "$subject" in
+  *"$newline"*) valid=false ;;
+  *) if printf '%s\n' "$subject" | grep -Eq '^(feat|fix): .+$'; then valid=true; else valid=false; fi ;;
+esac
+
+if [ "$valid" = false ]; then
+  echo "Rejected commit message. It must be exactly one line matching ^(feat|fix): .+\$" >&2
+  echo "Got:" >&2
+  printf '%s\n' "$message" | sed 's/^/  | /' >&2
+  exit 1
+fi

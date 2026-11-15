@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+hook_name=$(basename "$0")
+branch_hook="$(git rev-parse --show-toplevel)/.githooks/$hook_name"
+
+if [ -x "$branch_hook" ]; then
+  "$branch_hook" "$@"
+fi
+
+if [ -x "$0.local" ]; then
+  "$0.local" "$@"
+fi
