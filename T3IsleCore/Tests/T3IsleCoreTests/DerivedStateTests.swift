@@ -18,11 +18,15 @@ final class DerivedStateTests: XCTestCase {
         return InboxBuilder(providerNames: ["claudeAgent": "Claude"]).threads(from: snapshot.threads, projects: projects, now: now)
     }
 
-    func testInboxExcludesSettledAndSubagents() throws {
+    func testInboxExcludesSettled() throws {
         let ids = try inbox().map(\.id)
         XCTAssertFalse(ids.contains("t-settled"))
-        XCTAssertFalse(ids.contains("t-subagent"))
-        XCTAssertEqual(ids.count, 6)
+        XCTAssertEqual(ids.count, 8)
+    }
+
+    func testSubagentsAreChildOrDelegatedThreads() throws {
+        let subagents = try shell().threads.filter(\.isSubagent).map(\.id)
+        XCTAssertEqual(subagents, ["t-subagent", "t-delegated"])
     }
 
     func testMoodsAndOrdering() throws {

@@ -56,7 +56,7 @@ final class WireProtocolTests: XCTestCase {
         guard case .snapshot(let decoded)? = T3ServerClient.shellUpdate(["kind": "snapshot", "snapshot": snapshot]) else {
             return XCTFail("snapshot expected")
         }
-        XCTAssertEqual(decoded.threads.count, 8)
+        XCTAssertEqual(decoded.threads.count, 9)
     }
 
     func testEnrichmentSnapshotOnlyUpdatesProjects() {

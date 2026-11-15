@@ -21,14 +21,16 @@ final class T3IsleRuntime: ObservableObject {
         model = T3IsleModel(source: source, isDemo: Self.isDemo) { url in
             NSWorkspace.shared.open(url)
         }
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Defaults.publisher(.t3Enabled).map(\.newValue),
             Defaults.publisher(.t3ThreadActions).map(\.newValue),
-            Defaults.publisher(.t3KeepFinishedPinned).map(\.newValue)
+            Defaults.publisher(.t3KeepFinishedPinned).map(\.newValue),
+            Defaults.publisher(.t3ShowSubagents).map(\.newValue)
         )
         .receive(on: RunLoop.main)
-        .sink { [weak self] enabled, actions, pinned in
-            self?.model.apply(T3Preferences(enabled: enabled, threadActions: actions, keepFinishedPinned: pinned))
+        .sink { [weak self] enabled, actions, pinned, subagents in
+            self?.model.apply(T3Preferences(enabled: enabled, threadActions: actions, keepFinishedPinned: pinned,
+                                            showSubagents: subagents))
         }
         .store(in: &cancellables)
         model.objectWillChange

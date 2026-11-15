@@ -71,9 +71,7 @@ public struct InboxBuilder {
     }
 
     public static func belongsInInbox(_ shell: ThreadShell) -> Bool {
-        guard shell.archivedAt == nil, shell.deletedAt == nil,
-              shell.lineage?.relationshipToParent != "subagent"
-        else { return false }
+        guard shell.archivedAt == nil, shell.deletedAt == nil else { return false }
         return shell.settledOverride != "settled" || hasPendingRequest(shell) || workingStatuses.contains(runStatus(shell))
     }
 

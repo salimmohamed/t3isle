@@ -66,6 +66,18 @@ public struct Lineage: Decodable, Equatable, Sendable {
     }
 }
 
+public struct DelegatedFrom: Decodable, Equatable, Sendable {
+    public var environmentId: String?
+    public var threadId: String?
+    public var title: String?
+
+    public init(environmentId: String? = nil, threadId: String? = nil, title: String? = nil) {
+        self.environmentId = environmentId
+        self.threadId = threadId
+        self.title = title
+    }
+}
+
 public struct PullRequestRef: Decodable, Equatable, Sendable {
     public var number: Int?
     public var watch: AnyWireValue?
@@ -79,6 +91,7 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
     public var modelSelection: ModelSelection?
     public var branch: String?
     public var lineage: Lineage?
+    public var delegatedFrom: DelegatedFrom?
     public var status: String
     public var activityRunStatus: String?
     public var latestRunId: String?
@@ -106,7 +119,7 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
 
     public init(id: String, projectId: String? = nil, title: String, providerInstanceId: String? = nil,
                 modelSelection: ModelSelection? = nil, branch: String? = nil, lineage: Lineage? = nil,
-                status: String = "idle", activityRunStatus: String? = nil, latestRunId: String? = nil,
+                delegatedFrom: DelegatedFrom? = nil, status: String = "idle", activityRunStatus: String? = nil, latestRunId: String? = nil,
                 activeRunId: String? = nil, latestRunRequestedAt: Date? = nil, latestRunStartedAt: Date? = nil,
                 latestRunCompletedAt: Date? = nil, activityRunStartedAt: Date? = nil,
                 blockedOnThreadWait: Bool? = nil, lastError: String? = nil,
@@ -123,6 +136,7 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
         self.modelSelection = modelSelection
         self.branch = branch
         self.lineage = lineage
+        self.delegatedFrom = delegatedFrom
         self.status = status
         self.activityRunStatus = activityRunStatus
         self.latestRunId = latestRunId
@@ -147,6 +161,10 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
         self.snoozedUntil = snoozedUntil
         self.snoozedAt = snoozedAt
         self.lastVisitedAt = lastVisitedAt
+    }
+
+    public var isSubagent: Bool {
+        lineage?.relationshipToParent == "subagent" || delegatedFrom != nil
     }
 }
 
