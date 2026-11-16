@@ -27,6 +27,10 @@ final class T3HeadphonesMonitor: NSObject {
         alreadyConnected = Set(paired.filter { $0.isConnected() }.compactMap(\.addressString))
         connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
                                                          selector: #selector(deviceConnected(_:device:)))
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.alreadyConnected = []
+        }
     }
 
     private func stop() {
@@ -47,8 +51,9 @@ final class T3HeadphonesMonitor: NSObject {
 
     private func announce(address: String, fallbackName: String) async {
         let first = await Self.report(address: address)
-        let connect = HeadphonesConnect(address: address, name: first?.name ?? fallbackName,
-                                        kind: HeadphonesKind(productID: first?.productID, name: fallbackName),
+        let name = first?.name ?? fallbackName
+        let connect = HeadphonesConnect(address: address, name: name,
+                                        kind: HeadphonesKind(productID: first?.productID, name: name),
                                         battery: first?.battery ?? HeadphonesBattery())
         popup.show(connect)
         try? await Task.sleep(for: .milliseconds(1500))
