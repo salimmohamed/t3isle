@@ -176,7 +176,7 @@ Tags must look like `vX.Y.Z`. Any other `v*` tag fails the build, and no release
 
 To build a test DMG without releasing, open the workflow in the Actions tab, click **Run workflow**, and download `T3-Isle.dmg` from the run's artifacts. Pull requests that change the workflow or `Configuration/dmg/` build one the same way.
 
-The app is ad-hoc signed and not notarized, so macOS blocks the first launch until the user clicks **Open Anyway** in System Settings → Privacy & Security. Developer ID signing and notarization need a paid Apple Developer account and are not set up yet.
+Release builds are signed with a stable self-signed certificate but not notarized, so macOS blocks the first launch until the user clicks **Open Anyway** in System Settings → Privacy & Security. Developer ID signing and notarization need a paid Apple Developer account and are not set up yet.
 
 ---
 

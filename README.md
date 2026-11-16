@@ -32,17 +32,27 @@ I'd been using boring.notch along with [Alcove](https://tryalcove.com/), [Dynami
 - macOS 14 or later
 - [T3 Code](https://t3.codes) running on the same Mac (remote machines aren't supported yet)
 
-## Build and run
+## Install
 
-There are no releases yet, so for now you build it from source. Open `boringNotch.xcodeproj` in Xcode and run the `boringNotch` scheme, or use the terminal:
+Grab `T3-Isle.dmg` from the [latest release](https://github.com/salimmohamed/t3isle/releases/latest), open it, and drag **T3 Isle** onto **Applications**.
+
+It isn't notarized, so macOS blocks the first launch. Click **Done**, then open **System Settings → Privacy & Security** and click **Open Anyway** next to T3 Isle. Or clear the download flag in Terminal instead:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/T3 Isle.app"
+```
+
+T3 Isle finds T3 Code on its own and signs in with T3's command-line tool. The session token stays in a private file in T3 Isle's Application Support folder that only your account can read.
+
+## Build from source
+
+Open `boringNotch.xcodeproj` in Xcode and run the `boringNotch` scheme, or use the terminal:
 
 ```sh
 xcodebuild -project boringNotch.xcodeproj -scheme boringNotch \
   -configuration Debug -derivedDataPath build build
 open "build/Build/Products/Debug/T3 Isle.app"
 ```
-
-T3 Isle finds T3 Code on its own and signs in with T3's command-line tool. The session token stays in a private file in T3 Isle's Application Support folder that only your account can read.
 
 Want to poke around without real agents? Quit T3 Isle if it's running, then launch it with `--demo` for made-up threads, questions and quota. Demo mode never talks to T3.
 
@@ -61,8 +71,6 @@ Feel free to open pull requests or open issues with recommendations.
 ## Credits
 
 - Fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch) (GPL-3.0) by TheBoredTeam, modified for T3 Isle. Huge thanks to them.
-- T3 UI and integration partly derived from [t3-island](https://github.com/sdlyy/t3-island) by sdlyy (MIT).
-- T3 integration inspired by T3Notch by zortos293.
 
 Licenses for included code are in [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES).
 
