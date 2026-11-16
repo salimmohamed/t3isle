@@ -97,10 +97,16 @@ final class IsleModelTests: XCTestCase {
 
 private final class FixtureSource: T3Source, @unchecked Sendable {
     private let snapshot: ShellSnapshot
+    private let projections: [String: ThreadProjection]
     private var continuation: AsyncStream<ShellUpdate>.Continuation?
 
-    init(_ snapshot: ShellSnapshot) {
+    init(_ snapshot: ShellSnapshot, projections: [String: ThreadProjection] = [:]) {
         self.snapshot = snapshot
+        self.projections = projections
+    }
+
+    func push(_ update: ShellUpdate) {
+        continuation?.yield(update)
     }
 
     func updates() async -> AsyncStream<ShellUpdate> {
@@ -111,24 +117,89 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     }
 
     func detail(threadId: String) async throws -> ThreadProjection {
-        throw CancellationError()
+        guard let projection = projections[threadId] else { throw CancellationError() }
+        return projection
     }
 
     func send(_ command: T3Command) async throws {}
-    func environmentId() async -> String? { nil }
+    func environmentId() async -> String? { "env-local" }
     func providers() -> [ProviderLimits] { [] }
     func signOut() async {}
 }
 
 @MainActor
 final class SubagentVisibilityTests: XCTestCase {
+    private var snapshot: ShellSnapshot!
+    private var source: FixtureSource!
+    private var opened: [URL] = []
+
+    override func setUp() async throws {
+        snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let question = try WireDecoder.make()
+            .decode(ThreadDetailEnvelope.self, from: Fixture.data("detail-question.json")).projection
+        let projections = Dictionary(uniqueKeysWithValues: ["t-subagent", "t-side-chat"].map { id in
+            var projection = question
+            projection.thread.id = id
+            for index in projection.runtimeRequests.indices {
+                projection.runtimeRequests[index].id = "\(id)-\(projection.runtimeRequests[index].id)"
+            }
+            for index in projection.turnItems.indices {
+                projection.turnItems[index].requestId = projection.turnItems[index].requestId.map { "\(id)-\($0)" }
+            }
+            return (id, projection)
+        })
+        source = FixtureSource(snapshot, projections: projections)
+    }
+
     private func model() async throws -> T3IsleModel {
-        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
-        let model = T3IsleModel(source: FixtureSource(snapshot), opener: { _ in })
+        let model = T3IsleModel(source: source, opener: { [weak self] url in self?.opened.append(url) })
         model.start()
-        let deadline = Date().addingTimeInterval(5)
-        while model.threads.isEmpty && Date() < deadline { try await Task.sleep(nanoseconds: 50_000_000) }
+        try await until { !model.threads.isEmpty }
         return model
+    }
+
+    private func until(_ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition() {
+            guard Date() < deadline else { return XCTFail("Timed out") }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
+
+    private func shell(_ id: String) throws -> ThreadShell {
+        try XCTUnwrap(snapshot.threads.first { $0.id == id })
+    }
+
+    private func ask(_ id: String) throws {
+        var asking = try shell(id)
+        asking.activityRunStatus = "waiting"
+        asking.pendingRuntimeRequest = PendingRequestSummary(id: "\(id)-req-q", kind: "user_input")
+        source.push(.threadUpdated(asking, archived: false))
+    }
+
+    private func resolve(_ id: String) throws {
+        source.push(.threadUpdated(try shell(id), archived: false))
+    }
+
+    private func assertWaitingOnYouOnly(_ model: T3IsleModel, _ id: String) throws {
+        let thread = try XCTUnwrap(model.threads.first { $0.id == id })
+        XCTAssertEqual(thread.mood, .needsYou)
+        XCTAssertFalse(thread.isSnoozed)
+        XCTAssertEqual(model.workingCount, 2)
+        XCTAssertTrue(model.needsAttention)
+        XCTAssertTrue(model.prompts.allSatisfy { $0.threadId == id })
+        XCTAssertEqual(model.allCards.first { $0.id == id }?.state, .needsYou)
+    }
+
+    private func assertHasAPromptFor(_ model: T3IsleModel, _ id: String) async throws {
+        try await until { model.prompts.contains { $0.threadId == id } }
+        XCTAssertEqual(Set(model.prompts.map(\.requestId)), ["\(id)-req-cmd", "\(id)-req-q"])
+    }
+
+    private func assertHiddenAgain(_ model: T3IsleModel, _ id: String) async throws {
+        try await until { !shownIds(model).contains(id) && model.detail(for: id) == nil }
+        XCTAssertTrue(model.prompts.isEmpty)
+        XCTAssertEqual(model.workingCount, 2)
     }
 
     private func shownIds(_ model: T3IsleModel) -> Set<String> {
@@ -170,6 +241,52 @@ final class SubagentVisibilityTests: XCTestCase {
         XCTAssertEqual(model.workingCount, 4)
         model.apply(T3Preferences())
         XCTAssertFalse(shownIds(model).contains("t-subagent"))
+        model.stop()
+    }
+
+    func testHiddenSubagentShowsInWaitingOnYouOnlyWhileItAsks() async throws {
+        let model = try await model()
+        XCTAssertFalse(shownIds(model).contains("t-subagent"))
+        try ask("t-subagent")
+        try await assertHasAPromptFor(model, "t-subagent")
+        try assertWaitingOnYouOnly(model, "t-subagent")
+        try resolve("t-subagent")
+        try await assertHiddenAgain(model, "t-subagent")
+        model.stop()
+    }
+
+    func testHiddenSideChatShowsInWaitingOnYouOnlyWhileItAsks() async throws {
+        let model = try await model()
+        XCTAssertFalse(shownIds(model).contains("t-side-chat"))
+        try ask("t-side-chat")
+        try await assertHasAPromptFor(model, "t-side-chat")
+        try assertWaitingOnYouOnly(model, "t-side-chat")
+        try resolve("t-side-chat")
+        try await assertHiddenAgain(model, "t-side-chat")
+        model.stop()
+    }
+
+    func testOpeningAnAskingSubagentOpensThatThread() async throws {
+        let model = try await model()
+        try ask("t-subagent")
+        try await assertHasAPromptFor(model, "t-subagent")
+        let prompt = try XCTUnwrap(model.prompts.first)
+        model.open(prompt.threadId)
+        try await until { !opened.isEmpty }
+        XCTAssertEqual(opened.map(\.absoluteString), ["t3code://threads/env-local/t-subagent"])
+        model.stop()
+    }
+
+    func testShowSubagentsSettingStillShowsWorkingSubagentsAndAskingSideChats() async throws {
+        let model = try await model()
+        model.apply(T3Preferences(showSubagents: true))
+        try ask("t-side-chat")
+        try await assertHasAPromptFor(model, "t-side-chat")
+        XCTAssertEqual(model.threads.first { $0.id == "t-subagent" }?.mood, .working)
+        XCTAssertEqual(model.threads.first { $0.id == "t-side-chat" }?.mood, .needsYou)
+        try resolve("t-side-chat")
+        try await until { !shownIds(model).contains("t-side-chat") }
+        XCTAssertTrue(shownIds(model).contains("t-subagent"))
         model.stop()
     }
 }
