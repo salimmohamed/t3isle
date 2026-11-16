@@ -335,12 +335,12 @@ def blob_glyph(width, cut, eye_scale, eye_drop):
     for e in eyes(0, eye_drop, radius * 1.05, scale=eye_scale):
         holes += (f'M{n(e["cx"]-e["rx"])},{n(e["cy"])}a{n(e["rx"])},{n(e["ry"])} 0 1 0 {n(2*e["rx"])},0'
                   f'a{n(e["rx"])},{n(e["ry"])} 0 1 0 {n(-2*e["rx"])},0Z')
-    return outline + holes, max(ys) - min(ys)
+    return outline + holes
 
 
 def menubar_svg():
     size = 18
-    glyph, _ = blob_glyph(16, cut=0.18, eye_scale=1.25, eye_drop=0.4)
+    glyph = blob_glyph(16, cut=0.18, eye_scale=1.25, eye_drop=0.4)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">\n'
             f'  <title>T3 Isle menu bar glyph</title>\n'
             f'  <path d="{glyph}" transform="translate({size/2} {size/2})" fill="#000000" fill-rule="evenodd"/>\n</svg>\n')
@@ -385,7 +385,7 @@ def symbol_svg(glyph, width):
 
 
 def blob_symbol_svg():
-    glyph, _ = blob_glyph(SYMBOL_WIDTH, cut=0.5, eye_scale=1.8, eye_drop=0)
+    glyph = blob_glyph(SYMBOL_WIDTH, cut=0.5, eye_scale=1.8, eye_drop=0)
     return symbol_svg(glyph, SYMBOL_WIDTH)
 
 
