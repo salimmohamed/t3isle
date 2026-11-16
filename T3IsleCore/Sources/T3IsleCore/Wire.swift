@@ -59,10 +59,12 @@ public struct VisibleMessage: Decodable, Equatable, Sendable {
 public struct Lineage: Decodable, Equatable, Sendable {
     public var parentThreadId: String?
     public var relationshipToParent: String?
+    public var sideChat: Bool?
 
-    public init(parentThreadId: String? = nil, relationshipToParent: String? = nil) {
+    public init(parentThreadId: String? = nil, relationshipToParent: String? = nil, sideChat: Bool? = nil) {
         self.parentThreadId = parentThreadId
         self.relationshipToParent = relationshipToParent
+        self.sideChat = sideChat
     }
 }
 
@@ -165,6 +167,10 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
 
     public var isSubagent: Bool {
         lineage?.relationshipToParent == "subagent" || delegatedFrom != nil
+    }
+
+    public var isSideChat: Bool {
+        lineage?.sideChat == true
     }
 }
 

@@ -220,7 +220,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func isShown(_ shell: ThreadShell) -> Bool {
-        preferences.showSubagents || !shell.isSubagent
+        !shell.isSideChat && (preferences.showSubagents || !shell.isSubagent)
     }
 
     private var visibleShells: [String: ThreadShell] {
