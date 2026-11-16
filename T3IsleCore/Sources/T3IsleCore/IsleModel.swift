@@ -220,7 +220,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func isShown(_ shell: ThreadShell) -> Bool {
-        !shell.isSideChat && (preferences.showSubagents || !shell.isSubagent)
+        InboxBuilder.hasPendingRequest(shell) || (!shell.isSideChat && (preferences.showSubagents || !shell.isSubagent))
     }
 
     private var visibleShells: [String: ThreadShell] {
@@ -282,6 +282,11 @@ public final class T3IsleModel: ObservableObject {
 
     private func absorb(_ projection: ThreadProjection) {
         let id = projection.thread.id
+        guard let shell = shells[id], isShown(shell) else {
+            details[id] = nil
+            detailPrompts[id] = nil
+            return
+        }
         let detail = DetailBuilder.detail(projection)
         let previous = details[id]
         if let plan = detail.plan, plan.isComplete, let before = previous?.plan, before.planId == plan.planId, !before.isComplete {
@@ -292,10 +297,8 @@ public final class T3IsleModel: ObservableObject {
             if completedSteps[id] != done { completedSteps[id] = done }
         }
         details[id] = detail
-        let shell = shells[id]
-        let title = shell?.title ?? projection.thread.title ?? "Untitled"
-        let project = shell?.projectId.flatMap { projects[$0]?.title } ?? ""
-        detailPrompts[id] = DetailBuilder.prompts(projection, title: title, project: project)
+        let project = shell.projectId.flatMap { projects[$0]?.title } ?? ""
+        detailPrompts[id] = DetailBuilder.prompts(projection, title: shell.title, project: project)
         publish()
     }
 
