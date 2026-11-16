@@ -1057,7 +1057,7 @@
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.t3isle.app.XPCHelper;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.t3isle.app.debug.XPCHelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
@@ -1241,7 +1241,9 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = boringNotch/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle";
+				INFOPLIST_PREPROCESS = YES;
+				INFOPLIST_PREPROCESSOR_DEFINITIONS = T3ISLE_DEBUG_COMMANDS;
+				INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle Debug";
 				INFOPLIST_KEY_CFBundleName = "T3 Isle";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSBackgroundOnly = NO;
@@ -1257,7 +1259,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = dev.t3isle.app;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.t3isle.app.debug;
 				PRODUCT_NAME = "T3 Isle";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1295,6 +1297,7 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = boringNotch/Info.plist;
+				INFOPLIST_PREPROCESS = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle";
 				INFOPLIST_KEY_CFBundleName = "T3 Isle";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";

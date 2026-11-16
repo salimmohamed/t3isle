@@ -9,6 +9,8 @@ You can contribute in many ways: writing code, improving documentation, reportin
 ## Table of Contents
 
 - [Working on T3 Isle](#working-on-t3-isle)
+  - [Debug builds](#debug-builds)
+  - [Debug commands](#debug-commands)
   - [How it talks to T3 Code](#how-it-talks-to-t3-code)
   - [Syncing from boring.notch](#syncing-from-boringnotch)
 - [Localizations](#localizations)
@@ -35,9 +37,62 @@ swift test --package-path T3IsleCore
 
 To work on the views without live agents, launch the app with `--demo`. Demo mode uses made-up agents, questions, plans and quota, and never contacts T3.
 
+### Debug builds
+
+The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`), its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`) and its own login item, so a dev build never touches the installed app. Release builds keep `dev.t3isle.app`.
+
+A fresh Debug identity starts with onboarding. To skip it:
+
+```sh
+defaults write dev.t3isle.app.debug firstLaunch -bool false
+```
+
+On a Mac without a notch whose menu bar hides itself, the closed notch has no height, so closed-notch activities (headphones, T3) are invisible. Give it one:
+
+```sh
+defaults write dev.t3isle.app.debug nonNotchHeightMode -string "Custom height"
+```
+
+### Debug commands
+
+Debug builds accept commands from the shell, so you can drive the app without clicking. They are compiled out of Release builds. Send one through the `t3isle-debug://` URL scheme. Naming the app with `-a` targets that exact build and launches it if needed:
+
+```sh
+APP="$HOME/Library/Developer/Xcode/DerivedData/<your build>/Build/Products/Debug/T3 Isle.app"
+open -g -a "$APP" "t3isle-debug://open-settings/t3"
+```
+
+Or pass commands at launch, each after `--debug`:
+
+```sh
+open -a "$APP" --args --debug open-settings appearance --debug question
+```
+
+| Command | What it does | Example |
+| --- | --- | --- |
+| `open-settings [pane]` | Opens Settings, on a pane if given (`general`, `t3`, `appearance`, `media`, `calendar`, `hud`, `battery`, `shelf`, `shortcuts`, `advanced`, `about`) | `open -g -a "$APP" "t3isle-debug://open-settings/t3"` |
+| `open-notch` | Opens the notch | `open -g -a "$APP" "t3isle-debug://open-notch"` |
+| `close-notch` | Closes the notch | `open -g -a "$APP" "t3isle-debug://close-notch"` |
+| `tab home\|shelf\|t3` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
+| `demo on\|off` | Relaunches with or without demo data | `open -g -a "$APP" "t3isle-debug://demo/on"` |
+| `question` | Adds a fake T3 thread that asks a question, which shows the attention border and the question carousel | `open -g -a "$APP" "t3isle-debug://question"` |
+| `plan-done` | Adds a fake T3 thread that finishes its plan two seconds later, which shows the "Plan complete" banner | `open -g -a "$APP" "t3isle-debug://plan-done"` |
+| `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
+| `airpods-disconnect` | Hides the headphones activity | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
+
+Fake threads live in a project called `debug` next to your real threads, and answering a fake question works like a real one. `question` and `plan-done` need T3 to be connected, or demo mode on. In a URL, arguments are path segments, so encode spaces as `%20`.
+
+Every command logs its result. Watch them with:
+
+```sh
+log stream --predicate 'subsystem == "dev.t3isle.app.debug" AND category == "debug-command"'
+```
+
+The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugCommand.swift`. To add one, add an entry to `DebugCommand.specs`, handle it in `boringNotch/T3Isle/T3DebugCommands.swift`, and add a row here.
+
 ### How it talks to T3 Code
 
-T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/userdata/server-runtime.json` (falling back to `http://127.0.0.1:3773`) and signs in with T3's own command-line tool (`t3 auth session issue`), asking only for the `orchestration:read` and `orchestration:operate` scopes. The session token is stored in `T3 Isle/session.json` in the app's Application Support folder, readable only by your account (file `0600`, folder `0700`).
+T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/userdata/server-runtime.json` (falling back to `http://127.0.0.1:3773`) and signs in with T3's own command-line tool (`t3 auth session issue`), asking only for the `orchestration:read` and `orchestration:operate` scopes. The session token is stored in `T3 Isle/session.json` (`T3 Isle Debug/session.json` for Debug builds) in the app's Application Support folder, readable only by your account (file `0600`, folder `0700`).
 
 - Threads, questions and approvals stream live over T3's WebSocket API (`orchestration.subscribeShell`). Thread details (plan, activity, question text) come from `/api/orchestration/threads/<id>/bounded`.
 - Answers, approvals, interrupts, snooze and settle are sent as T3 orchestration commands (`runtime-request.respond`, `thread.stop`, `thread.snooze`, `thread.settle`, …).

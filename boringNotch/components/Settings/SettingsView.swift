@@ -15,7 +15,7 @@ import SwiftUI
 import SwiftUIIntrospect
 
 struct SettingsView: View {
-    @State private var selectedTab = "General"
+    @ObservedObject private var navigation = SettingsNavigation.shared
     @State private var accentColorUpdateTrigger = UUID()
 
     let updaterController: SPUStandardUpdaterController?
@@ -26,7 +26,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedTab) {
+            List(selection: $navigation.pane) {
                 NavigationLink(value: "General") {
                     Label("General", systemImage: "gear")
                 }
@@ -73,7 +73,7 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(200)
         } detail: {
             Group {
-                switch selectedTab {
+                switch navigation.pane {
                 case "General":
                     GeneralSettings()
                 case "T3":

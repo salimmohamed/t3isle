@@ -445,7 +445,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         previousScreens = NSScreen.screens
+        #if DEBUG
+        T3DebugCommands.run(launchArguments: CommandLine.arguments) { [unowned self] in self.debugNotch }
+        #endif
     }
+
+    #if DEBUG
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { T3DebugCommands.run(url: url, notch: debugNotch) }
+    }
+
+    private var debugNotch: BoringViewModel {
+        guard Defaults[.showOnAllDisplays], let uuid = NSScreen.main?.displayUUID else { return vm }
+        return viewModels[uuid] ?? vm
+    }
+    #endif
 
     func playWelcomeSound() {
         let audioPlayer = AudioPlayer()

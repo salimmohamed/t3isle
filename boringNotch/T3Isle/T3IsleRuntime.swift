@@ -14,6 +14,9 @@ final class T3IsleRuntime: ObservableObject {
     private let headphonesPopup = HeadphonesPopup()
     private lazy var headphonesMonitor = T3HeadphonesMonitor(popup: headphonesPopup)
     private var cancellables: Set<AnyCancellable> = []
+    #if DEBUG
+    let debugSource: DebugSource
+    #endif
 
     static var isDemo: Bool {
         CommandLine.arguments.contains("--demo") || ProcessInfo.processInfo.environment["T3ISLE_DEMO"] == "1"
@@ -25,7 +28,13 @@ final class T3IsleRuntime: ObservableObject {
     }
 
     private init() {
-        let source: T3Source = Self.isDemo ? DemoSource() : LiveSource()
+        let base: T3Source = Self.isDemo ? DemoSource() : LiveSource()
+        #if DEBUG
+        debugSource = DebugSource(base: base)
+        let source: T3Source = debugSource
+        #else
+        let source = base
+        #endif
         model = T3IsleModel(source: source, isDemo: Self.isDemo) { url in
             NSWorkspace.shared.open(url)
         }
@@ -61,6 +70,20 @@ final class T3IsleRuntime: ObservableObject {
             .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
+
+    #if DEBUG
+    func showHeadphones(name: String, battery: Int?) {
+        let kind = HeadphonesKind(productID: nil, name: name)
+        let level = kind == .airpodsMax || kind == .headphones
+            ? HeadphonesBattery(single: battery)
+            : HeadphonesBattery(left: battery, right: battery)
+        headphonesPopup.show(HeadphonesConnect(address: "debug", name: name, kind: kind, battery: level))
+    }
+
+    func hideHeadphones() {
+        headphonesPopup.dismiss()
+    }
+    #endif
 }
 
 enum T3Tabs {

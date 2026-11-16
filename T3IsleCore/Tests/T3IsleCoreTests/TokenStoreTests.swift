@@ -66,6 +66,24 @@ final class TokenStoreTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
+    func testDefaultFileLivesInAFolderNamedAfterTheApp() throws {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        XCTAssertEqual(FileTokenStore.defaultFile(bundle: try bundle(displayName: "T3 Isle")),
+                       support.appendingPathComponent("T3 Isle/session.json"))
+        XCTAssertEqual(FileTokenStore.defaultFile(bundle: try bundle(displayName: "T3 Isle Debug")),
+                       support.appendingPathComponent("T3 Isle Debug/session.json"))
+    }
+
+    private func bundle(displayName: String) throws -> Bundle {
+        let root = folder.deletingLastPathComponent().appendingPathComponent("\(UUID().uuidString).app")
+        let contents = root.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let info = try PropertyListSerialization.data(fromPropertyList: ["CFBundleDisplayName": displayName],
+                                                      format: .xml, options: 0)
+        try info.write(to: contents.appendingPathComponent("Info.plist"))
+        return try XCTUnwrap(Bundle(url: root))
+    }
+
     private var file: URL { folder.appendingPathComponent("session.json") }
 
     private func permissions(of url: URL) throws -> Int {
