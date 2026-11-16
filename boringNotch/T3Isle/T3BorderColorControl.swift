@@ -69,8 +69,18 @@ struct T3BorderColorControl: View {
 
 private struct T3BorderPalette: View {
     @Binding var hex: String
+    @State private var hovered: BorderSwatch?
 
     private var choice: BorderChoice { BorderPalette.choice(forHex: hex) }
+
+    private var caption: String {
+        if let hovered { return hovered.label }
+        switch choice {
+        case .standard: return "T3 orange"
+        case .preset(let swatch): return swatch.label
+        case .custom(let custom): return "Custom \(custom)"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -82,14 +92,18 @@ private struct T3BorderPalette: View {
                 HStack(spacing: 8) {
                     Text(theme.title).frame(width: 128, alignment: .leading)
                     ForEach(theme.swatches) { swatch in
-                        swatchButton(swatch.hex, label: swatch.label, selected: choice == .preset(swatch))
+                        swatchButton(swatch, selected: choice == .preset(swatch))
                     }
                 }
             }
             Divider()
-            Button("Custom…") { T3CustomBorderColor.shared.open() }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+            HStack {
+                Button("Custom…") { T3CustomBorderColor.shared.open() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                Spacer()
+                Text(caption).foregroundStyle(.secondary)
+            }
         }
         .padding(14)
     }
@@ -107,13 +121,15 @@ private struct T3BorderPalette: View {
         .buttonStyle(.plain)
     }
 
-    private func swatchButton(_ swatchHex: String, label: String, selected: Bool) -> some View {
-        Button { hex = swatchHex } label: {
-            T3Swatch(color: Color(hex: swatchHex), selected: selected, size: 18)
+    private func swatchButton(_ swatch: BorderSwatch, selected: Bool) -> some View {
+        Button { hex = swatch.hex } label: {
+            T3Swatch(color: Color(hex: swatch.hex), selected: selected, size: 18)
         }
         .buttonStyle(PressScale())
-        .help(label)
-        .accessibilityLabel(label)
+        .onHover { inside in
+            if inside { hovered = swatch } else if hovered == swatch { hovered = nil }
+        }
+        .accessibilityLabel(swatch.label)
     }
 }
 
