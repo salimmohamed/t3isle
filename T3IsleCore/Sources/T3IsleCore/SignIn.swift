@@ -44,7 +44,7 @@ public actor T3SignIn {
     private var cached: StoredToken?
     private var issuing: Task<StoredToken, Error>?
 
-    public init(home: T3Home, store: TokenStore = KeychainTokenStore(), runner: CommandRunner = ProcessRunner()) {
+    public init(home: T3Home, store: TokenStore = FileTokenStore(), runner: CommandRunner = ProcessRunner()) {
         self.home = home
         self.store = store
         self.runner = runner

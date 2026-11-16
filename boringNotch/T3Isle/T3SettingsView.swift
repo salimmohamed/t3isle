@@ -19,7 +19,7 @@ struct T3SettingsView: View {
             } header: {
                 Text("T3 Code")
             } footer: {
-                Text("T3 Isle connects to T3 Code's server on this Mac and signs in with T3's command-line tool. The session token is kept in your Keychain.")
+                Text("T3 Isle connects to T3 Code's server on this Mac and signs in with T3's command-line tool. The session token is kept in a private file only your account can read.")
                     .foregroundStyle(.secondary)
             }
 

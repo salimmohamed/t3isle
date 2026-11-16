@@ -12,7 +12,7 @@ public final class LiveSource: T3Source {
     private let client: T3ServerClient
     private let limits: UsageLimitsReader
 
-    public init(home: T3Home = T3Home(), tokenStore: TokenStore = KeychainTokenStore()) {
+    public init(home: T3Home = T3Home(), tokenStore: TokenStore = FileTokenStore()) {
         client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: tokenStore))
         limits = UsageLimitsReader(home: home)
     }

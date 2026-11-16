@@ -10,7 +10,7 @@ public enum T3Failure: LocalizedError, Equatable {
     case http(Int, String?)
     case unreadable
     case rejected(String)
-    case keychain(OSStatus)
+    case sessionNotSaved
 
     public var errorDescription: String? {
         switch self {
@@ -23,7 +23,7 @@ public enum T3Failure: LocalizedError, Equatable {
         case .http(let status, let message): message ?? "T3 answered with HTTP \(status)."
         case .unreadable: "T3 sent a reply T3 Isle couldn't read."
         case .rejected(let message): message
-        case .keychain(let status): "Couldn't save the T3 sign-in (Keychain error \(status))."
+        case .sessionNotSaved: "Couldn't save the T3 sign-in."
         }
     }
 }
