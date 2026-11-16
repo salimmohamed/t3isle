@@ -122,14 +122,21 @@ private struct PlanBannerView: View {
 struct T3AttentionBorder<S: Shape>: View {
     let shape: S
     @ObservedObject var model = T3IsleRuntime.shared.model
+    @ObservedObject var preview = T3BorderPreview.shared
     @Default(.t3Enabled) private var enabled
+    @Default(.t3AttentionBorder) private var borderShown
+    @Default(.t3AttentionBorderHex) private var hex
+
+    private var visible: Bool { enabled && borderShown && (model.needsAttention || preview.isActive) }
 
     var body: some View {
+        let color = Color(hex: hex)
         shape
-            .stroke(T3Theme.attention, lineWidth: 1.5)
-            .opacity(enabled && model.needsAttention ? 1 : 0)
-            .shadow(color: T3Theme.attention.opacity(enabled && model.needsAttention ? 0.6 : 0), radius: 6)
-            .animation(.easeInOut(duration: 0.3), value: model.needsAttention)
+            .stroke(color, lineWidth: 1.5)
+            .opacity(visible ? 1 : 0)
+            .shadow(color: color.opacity(visible ? 0.6 : 0), radius: 6)
+            .animation(.easeInOut(duration: 0.3), value: visible)
+            .animation(.easeInOut(duration: 0.2), value: hex)
             .allowsHitTesting(false)
     }
 }
