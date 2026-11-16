@@ -65,7 +65,7 @@ final class T3HeadphonesMonitor: NSObject {
     private func runDemo() async {
         let demo = [
             HeadphonesConnect(address: "demo-pro", name: "AirPods Pro", kind: .airpodsPro,
-                              battery: HeadphonesBattery(left: 100, right: 95)),
+                              battery: HeadphonesBattery(left: 100, right: 100)),
             HeadphonesConnect(address: "demo-max", name: "AirPods Max", kind: .airpodsMax,
                               battery: HeadphonesBattery(single: 64)),
         ]

@@ -5,7 +5,7 @@ struct T3HeadphonesActivity: View {
     @EnvironmentObject var vm: BoringViewModel
     let connect: HeadphonesConnect
 
-    private let earWidth: CGFloat = 56
+    private let earWidth: CGFloat = 64
 
     var body: some View {
         HStack(spacing: 0) {
@@ -32,6 +32,8 @@ struct HeadphonesBatteryGlance: View {
         if let level {
             HStack(spacing: 4) {
                 Text("\(level)%")
+                    .lineLimit(1)
+                    .fixedSize()
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(T3Theme.primary)
