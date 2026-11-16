@@ -9,7 +9,7 @@ enum T3Theme {
     static let card = Color.white.opacity(0.055)
 
     static let needsYou = Color(hex: "#FFB020")
-    static let attention = Color(hex: "#FF8A1F")
+    static let attention = Color(hex: BorderPalette.standardHex)
     static let working = Color(hex: "#3DD68C")
     static let replied = Color(hex: "#5AA9FF")
     static let failed = Color(hex: "#FF5D5D")
