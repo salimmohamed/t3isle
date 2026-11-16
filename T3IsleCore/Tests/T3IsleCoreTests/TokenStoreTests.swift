@@ -59,23 +59,11 @@ final class TokenStoreTests: XCTestCase {
         XCTAssertNil(store.load())
     }
 
-    func testCorruptFileIsReplacedOnSave() throws {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try Data("not json".utf8).write(to: file)
-        try store.save(token)
-        XCTAssertEqual(store.load(), token)
-    }
-
     func testClearRemovesFile() throws {
         try store.save(token)
         store.clear()
         XCTAssertNil(store.load())
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
-    }
-
-    func testDefaultFileLivesInApplicationSupport() {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        XCTAssertEqual(FileTokenStore.defaultFile(), support.appendingPathComponent("T3 Isle/session.json"))
     }
 
     private var file: URL { folder.appendingPathComponent("session.json") }

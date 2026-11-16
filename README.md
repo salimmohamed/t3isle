@@ -42,7 +42,7 @@ xcodebuild -project boringNotch.xcodeproj -scheme boringNotch \
 open "build/Build/Products/Debug/T3 Isle.app"
 ```
 
-T3 Isle finds T3 Code on its own and signs in with T3's command-line tool. The session token stays in a private file only your account can read (`~/Library/Application Support/T3 Isle/session.json`).
+T3 Isle finds T3 Code on its own and signs in with T3's command-line tool. The session token stays in a private file in T3 Isle's Application Support folder that only your account can read.
 
 Want to poke around without real agents? Quit T3 Isle if it's running, then launch it with `--demo` for made-up threads, questions and quota. Demo mode never talks to T3.
 

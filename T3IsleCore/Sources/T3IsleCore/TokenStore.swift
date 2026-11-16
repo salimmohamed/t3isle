@@ -57,14 +57,8 @@ public struct FileTokenStore: TokenStore {
         let folder = file.deletingLastPathComponent()
         try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
-        let staged = folder.appendingPathComponent(".\(UUID().uuidString).tmp")
-        guard manager.createFile(atPath: staged.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        guard rename(staged.path, file.path) == 0 else {
-            try? manager.removeItem(at: staged)
-            throw CocoaError(.fileWriteUnknown)
-        }
+        try data.write(to: file, options: .atomic)
+        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 }
 
