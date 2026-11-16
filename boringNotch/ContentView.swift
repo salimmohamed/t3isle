@@ -12,6 +12,7 @@ import Defaults
 import KeyboardShortcuts
 import SwiftUI
 import SwiftUIIntrospect
+import T3IsleCore
 
 @MainActor
 struct ContentView: View {
@@ -57,6 +58,10 @@ struct ContentView: View {
                 ? cornerRadiusInsets.opened.bottom
                 : cornerRadiusInsets.closed.bottom
         )
+    }
+
+    private var closedActivity: ClosedActivity {
+        T3Tabs.closedActivity(nowPlaying: (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled)
     }
 
     private var computedChinWidth: CGFloat {
@@ -290,8 +295,10 @@ struct ContentView: View {
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
-                      } else if !coordinator.expandingView.show && vm.notchState == .closed && !vm.hideOnClosed && T3Tabs.shouldShowClosedActivity(musicActive: musicManager.isPlaying || !musicManager.isPlayerIdle) {
+                      } else if !coordinator.expandingView.show && vm.notchState == .closed && !vm.hideOnClosed && closedActivity == .t3 {
                           T3ClosedActivity()
+                      } else if !coordinator.expandingView.show && vm.notchState == .closed && !vm.hideOnClosed, let headphones = closedActivity.headphones {
+                          T3HeadphonesActivity(connect: headphones)
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)

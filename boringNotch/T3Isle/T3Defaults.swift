@@ -18,5 +18,6 @@ extension Defaults.Keys {
     static let t3QuotaWarnAt = Key<Int>("t3QuotaWarnAt", default: 40)
     static let t3QuotaCriticalAt = Key<Int>("t3QuotaCriticalAt", default: 15)
     static let t3FacesPerGroup = Key<Int>("t3FacesPerGroup", default: 3)
+    static let t3HeadphonesActivity = Key<Bool>("t3HeadphonesActivity", default: true)
     static let t3CollapsedSections = Key<Set<String>>("t3CollapsedSections", default: ["snoozed"])
 }

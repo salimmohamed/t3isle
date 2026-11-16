@@ -27,6 +27,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 -----------------------------------------------------------------------------
+                  GNU General Public License, version 3
+        applies to:
+        - Atoll, Copyright (C) 2024-2026 Atoll Contributors
+          https://github.com/Ebullioscopic/Atoll
+          commit 8373d1ecddbca4cc0aeffd8005951b075000a0d0
+          The headphones live activity in T3IsleCore/LiveActivities.swift and
+          boringNotch/T3Isle/T3HeadphonesMonitor.swift is derived from
+          DynamicIsland/managers/BluetoothAudioManager.swift: the Apple
+          headphone product IDs, the Bluetooth audio device check, and the
+          system_profiler battery fields.
+-----------------------------------------------------------------------------
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+The full license text is in the LICENSE file at the root of this
+repository.
+
+-----------------------------------------------------------------------------
                         BSD 3-Clause License
         applies to:
         - MediaRemoteAdapter, Copyright (c) 2025, Jonas van den Berg and contributors

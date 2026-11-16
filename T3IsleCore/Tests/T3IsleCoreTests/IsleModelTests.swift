@@ -65,9 +65,9 @@ final class IsleModelTests: XCTestCase {
         model.stop()
     }
 
-    func testClosedPresenceIsActiveWhileQuestionsWait() async throws {
+    func testClosedPresenceIsAlertWhileQuestionsWait() async throws {
         let model = try await startedModel()
-        XCTAssertEqual(model.closedPresence, .active)
+        XCTAssertEqual(model.closedPresence, .alert)
         model.stop()
     }
 
@@ -82,7 +82,7 @@ final class IsleModelTests: XCTestCase {
         XCTAssertEqual(model.closedPresence, .none)
         observer.cancel()
         model.apply(T3Preferences(enabled: true))
-        XCTAssertEqual(model.closedPresence, .active)
+        XCTAssertEqual(model.closedPresence, .alert)
         model.stop()
     }
 

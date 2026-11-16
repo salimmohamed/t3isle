@@ -10,10 +10,18 @@ final class T3IsleRuntime: ObservableObject {
 
     let model: T3IsleModel
     @Published private(set) var presence: ClosedPresence = .none
+    @Published private(set) var headphones: HeadphonesConnect?
+    private let headphonesPopup = HeadphonesPopup()
+    private lazy var headphonesMonitor = T3HeadphonesMonitor(popup: headphonesPopup)
     private var cancellables: Set<AnyCancellable> = []
 
     static var isDemo: Bool {
         CommandLine.arguments.contains("--demo") || ProcessInfo.processInfo.environment["T3ISLE_DEMO"] == "1"
+    }
+
+    static var isHeadphonesDemo: Bool {
+        CommandLine.arguments.contains("--demo-headphones")
+            || ProcessInfo.processInfo.environment["T3ISLE_DEMO_HEADPHONES"] == "1"
     }
 
     private init() {
@@ -39,6 +47,15 @@ final class T3IsleRuntime: ObservableObject {
                 guard let self, self.presence != self.model.closedPresence else { return }
                 self.presence = self.model.closedPresence
             }
+            .store(in: &cancellables)
+        headphonesPopup.$current
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.headphones = $0 }
+            .store(in: &cancellables)
+        Defaults.publisher(.t3HeadphonesActivity)
+            .map(\.newValue)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.headphonesMonitor.setEnabled($0) }
             .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
@@ -68,12 +85,10 @@ enum T3Tabs {
     }
 
     @MainActor
-    static func shouldShowClosedActivity(musicActive: Bool) -> Bool {
-        guard Defaults[.t3Enabled] else { return false }
-        switch T3IsleRuntime.shared.presence {
-        case .active: return true
-        case .threads: return !musicActive
-        case .none: return false
-        }
+    static func closedActivity(nowPlaying: Bool) -> ClosedActivity {
+        let runtime = T3IsleRuntime.shared
+        return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
+                                      headphones: Defaults[.t3HeadphonesActivity] ? runtime.headphones : nil,
+                                      nowPlaying: nowPlaying)
     }
 }

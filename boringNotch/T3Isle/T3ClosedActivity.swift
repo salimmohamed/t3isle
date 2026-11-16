@@ -10,30 +10,12 @@ struct T3ClosedActivity: View {
     @Default(.t3QuotaWarnAt) private var warnAt
     @Default(.t3QuotaCriticalAt) private var criticalAt
     @Default(.t3FacesPerGroup) private var facesPerGroup
-    @State private var leftWidth: CGFloat = 0
-    @State private var rightWidth: CGFloat = 0
 
     private var faceSize: CGFloat { max(12, min(20, vm.effectiveClosedNotchHeight - 10)) }
 
     var body: some View {
-        let ear = max(leftWidth, rightWidth, 40)
-        HStack(spacing: 0) {
-            left
-                .fixedSize()
-                .onGeometryChange(for: CGFloat.self, of: \.size.width) { leftWidth = $0 }
-                .frame(width: ear, alignment: .trailing)
-                .padding(.trailing, 6)
-            Rectangle()
-                .fill(.black)
-                .frame(width: vm.closedNotchSize.width - cornerRadiusInsets.closed.top)
-            right
-                .fixedSize()
-                .onGeometryChange(for: CGFloat.self, of: \.size.width) { rightWidth = $0 }
-                .frame(width: ear, alignment: .leading)
-                .padding(.leading, 6)
-        }
-        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-        .animation(T3Theme.shuffle, value: model.threads)
+        T3ClosedEars { left } right: { right }
+            .animation(T3Theme.shuffle, value: model.threads)
     }
 
     @ViewBuilder
@@ -65,6 +47,34 @@ struct T3ClosedActivity: View {
             LimitGlance(providers: model.providers, window: quotaWindow, showLeft: showQuotaLeft,
                         warnAt: warnAt, criticalAt: criticalAt)
         }
+    }
+}
+
+struct T3ClosedEars<Left: View, Right: View>: View {
+    @EnvironmentObject var vm: BoringViewModel
+    @ViewBuilder let left: Left
+    @ViewBuilder let right: Right
+    @State private var leftWidth: CGFloat = 0
+    @State private var rightWidth: CGFloat = 0
+
+    var body: some View {
+        let ear = max(leftWidth, rightWidth, 40)
+        HStack(spacing: 0) {
+            left
+                .fixedSize()
+                .onGeometryChange(for: CGFloat.self, of: \.size.width) { leftWidth = $0 }
+                .frame(width: ear, alignment: .trailing)
+                .padding(.trailing, 6)
+            Rectangle()
+                .fill(.black)
+                .frame(width: vm.closedNotchSize.width - cornerRadiusInsets.closed.top)
+            right
+                .fixedSize()
+                .onGeometryChange(for: CGFloat.self, of: \.size.width) { rightWidth = $0 }
+                .frame(width: ear, alignment: .leading)
+                .padding(.leading, 6)
+        }
+        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
     }
 }
 

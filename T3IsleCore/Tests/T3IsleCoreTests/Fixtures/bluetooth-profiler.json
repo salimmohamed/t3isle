@@ -1,0 +1,40 @@
+{
+  "SPBluetoothDataType" : [
+    {
+      "controller_properties" : {
+        "controller_address" : "AA:BB:CC:00:00:01",
+        "controller_state" : "attrib_on"
+      },
+      "device_connected" : [
+        {
+          "Studio AirPods Pro" : {
+            "device_address" : "68:3E:C0:00:00:02",
+            "device_batteryLevelCase" : "80%",
+            "device_batteryLevelLeft" : "100%",
+            "device_batteryLevelRight" : "95%",
+            "device_minorType" : "Headphones",
+            "device_productID" : "0x2024",
+            "device_vendorID" : "0x004C"
+          }
+        },
+        {
+          "Desk Headset" : {
+            "device_address" : "10:20:30:00:00:03",
+            "device_batteryLevelMain" : "42%",
+            "device_minorType" : "Headphones",
+            "device_productID" : "0xFFFF",
+            "device_vendorID" : "0x000A"
+          }
+        }
+      ],
+      "device_not_connected" : [
+        {
+          "Old Speaker" : {
+            "device_address" : "10:20:30:00:00:04",
+            "device_minorType" : "Loudspeaker"
+          }
+        }
+      ]
+    }
+  ]
+}
