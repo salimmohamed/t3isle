@@ -115,6 +115,16 @@ jobs:
           echo "$SIGNED_REQUIREMENT"
           grep -qiF "$REQUIREMENT" <<<"$SIGNED_REQUIREMENT"
 
+      - name: Check app is not sandboxed
+        run: |
+          set -euo pipefail
+          APP="$DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
+          ENTITLEMENTS="$(codesign -d --entitlements - --xml "$APP" | tr -d '[:space:]')"
+          if grep -qF '<key>com.apple.security.app-sandbox</key><true/>' <<<"$ENTITLEMENTS"; then
+            echo "::error::$APP_NAME.app is signed with com.apple.security.app-sandbox, so it cannot read ~/.t3"
+            exit 1
+          fi
+
       - name: Check app
         run: |
           set -euo pipefail

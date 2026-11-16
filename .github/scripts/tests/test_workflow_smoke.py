@@ -9,6 +9,11 @@ stable/beta follow too.
 
 from __future__ import annotations
 
+import os
+import stat
+import subprocess
+import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -388,6 +393,62 @@ class WorkflowSmokeTests(unittest.TestCase):
         resume_block = self.release.split("Generate release notes", 1)[1].split("- name:", 1)[0]
         self.assertIn('gh release view "v${VERSION}" --repo "$REPO" --json name', resume_block)
         self.assertIn('gh release view "v${VERSION}" --repo "$REPO" --json body', resume_block)
+
+
+    def sandbox_step_script(self) -> str:
+        workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "t3isle-release.yml").read_text(
+            encoding="utf-8"
+        )
+        step = workflow.split("- name: Check app is not sandboxed\n", 1)[1].split("      - name:", 1)[0]
+        return textwrap.dedent(step.split("run: |\n", 1)[1])
+
+    def run_sandbox_step(self, entitlements: str) -> subprocess.CompletedProcess:
+        with tempfile.TemporaryDirectory() as directory:
+            codesign = Path(directory) / "codesign"
+            codesign.write_text(f"#!/bin/sh\ncat <<'XML'\n{entitlements}\nXML\n", encoding="utf-8")
+            codesign.chmod(codesign.stat().st_mode | stat.S_IXUSR)
+            environment = {
+                **os.environ,
+                "PATH": f"{directory}:{os.environ['PATH']}",
+                "DERIVED_DATA": directory,
+                "APP_NAME": "T3 Isle",
+            }
+            return subprocess.run(
+                ["bash", "-c", self.sandbox_step_script()],
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+    def test_t3isle_release_fails_when_the_app_is_sandboxed(self) -> None:
+        sandboxed = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>'
+            "<key>com.apple.security.app-sandbox</key>\n<true/>"
+            "<key>com.apple.security.network.client</key><true/></dict></plist>"
+        )
+        result = self.run_sandbox_step(sandboxed)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("::error::T3 Isle.app is signed with com.apple.security.app-sandbox", result.stdout)
+
+    def test_t3isle_release_passes_without_the_sandbox_entitlement(self) -> None:
+        for name, entitlements in (
+            ("none", ""),
+            ("sandbox off", '<plist version="1.0"><dict><key>com.apple.security.app-sandbox</key><false/></dict></plist>'),
+            ("other entitlements", '<plist version="1.0"><dict><key>com.apple.security.network.client</key><true/></dict></plist>'),
+        ):
+            with self.subTest(entitlements=name):
+                result = self.run_sandbox_step(entitlements)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_t3isle_release_checks_the_sandbox_right_after_signing(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "t3isle-release.yml").read_text(
+            encoding="utf-8"
+        )
+        sign = workflow.index("- name: Sign app")
+        guard = workflow.index("- name: Check app is not sandboxed")
+        self.assertLess(sign, guard)
+        self.assertIn("codesign -d --entitlements - --xml", self.sandbox_step_script())
 
 
 if __name__ == "__main__":
