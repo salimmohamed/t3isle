@@ -33,8 +33,20 @@ private final class T3CustomBorderColor: NSObject {
         }
     }
 
+    func close() {
+        guard visibility != nil else { return }
+        let panel = NSColorPanel.shared
+        panel.orderOut(nil)
+        detach(panel)
+    }
+
     private func panelVisibilityChanged(_ panel: NSColorPanel) {
-        guard !panel.isVisible, visibility != nil else { return }
+        guard !panel.isVisible else { return }
+        detach(panel)
+    }
+
+    private func detach(_ panel: NSColorPanel) {
+        guard visibility != nil else { return }
         visibility = nil
         panel.setTarget(nil)
         T3BorderPreview.shared.panelOpen = false
@@ -63,7 +75,10 @@ struct T3BorderColorControl: View {
             T3BorderPalette(hex: $hex)
         }
         .onChange(of: showingPalette) { _, open in T3BorderPreview.shared.popoverOpen = open }
-        .onDisappear { T3BorderPreview.shared.popoverOpen = false }
+        .onDisappear {
+            T3BorderPreview.shared.popoverOpen = false
+            T3CustomBorderColor.shared.close()
+        }
     }
 }
 
