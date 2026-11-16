@@ -26,6 +26,8 @@ enum T3Theme {
 
     static let shuffle = Animation.spring(response: 0.5, dampingFraction: 0.68)
     static let act = Animation.spring(response: 0.3, dampingFraction: 0.86)
+    static let liveActivityIn = Animation.spring(response: 0.42, dampingFraction: 0.8)
+    static let liveActivityOut = Animation.spring(response: 0.45, dampingFraction: 1.0)
 
     static func accent(_ provider: ProviderLimits) -> Color {
         if let hex = provider.accentHex { return Color(hex: hex) }
