@@ -31,7 +31,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
                 NavigationLink(value: "T3") {
-                    Label("T3 Code", systemImage: "sparkles")
+                    Label("T3 Code", image: "t3.blob")
                 }
                 NavigationLink(value: "Appearance") {
                     Label("Appearance", systemImage: "eye")

@@ -318,29 +318,75 @@ def icon_composer_project():
     return manifest, {"blob.svg": blob_layer, "text.svg": text_layer}
 
 
-def blob_dome(radius, steps=240):
+def blob_dome(radius, cut, steps=240):
     dense = blob_points(0, 0, radius, steps)
-    cut = 0.18 * radius
-    kept = [p for p in dense if p[1] <= cut]
+    kept = [p for p in dense if p[1] <= cut * radius]
     seam = max(range(len(kept)), key=lambda i: math.hypot(kept[i][0] - kept[i - 1][0], kept[i][1] - kept[i - 1][1]))
     return kept[seam:] + kept[:seam]
 
 
-def menubar_svg():
-    size, live = 18, 16
-    radius = live / 2 / (BLOB["aspect"] * (1 + BLOB["wobble"]))
-    arc = blob_dome(radius)
+def blob_glyph(width, cut, eye_scale, eye_drop):
+    radius = width / 2 / (BLOB["aspect"] * (1 + BLOB["wobble"]))
+    arc = blob_dome(radius, cut)
     ys = [p[1] for p in arc]
-    dx, dy = size / 2, size / 2 - (min(ys) + max(ys)) / 2
-    outline = "M" + "L".join(f"{n(x+dx)},{n(y+dy)}" for x, y in arc) + "Z"
-    eye_y = (min(ys) + max(ys)) / 2 + dy + 0.4
+    middle = (min(ys) + max(ys)) / 2
+    outline = "M" + "L".join(f"{n(x)},{n(y-middle)}" for x, y in arc) + "Z"
     holes = ""
-    for e in eyes(dx, eye_y, radius * 1.05, scale=1.25):
+    for e in eyes(0, eye_drop, radius * 1.05, scale=eye_scale):
         holes += (f'M{n(e["cx"]-e["rx"])},{n(e["cy"])}a{n(e["rx"])},{n(e["ry"])} 0 1 0 {n(2*e["rx"])},0'
                   f'a{n(e["rx"])},{n(e["ry"])} 0 1 0 {n(-2*e["rx"])},0Z')
+    return outline + holes
+
+
+def menubar_svg():
+    size = 18
+    glyph = blob_glyph(16, cut=0.18, eye_scale=1.25, eye_drop=0.4)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">\n'
             f'  <title>T3 Isle menu bar glyph</title>\n'
-            f'  <path d="{outline}{holes}" fill="#000000" fill-rule="evenodd"/>\n</svg>\n')
+            f'  <path d="{glyph}" transform="translate({size/2} {size/2})" fill="#000000" fill-rule="evenodd"/>\n</svg>\n')
+
+
+SYMBOL_BASELINE = 696
+SYMBOL_CAPLINE = 625.541
+SYMBOL_WIDTH = 100
+SYMBOL_MARGIN = 6
+SYMBOL_WEIGHTS = (("Ultralight-S", 515.84), ("Regular-S", 1403.07), ("Black-S", 2881.72))
+
+
+def symbol_svg(glyph, width):
+    middle = (SYMBOL_BASELINE - SYMBOL_CAPLINE) / 2
+    guides, symbols = [], []
+    for weight, left in SYMBOL_WEIGHTS:
+        right = left + width + 2 * SYMBOL_MARGIN
+        guides.append(f'    <line id="left-margin-{weight}" x1="{n(left)}" x2="{n(left)}" y1="600" y2="720"/>')
+        guides.append(f'    <line id="right-margin-{weight}" x1="{n(right)}" x2="{n(right)}" y1="600" y2="720"/>')
+        center_x = left + SYMBOL_MARGIN + width / 2
+        symbols.append(f'    <g id="{weight}" transform="translate({n(center_x)} {n(SYMBOL_BASELINE - middle)})">'
+                       f'<path d="{glyph}" fill-rule="evenodd"/></g>')
+    lines = []
+    for scale, shift in (("S", 0), ("M", 430), ("L", 860)):
+        lines.append(f'    <line id="Baseline-{scale}" x1="263" x2="3036" y1="{n(SYMBOL_BASELINE + shift)}" y2="{n(SYMBOL_BASELINE + shift)}"/>')
+        lines.append(f'    <line id="Capline-{scale}" x1="263" x2="3036" y1="{n(SYMBOL_CAPLINE + shift)}" y2="{n(SYMBOL_CAPLINE + shift)}"/>')
+    guide_lines = "\n".join(lines + guides)
+    symbol_groups = "\n".join(symbols)
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3300 2200">
+  <g id="Notes">
+    <text id="template-version" x="3036" y="1933">Template v.3.0</text>
+  </g>
+  <g id="Guides" style="fill:none;stroke:#27AAE1;stroke-width:0.5">
+{guide_lines}
+  </g>
+  <g id="Symbols">
+{symbol_groups}
+  </g>
+</svg>
+"""
+
+
+def blob_symbol_svg():
+    glyph = blob_glyph(SYMBOL_WIDTH, cut=0.5, eye_scale=1.8, eye_drop=0)
+    return symbol_svg(glyph, SYMBOL_WIDTH)
 
 
 def banner_svg(theme):
@@ -396,6 +442,7 @@ def main(out_dir):
     write(os.path.join(out_dir, "icon.svg"), icon_svg())
     write(os.path.join(out_dir, "icon-small.svg"), icon_svg(small=True))
     write(os.path.join(out_dir, "menubar.svg"), menubar_svg())
+    write(os.path.join(out_dir, "t3.blob.svg"), blob_symbol_svg())
     write(os.path.join(out_dir, "social-preview.svg"), social_svg())
     for theme in BANNER_LETTERS:
         write(os.path.join(out_dir, f"banner-{theme}.svg"), banner_svg(theme))
