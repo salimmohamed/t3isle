@@ -13,6 +13,19 @@
 	<false/>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
+#if T3ISLE_DEBUG_COMMANDS
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.t3isle.app.debug</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>t3isle-debug</string>
+			</array>
+		</dict>
+	</array>
+#endif
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>

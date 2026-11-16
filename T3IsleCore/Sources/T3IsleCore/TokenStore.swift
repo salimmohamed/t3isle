@@ -29,9 +29,10 @@ public struct FileTokenStore: TokenStore {
         self.file = file
     }
 
-    public static func defaultFile() -> URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("T3 Isle", isDirectory: true)
+    public static func defaultFile(bundle: Bundle = .main) -> URL {
+        let folder = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "T3 Isle"
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(folder, isDirectory: true)
             .appendingPathComponent("session.json")
     }
 
