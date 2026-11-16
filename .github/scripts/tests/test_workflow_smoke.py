@@ -318,7 +318,8 @@ class WorkflowSmokeTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertEqual(pbxproj.count('PRODUCT_NAME = "T3 Isle";'), 2)
         self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleName = "T3 Isle";'), 2)
-        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle";'), 2)
+        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle";'), 1)
+        self.assertEqual(pbxproj.count('INFOPLIST_KEY_CFBundleDisplayName = "T3 Isle Debug";'), 1)
 
         # Reusable build: archives under the project name, exports the app under
         # APP_NAME, and publishes the compatibility DMG under PROJECT_NAME.
