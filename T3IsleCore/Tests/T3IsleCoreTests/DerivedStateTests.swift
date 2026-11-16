@@ -21,12 +21,17 @@ final class DerivedStateTests: XCTestCase {
     func testInboxExcludesSettled() throws {
         let ids = try inbox().map(\.id)
         XCTAssertFalse(ids.contains("t-settled"))
-        XCTAssertEqual(ids.count, 8)
+        XCTAssertEqual(ids.count, 9)
     }
 
     func testSubagentsAreChildOrDelegatedThreads() throws {
         let subagents = try shell().threads.filter(\.isSubagent).map(\.id)
         XCTAssertEqual(subagents, ["t-subagent", "t-delegated"])
+    }
+
+    func testSideChatsAreMarkedByLineage() throws {
+        let sideChats = try shell().threads.filter(\.isSideChat).map(\.id)
+        XCTAssertEqual(sideChats, ["t-side-chat"])
     }
 
     func testMoodsAndOrdering() throws {

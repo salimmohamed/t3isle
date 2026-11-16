@@ -145,6 +145,23 @@ final class SubagentVisibilityTests: XCTestCase {
         model.stop()
     }
 
+    func testSideChatsHiddenByDefault() async throws {
+        let model = try await model()
+        XCTAssertFalse(shownIds(model).contains("t-side-chat"))
+        XCTAssertEqual(model.workingCount, 2)
+        model.stop()
+    }
+
+    func testShowSubagentsSettingKeepsSideChatsHidden() async throws {
+        let model = try await model()
+        model.apply(T3Preferences(showSubagents: true))
+        let ids = shownIds(model)
+        XCTAssertTrue(ids.contains("t-subagent"))
+        XCTAssertFalse(ids.contains("t-side-chat"))
+        XCTAssertEqual(model.workingCount, 4)
+        model.stop()
+    }
+
     func testSettingShowsSubagentThreads() async throws {
         let model = try await model()
         model.apply(T3Preferences(showSubagents: true))
