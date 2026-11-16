@@ -1,3 +1,4 @@
+import CoreBluetooth
 import XCTest
 @testable import T3IsleCore
 
@@ -21,6 +22,26 @@ final class LiveActivitiesTests: XCTestCase {
     func testThreadFacesShowWhenNothingElseIsLive() {
         XCTAssertEqual(ClosedActivity.resolve(t3: .threads, headphones: nil, nowPlaying: false), .t3)
         XCTAssertEqual(ClosedActivity.resolve(t3: .none, headphones: nil, nowPlaying: false), .none)
+    }
+
+    func testUnansweredBluetoothAccessAsksBeforeWatching() {
+        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .notDetermined), .askForAccess)
+    }
+
+    func testDeniedBluetoothAccessKeepsHeadphonesOff() {
+        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .denied), .off)
+        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .restricted), .off)
+    }
+
+    func testAllowedBluetoothAccessWatchesOnlyWhenEnabled() {
+        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .allowedAlways), .watch)
+        XCTAssertEqual(HeadphonesWatch(enabled: false, authorization: .allowedAlways), .off)
+        XCTAssertEqual(HeadphonesWatch(enabled: false, authorization: .notDetermined), .off)
+    }
+
+    func testAnsweringAllowStartsWatching() {
+        let answered: [CBManagerAuthorization] = [.notDetermined, .allowedAlways]
+        XCTAssertEqual(answered.map { HeadphonesWatch(enabled: true, authorization: $0) }, [.askForAccess, .watch])
     }
 
     func testReportReadsTheLowerBudLevelByAddress() throws {

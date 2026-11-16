@@ -1,3 +1,4 @@
+import CoreBluetooth
 import Foundation
 import IOBluetooth
 import T3IsleCore
@@ -5,6 +6,9 @@ import T3IsleCore
 @MainActor
 final class T3HeadphonesMonitor: NSObject {
     private let popup: HeadphonesPopup
+    private var enabled = false
+    private var accessRequest: CBCentralManager?
+    private var watchTask: Task<Void, Never>?
     private var connectNotification: IOBluetoothUserNotification?
     private var alreadyConnected: Set<String> = []
     private var demoTask: Task<Void, Never>?
@@ -14,26 +18,51 @@ final class T3HeadphonesMonitor: NSObject {
     }
 
     func setEnabled(_ enabled: Bool) {
-        enabled ? start() : stop()
+        self.enabled = enabled
+        reconcile()
     }
 
-    private func start() {
-        guard connectNotification == nil, demoTask == nil else { return }
+    private func reconcile() {
         if T3IsleRuntime.isHeadphonesDemo {
-            demoTask = Task { [weak self] in await self?.runDemo() }
+            enabled ? startDemo() : stop()
             return
         }
-        let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
-        alreadyConnected = Set(paired.filter { $0.isConnected() }.compactMap(\.addressString))
-        connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
-                                                         selector: #selector(deviceConnected(_:device:)))
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2))
-            self?.alreadyConnected = []
+        switch HeadphonesWatch(enabled: enabled, authorization: CBManager.authorization) {
+        case .off: stop()
+        case .askForAccess: askForAccess()
+        case .watch: watch()
         }
+    }
+
+    private func askForAccess() {
+        guard accessRequest == nil else { return }
+        accessRequest = CBCentralManager(delegate: self, queue: .main,
+                                         options: [CBCentralManagerOptionShowPowerAlertKey: false])
+    }
+
+    private func watch() {
+        accessRequest = nil
+        guard watchTask == nil else { return }
+        watchTask = Task { [weak self] in
+            let connected = await Self.connectedAddresses()
+            guard !Task.isCancelled, let self else { return }
+            alreadyConnected = connected
+            connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
+                                                             selector: #selector(deviceConnected(_:device:)))
+            try? await Task.sleep(for: .seconds(2))
+            alreadyConnected = []
+        }
+    }
+
+    private func startDemo() {
+        guard demoTask == nil else { return }
+        demoTask = Task { [weak self] in await self?.runDemo() }
     }
 
     private func stop() {
+        accessRequest = nil
+        watchTask?.cancel()
+        watchTask = nil
         connectNotification?.unregister()
         connectNotification = nil
         demoTask?.cancel()
@@ -89,6 +118,13 @@ final class T3HeadphonesMonitor: NSObject {
         return (device.classOfDevice >> 8) & 0x1F == audioVideoMajorClass
     }
 
+    private nonisolated static func connectedAddresses() async -> Set<String> {
+        await Task.detached(priority: .utility) {
+            let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+            return Set(paired.filter { $0.isConnected() }.compactMap(\.addressString))
+        }.value
+    }
+
     private nonisolated static func report(address: String) async -> BluetoothReport? {
         await Task.detached(priority: .utility) {
             let process = Process()
@@ -102,5 +138,11 @@ final class T3HeadphonesMonitor: NSObject {
             process.waitUntilExit()
             return BluetoothReport.find(address: address, inSystemProfilerJSON: data)
         }.value
+    }
+}
+
+extension T3HeadphonesMonitor: CBCentralManagerDelegate {
+    nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        Task { @MainActor [weak self] in self?.reconcile() }
     }
 }

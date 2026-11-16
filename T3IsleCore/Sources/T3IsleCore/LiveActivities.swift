@@ -1,3 +1,4 @@
+import CoreBluetooth
 import Foundation
 
 public enum ClosedActivity: Equatable, Sendable {
@@ -86,6 +87,24 @@ public struct HeadphonesConnect: Identifiable, Equatable, Sendable {
         self.name = name
         self.kind = kind
         self.battery = battery
+    }
+}
+
+public enum HeadphonesWatch: Equatable, Sendable {
+    case off
+    case askForAccess
+    case watch
+
+    public init(enabled: Bool, authorization: CBManagerAuthorization) {
+        guard enabled else {
+            self = .off
+            return
+        }
+        switch authorization {
+        case .allowedAlways: self = .watch
+        case .notDetermined: self = .askForAccess
+        default: self = .off
+        }
     }
 }
 
