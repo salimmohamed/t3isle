@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 public struct StoredToken: Codable, Equatable, Sendable {
     public let token: String
@@ -23,51 +22,49 @@ public protocol TokenStore: Sendable {
     func clear()
 }
 
-public struct KeychainTokenStore: TokenStore {
-    private let service: String
-    private let account: String
+public struct FileTokenStore: TokenStore {
+    private let file: URL
 
-    public init(service: String = "dev.t3isle.app", account: String = "t3-server-session") {
-        self.service = service
-        self.account = account
+    public init(file: URL = FileTokenStore.defaultFile()) {
+        self.file = file
     }
 
-    private var query: [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
+    public static func defaultFile() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("T3 Isle", isDirectory: true)
+            .appendingPathComponent("session.json")
     }
 
     public func load() -> StoredToken? {
-        var lookup = query
-        lookup[kSecReturnData as String] = true
-        lookup[kSecMatchLimit as String] = kSecMatchLimitOne
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(lookup as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data
-        else { return nil }
+        guard let data = try? Data(contentsOf: file) else { return nil }
         return try? JSONDecoder().decode(StoredToken.self, from: data)
     }
 
     public func save(_ token: StoredToken) throws {
-        let data = try JSONEncoder().encode(token)
-        let update = [kSecValueData as String: data]
-        let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
-        if status == errSecItemNotFound {
-            var insert = query
-            insert[kSecValueData as String] = data
-            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let added = SecItemAdd(insert as CFDictionary, nil)
-            guard added == errSecSuccess else { throw T3Failure.keychain(added) }
-        } else if status != errSecSuccess {
-            throw T3Failure.keychain(status)
+        do {
+            try write(JSONEncoder().encode(token))
+        } catch {
+            throw T3Failure.sessionNotSaved
         }
     }
 
     public func clear() {
-        SecItemDelete(query as CFDictionary)
+        try? FileManager.default.removeItem(at: file)
+    }
+
+    private func write(_ data: Data) throws {
+        let manager = FileManager.default
+        let folder = file.deletingLastPathComponent()
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
+        let staged = folder.appendingPathComponent(".\(UUID().uuidString).tmp")
+        guard manager.createFile(atPath: staged.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        guard rename(staged.path, file.path) == 0 else {
+            try? manager.removeItem(at: staged)
+            throw CocoaError(.fileWriteUnknown)
+        }
     }
 }
 
