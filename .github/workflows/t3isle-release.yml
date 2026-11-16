@@ -73,6 +73,49 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             ${VERSION:+"MARKETING_VERSION=$VERSION"}
 
+      - name: Sign app
+        env:
+          RELEASE_CERT_P12: ${{ secrets.T3ISLE_RELEASE_CERT_P12 }}
+          RELEASE_CERT_PASSWORD: ${{ secrets.T3ISLE_RELEASE_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$RELEASE_CERT_P12" || -z "$RELEASE_CERT_PASSWORD" ]]; then
+            if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+              echo "::error::Release tags need the T3ISLE_RELEASE_CERT_P12 and T3ISLE_RELEASE_CERT_PASSWORD secrets"
+              exit 1
+            fi
+            echo "::warning::Release signing secrets are not available, so this build stays ad-hoc signed"
+            exit 0
+          fi
+          APP="$DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
+          KEYCHAIN="$RUNNER_TEMP/release-signing.keychain-db"
+          CERT="$RUNNER_TEMP/release-signing.p12"
+          remove_signing_material() {
+            security delete-keychain "$KEYCHAIN" 2>/dev/null || true
+            rm -f "$CERT"
+          }
+          trap remove_signing_material EXIT
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$RELEASE_CERT_P12" | base64 --decode > "$CERT"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -f pkcs12 -P "$RELEASE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | awk '$1 == "1)" { print $2; exit }')"
+          if [[ ! "$IDENTITY" =~ ^[0-9A-F]{40}$ ]]; then
+            echo "::error::No code signing identity found in the release certificate"
+            exit 1
+          fi
+          REQUIREMENT="designated => certificate leaf = H\"$IDENTITY\""
+          codesign --force --deep --preserve-metadata=entitlements,flags,runtime \
+            --keychain "$KEYCHAIN" -s "$IDENTITY" -r="$REQUIREMENT" "$APP"
+          SIGNED_REQUIREMENT="$(codesign -d -r- "$APP")"
+          echo "$SIGNED_REQUIREMENT"
+          grep -qiF "$REQUIREMENT" <<<"$SIGNED_REQUIREMENT"
+
       - name: Check app
         run: |
           set -euo pipefail
