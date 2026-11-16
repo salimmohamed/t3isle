@@ -50,7 +50,7 @@ enum T3Tabs {
     @MainActor
     static func visible(_ tabs: [TabModel]) -> [TabModel] {
         guard Defaults[.t3Enabled] else { return tabs }
-        return [TabModel(label: "T3", icon: "sparkles", view: .t3)] + tabs
+        return [TabModel(label: "T3", icon: Image("t3.blob"), view: .t3)] + tabs
     }
 
     @MainActor

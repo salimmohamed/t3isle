@@ -6,6 +6,7 @@ REPO="$(cd "$HERE/../.." && pwd)"
 CATALOG="$REPO/boringNotch/Assets.xcassets"
 APP_ICON="$CATALOG/AppIcon.appiconset"
 MENU_BAR="$CATALOG/MenuBarIcon.imageset"
+T3_SYMBOL="$CATALOG/t3.blob.symbolset"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -52,6 +53,7 @@ fill_app_icon_set
 cp "$TMP/icon-512.png" "$CATALOG/logo2.imageset/BoringNotch icon.png"
 cp "$TMP/icon-256.png" "$CATALOG/logo.imageset/256-mac 1.png"
 render_menu_bar_glyph
+cp "$TMP/t3.blob.svg" "$T3_SYMBOL/t3.blob.svg"
 cp "$TMP/icon.svg" "$REPO/assets/icon.svg"
 rasterize "$TMP/social-preview.svg" "$REPO/assets/social-preview.png"
 cp "$TMP/banner-light.svg" "$TMP/banner-dark.svg" "$REPO/assets/readme/"
