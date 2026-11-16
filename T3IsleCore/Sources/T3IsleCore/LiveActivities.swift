@@ -52,19 +52,17 @@ public enum HeadphonesKind: Equatable, Sendable {
 public struct HeadphonesBattery: Equatable, Sendable {
     public var left: Int?
     public var right: Int?
-    public var chargingCase: Int?
     public var single: Int?
 
-    public init(left: Int? = nil, right: Int? = nil, chargingCase: Int? = nil, single: Int? = nil) {
+    public init(left: Int? = nil, right: Int? = nil, single: Int? = nil) {
         self.left = left
         self.right = right
-        self.chargingCase = chargingCase
         self.single = single
     }
 
-    public var isEmpty: Bool { left == nil && right == nil && chargingCase == nil && single == nil }
+    public var isEmpty: Bool { level == nil }
 
-    public var buds: Int? {
+    public var level: Int? {
         switch (left, right) {
         case let (left?, right?): min(left, right)
         case let (left?, nil): left
@@ -121,7 +119,6 @@ public struct BluetoothReport: Equatable, Sendable {
         battery = HeadphonesBattery(
             left: Self.percent(payload["device_batteryLevelLeft"]),
             right: Self.percent(payload["device_batteryLevelRight"]),
-            chargingCase: Self.percent(payload["device_batteryLevelCase"]),
             single: Self.percent(payload["device_batteryLevelMain"] ?? payload["device_batteryLevel"])
         )
     }

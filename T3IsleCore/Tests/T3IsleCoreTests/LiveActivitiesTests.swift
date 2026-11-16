@@ -23,18 +23,18 @@ final class LiveActivitiesTests: XCTestCase {
         XCTAssertEqual(ClosedActivity.resolve(t3: .none, headphones: nil, nowPlaying: false), .none)
     }
 
-    func testReportReadsAirPodsBudsAndCaseByAddress() throws {
+    func testReportReadsTheLowerBudLevelByAddress() throws {
         let report = try XCTUnwrap(BluetoothReport.find(address: "68-3e-c0-00-00-02", inSystemProfilerJSON: fixture()))
         XCTAssertEqual(report.name, "Studio AirPods Pro")
-        XCTAssertEqual(report.battery, HeadphonesBattery(left: 100, right: 95, chargingCase: 80))
-        XCTAssertEqual(report.battery.buds, 95)
+        XCTAssertEqual(report.battery, HeadphonesBattery(left: 100, right: 95))
+        XCTAssertEqual(report.battery.level, 95)
         XCTAssertEqual(HeadphonesKind(productID: report.productID, name: "Renamed buds"), .airpodsPro)
     }
 
     func testReportReadsSingleBatteryHeadphones() throws {
         let report = try XCTUnwrap(BluetoothReport.find(address: "10:20:30:00:00:03", inSystemProfilerJSON: fixture()))
         XCTAssertEqual(report.battery, HeadphonesBattery(single: 42))
-        XCTAssertEqual(report.battery.buds, 42)
+        XCTAssertEqual(report.battery.level, 42)
         XCTAssertEqual(HeadphonesKind(productID: report.productID, name: report.name), .headphones)
     }
 
@@ -57,7 +57,7 @@ final class LiveActivitiesTests: XCTestCase {
         popup.show(pods)
         XCTAssertEqual(popup.current, pods)
         popup.update(battery: HeadphonesBattery(left: 70, right: 72), for: pods.id)
-        XCTAssertEqual(popup.current?.battery.buds, 70)
+        XCTAssertEqual(popup.current?.battery.level, 70)
         try await Task.sleep(for: .milliseconds(400))
         XCTAssertNil(popup.current)
     }

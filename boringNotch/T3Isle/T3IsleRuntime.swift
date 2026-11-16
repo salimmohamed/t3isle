@@ -50,7 +50,9 @@ final class T3IsleRuntime: ObservableObject {
             .store(in: &cancellables)
         headphonesPopup.$current
             .receive(on: RunLoop.main)
-            .sink { [weak self] in self?.headphones = $0 }
+            .sink { [weak self] next in
+                withAnimation(next == nil ? T3Theme.liveActivityOut : T3Theme.liveActivityIn) { self?.headphones = next }
+            }
             .store(in: &cancellables)
         Defaults.publisher(.t3HeadphonesActivity)
             .map(\.newValue)
