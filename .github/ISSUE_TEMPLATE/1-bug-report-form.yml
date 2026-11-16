@@ -4,7 +4,7 @@ description: File a bug report.
 title: '[Bug] '
 type: Bug
 labels:
-  - unconfirmed
+  - bug
 body:
   - type: markdown
     attributes:
@@ -30,12 +30,11 @@ body:
   - type: input
     id: version
     attributes:
-      label: Boring Notch Version
+      label: T3 Isle Version
       description: >-
-        What version of our software are you running? (Go to ✦ in the menu bar >
-        Settings > About). The "Report a Bug" button in the About pane prefills
-        the exact version, build number, and update channel.
-      placeholder: "v2.7.3 (build 274, beta channel)"
+        What version of T3 Isle are you running? (Click the T3 Isle icon in the
+        menu bar > Settings > About > Version.)
+      placeholder: "v0.1.1"
     validations:
       required: true
   - type: input
@@ -51,7 +50,7 @@ body:
       label: Music Source? (If relevant)
       description: >-
         If this issue is related to music, what music source did you select in
-        Boring Notch settings?
+        T3 Isle settings?
       options:
         - Now Playing
         - Apple Music
@@ -69,6 +68,17 @@ body:
     id: music-website
     attributes:
       label: Website (If using browser for music)
+    validations:
+      required: false
+  - type: textarea
+    id: t3-code
+    attributes:
+      label: T3 Code version and connection state (If relevant)
+      description: >-
+        If this issue is related to T3 Code, give the T3 Code version and the
+        connection state the notch shows (Live, Connecting…, or the error
+        text).
+      placeholder: "T3 Code v0.0.1, notch shows Live"
     validations:
       required: false
   - type: textarea
