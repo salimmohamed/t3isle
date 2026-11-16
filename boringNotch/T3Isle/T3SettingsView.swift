@@ -27,9 +27,12 @@ struct T3SettingsView: View {
             Section {
                 Defaults.Toggle(key: .t3OpenOnQuestion) { Text("Open the notch when an agent asks something") }
                 Defaults.Toggle(key: .t3QuestionSound) { Text("Play a sound for new questions") }
-                HStack {
-                    Defaults.Toggle(key: .t3AttentionBorder) { Text("Show attention border around the notch") }
-                    T3BorderColorControl().disabled(!borderShown)
+                Defaults.Toggle(key: .t3AttentionBorder) {
+                    HStack {
+                        Text("Show attention border around the notch")
+                        Spacer()
+                        T3BorderColorControl().disabled(!borderShown)
+                    }
                 }
                 Defaults.Toggle(key: .t3KeepFinishedPinned) { Text("Keep finished agents pinned as Done") }
                 Defaults.Toggle(key: .t3ThreadActions) { Text("Snooze and settle threads from the notch") }
