@@ -9,7 +9,6 @@ struct T3SettingsView: View {
     @Default(.t3QuotaWarnAt) private var warnAt
     @Default(.t3QuotaCriticalAt) private var criticalAt
     @Default(.t3FacesPerGroup) private var facesPerGroup
-    @ObservedObject private var coordinator = BoringViewCoordinator.shared
 
     var body: some View {
         Form {
@@ -42,16 +41,6 @@ struct T3SettingsView: View {
                 Text("Behaviour")
             }
             .disabled(!enabled)
-
-            Section {
-                Toggle("Show what's playing", isOn: $coordinator.musicLiveActivityEnabled.animation())
-                Defaults.Toggle(key: .t3HeadphonesActivity) { Text("Show headphones and battery when they connect") }
-            } header: {
-                Text("Live activities")
-            } footer: {
-                Text("The closed notch shows one thing at a time. An agent's question or a finished plan comes first, then headphones that just connected, then music, then your agents.")
-                    .foregroundStyle(.secondary)
-            }
 
             Section {
                 Picker("Quota window in the closed notch", selection: $quotaWindow) {

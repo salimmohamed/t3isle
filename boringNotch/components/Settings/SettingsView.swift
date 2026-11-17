@@ -575,6 +575,8 @@ struct HUD: View {
                 Text("Closed Notch")
             }
             .disabled(!Defaults[.hudReplacement])
+
+            HeadphonesPopupSettings()
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("HUDs")
