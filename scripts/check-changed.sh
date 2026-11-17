@@ -76,8 +76,10 @@ while IFS= read -r file; do
       ;;
     "$tests_dir"/*.swift) [ -f "$file" ] && add_test_file "$file" ;;
     T3IsleCore/Sources/*.swift)
-      if [ -f "$tests_dir/$(basename "$file" .swift)Tests.swift" ]; then
-        add_test_file "$tests_dir/$(basename "$file" .swift)Tests.swift"
+      [ -f "$file" ] || continue
+      owner=$(grep -lE "class $(basename "$file" .swift)Tests[[:space:]]*:[[:space:]]*XCTestCase" "$tests_dir"/*.swift | head -n 1)
+      if [ -n "$owner" ]; then
+        add_test_file "$owner"
       else
         unmapped+=("$file")
       fi

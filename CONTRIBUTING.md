@@ -278,7 +278,7 @@ scripts/stop-debug.sh
 scripts/stop-debug.sh --state-dir "$PWD/.build/debug-b"
 ```
 
-`scripts/check-changed.sh [base-ref]` lints the Swift files changed since the merge base with `origin/main` (or the ref you give), untracked files included, and runs the `T3IsleCore` test classes for them: `Foo.swift` runs `FooTests`, a changed test file runs itself, a changed fixture runs the tests that name it, and a `Package.swift` change runs the whole suite. It ends with a pass/FAIL summary and exits non-zero on a failure. CI still runs everything.
+`scripts/check-changed.sh [base-ref]` lints the Swift files changed since the merge base with `origin/main` (or the ref you give), untracked files included, and runs the `T3IsleCore` test classes for them: `Foo.swift` runs the test file that declares `FooTests`, a changed test file runs itself, a changed fixture runs the tests that name it, and a `Package.swift` change runs the whole suite. It ends with a pass/FAIL summary and exits non-zero on a failure. CI still runs everything.
 
 ```sh
 scripts/check-changed.sh
