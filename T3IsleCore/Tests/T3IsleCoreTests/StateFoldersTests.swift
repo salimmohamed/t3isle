@@ -61,10 +61,17 @@ final class StateFoldersTests: XCTestCase {
                        "/work/other/state")
     }
 
-    func testFlagWithoutAPathIsIgnored() {
-        let standard = StateFolders.standard(appName: "T3 Isle Debug", library: library)
-        XCTAssertEqual(resolve(["app", "--state-dir"]), standard)
-        XCTAssertEqual(resolve(["app", "--state-dir", ""]), standard)
+    func testFlagWithoutAPathRefusesToIsolate() {
+        for arguments in [["app", "--state-dir"], ["app", "--state-dir", ""]] {
+            let folders = resolve(arguments)
+            XCTAssertNil(folders.root)
+            XCTAssertThrowsError(try folders.isolate()) { XCTAssertEqual($0 as? StateFolders.Failure, .missingPath) }
+        }
+    }
+
+    func testStateDirKeepsPrivateInTemporaryPaths() throws {
+        XCTAssertEqual(try XCTUnwrap(resolve(["app", "--state-dir", "/private/tmp/./a/.."]).root).path,
+                       "/private/tmp")
     }
 
     func testLaunchArgumentsCarryTheStateDirAcrossRelaunches() {

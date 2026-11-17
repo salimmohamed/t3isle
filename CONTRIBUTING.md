@@ -139,7 +139,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 
 Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
 
-To read the state from a script, run `scripts/debug.sh state`. It waits for the `state.written` event that answers its own request and prints the file:
+To read the state from a script, run `scripts/debug.sh state`. It waits for the first `state.written` event after its own request and prints the file:
 
 ```sh
 scripts/debug.sh state | jq .t3.prompts
@@ -290,6 +290,7 @@ scripts/check-changed.sh
 - Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/session.json`).
 - Never reinstall the T3 service (`t3 service install` or `uninstall`).
 - A `t3isle-debug://` URL reaches only one of two running copies of the same app bundle, so run one copy per checkout. `debug.sh` refuses to send while two copies of its build run.
+- Each new state folder that runs live signs in to T3 again and leaves a 30-day "T3 Isle Debug" session on the T3 server. Reuse one folder per checkout, or launch throwaway folders with `--demo`.
 - `open -a "$APP" "t3isle-debug://…"` launches the app when no copy of it runs, without `--state-dir`, so it writes to the standard Debug settings and log folder. `debug.sh` sends only while the copy in `run.json` runs.
 
 ### How it talks to T3 Code

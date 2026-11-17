@@ -123,4 +123,10 @@ for _ in $(seq 1 120); do
 done
 has_window "$pid" || fail 3 "the app (pid $pid) showed no window within 30 seconds" "$pid"
 
+for _ in $(seq 1 120); do
+  [ -f "$state/logs/events.ndjson" ] && break
+  sleep 0.25
+done
+[ -f "$state/logs/events.ndjson" ] || fail 3 "the app (pid $pid) started no event log within 30 seconds" "$pid"
+
 finish "$pid"

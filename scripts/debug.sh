@@ -117,6 +117,7 @@ case "$command" in
     fi
     ;;
   state)
+    offset=$((offset + $(tail -c +"$((offset + 1))" "$log" | grep -F -m 1 -b "$nonce" | cut -d: -f1)))
     wait_for '.event == "state.written" or .event == "state.failed"' "the app wrote no state"
     if [ "$(jq -r .event <<< "$event")" = "state.failed" ]; then
       echo "debug: $(jq -r .attributes.message <<< "$event")" >&2

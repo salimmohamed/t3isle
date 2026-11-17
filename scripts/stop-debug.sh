@@ -17,9 +17,11 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+expected=""
 if [ -z "$pid" ]; then
   pid=$(plutil -extract pid raw -o - "$state/run.json" 2>/dev/null) \
     || { echo "stop-debug: give a pid, or run scripts/run-debug.sh first" >&2; exit 2; }
+  expected="$(plutil -extract app raw -o - "$state/run.json" 2>/dev/null)/Contents/MacOS/T3 Isle"
 fi
 [[ "$pid" =~ ^[0-9]+$ ]] || { echo "stop-debug: $pid is not a pid" >&2; exit 2; }
 
@@ -29,6 +31,10 @@ case "$command" in
   /*"/T3 Isle.app/Contents/MacOS/T3 Isle" | /*"/T3 Isle.app/Contents/MacOS/T3 Isle "*) ;;
   *) echo "stop-debug: pid $pid is not T3 Isle: $command" >&2; exit 2 ;;
 esac
+if [ -n "$expected" ] && [ "$command" != "$expected" ] && [ "${command#"$expected "}" = "$command" ]; then
+  echo "stop-debug: pid $pid from $state/run.json now runs $command, not $expected" >&2
+  exit 2
+fi
 
 children=$(pgrep -P "$pid")
 child_commands=()

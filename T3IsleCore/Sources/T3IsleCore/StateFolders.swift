@@ -11,6 +11,7 @@ public struct StateFolders: Equatable, Sendable {
     public let session: URL
     public let shelf: URL
     public let logs: URL
+    public var missingPath = false
 
     public static let current = resolve(
         arguments: CommandLine.arguments,
@@ -25,7 +26,14 @@ public struct StateFolders: Equatable, Sendable {
 
     public static func resolve(arguments: [String], currentDirectory: URL, appName: String, library: URL) -> StateFolders {
         #if DEBUG
-        if let root = root(in: arguments, currentDirectory: currentDirectory) { return isolated(in: root) }
+        switch request(in: arguments, currentDirectory: currentDirectory) {
+        case .isolated(let root): return isolated(in: root)
+        case .missingPath:
+            var folders = standard(appName: appName, library: library)
+            folders.missingPath = true
+            return folders
+        case .standard: break
+        }
         #endif
         return standard(appName: appName, library: library)
     }
@@ -48,6 +56,7 @@ public struct StateFolders: Equatable, Sendable {
 #if DEBUG
 extension StateFolders {
     public enum Failure: Error, Equatable {
+        case missingPath
         case folderNotCreated(String)
         case defaultsNotRedirected(String)
     }
@@ -69,11 +78,17 @@ extension StateFolders {
         )
     }
 
-    static func root(in arguments: [String], currentDirectory: URL) -> URL? {
-        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
-        let path = arguments[index + 1]
-        guard !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true, relativeTo: currentDirectory).absoluteURL.standardizedFileURL
+    enum Request: Equatable {
+        case standard
+        case isolated(URL)
+        case missingPath
+    }
+
+    static func request(in arguments: [String], currentDirectory: URL) -> Request {
+        guard let index = arguments.firstIndex(of: flag) else { return .standard }
+        guard arguments.indices.contains(index + 1), !arguments[index + 1].isEmpty else { return .missingPath }
+        return .isolated(URL(fileURLWithPath: arguments[index + 1], isDirectory: true, relativeTo: currentDirectory)
+            .absoluteURL.standardized)
     }
 
     public func createLogs() throws {
@@ -81,6 +96,7 @@ extension StateFolders {
     }
 
     public func isolate() throws {
+        guard !missingPath else { throw Failure.missingPath }
         guard let root, let defaults else { return }
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true,

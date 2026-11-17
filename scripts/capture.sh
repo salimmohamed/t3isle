@@ -35,6 +35,12 @@ done
 if [ -z "$pid" ]; then
   pid=$(plutil -extract pid raw -o - "$state/run.json" 2>/dev/null) \
     || { echo "capture: give --pid, or run scripts/run-debug.sh first" >&2; exit 2; }
+  expected="$(plutil -extract app raw -o - "$state/run.json" 2>/dev/null)/Contents/MacOS/T3 Isle"
+  command=$(ps -ww -o args= -p "$pid" 2>/dev/null) || { echo "capture: pid $pid is not running" >&2; exit 1; }
+  if [ "$command" != "$expected" ] && [ "${command#"$expected "}" = "$command" ]; then
+    echo "capture: pid $pid from $state/run.json now runs $command, not $expected" >&2
+    exit 2
+  fi
 fi
 kill -0 "$pid" 2>/dev/null || { echo "capture: pid $pid is not running" >&2; exit 1; }
 
