@@ -1,15 +1,11 @@
 #if DEBUG
 import Foundation
 
-public enum DebugTab: String, CaseIterable, Sendable {
-    case home, shelf, t3
-}
-
 public enum DebugCommand: Equatable, Sendable {
     case openSettings(pane: String?)
     case openNotch
     case closeNotch
-    case tab(DebugTab)
+    case tab(NotchTab)
     case demo(Bool)
     case question
     case planDone
@@ -34,8 +30,8 @@ public enum DebugCommand: Equatable, Sendable {
         },
         Spec(name: "open-notch", arguments: "", summary: "Open the notch and keep it open") { $0.isEmpty ? .openNotch : nil },
         Spec(name: "close-notch", arguments: "", summary: "Close the notch") { $0.isEmpty ? .closeNotch : nil },
-        Spec(name: "tab", arguments: "home|shelf|t3", summary: "Open the notch on a tab") {
-            $0.count == 1 ? DebugTab(rawValue: $0[0].lowercased()).map(DebugCommand.tab) : nil
+        Spec(name: "tab", arguments: "home|t3|shelf", summary: "Open the notch on a tab") {
+            $0.count == 1 ? NotchTab(rawValue: $0[0].lowercased()).map(DebugCommand.tab) : nil
         },
         Spec(name: "demo", arguments: "on|off", summary: "Relaunch with or without demo data") {
             switch $0 {

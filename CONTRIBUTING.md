@@ -73,7 +73,7 @@ open -a "$APP" --args --debug open-settings appearance --debug question
 | `open-settings [pane]` | Opens Settings, on a pane if given (`general`, `t3`, `appearance`, `media`, `calendar`, `hud`, `battery`, `shelf`, `shortcuts`, `advanced`, `about`) | `open -g -a "$APP" "t3isle-debug://open-settings/t3"` |
 | `open-notch` | Opens the notch | `open -g -a "$APP" "t3isle-debug://open-notch"` |
 | `close-notch` | Closes the notch | `open -g -a "$APP" "t3isle-debug://close-notch"` |
-| `tab home\|shelf\|t3` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
+| `tab home\|t3\|shelf` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
 | `demo on\|off` | Relaunches with or without demo data | `open -g -a "$APP" "t3isle-debug://demo/on"` |
 | `question` | Adds a fake T3 thread that asks a question, which shows the attention border and the question carousel | `open -g -a "$APP" "t3isle-debug://question"` |
 | `plan-done` | Adds a fake T3 thread that finishes its plan two seconds later, which shows the "Plan complete" banner | `open -g -a "$APP" "t3isle-debug://plan-done"` |
