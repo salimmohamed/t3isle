@@ -44,7 +44,7 @@ Tests wait on events, not time. When code in `T3IsleCore` needs the time or a de
 
 Replays use the clock too. `ReplaySource(scenario:clock:)` and `DebugSource(base:clock:)` move a scenario's recorded dates so it starts at the clock's `now`, and each `afterMs` step waits until the test advances the clock past it.
 
-SwiftLint fails any test that calls `Task.sleep`, reads `Date()` or `Date.now`, passes a `timeout:` to an expectation wait, or calls `Task.yield`. The rules are `no_real_time_wait_in_tests`, `no_wall_clock_in_tests`, `no_timeout_wait_in_tests` and `no_yield_polling_in_tests` in `.swiftlint.yml`. Fixed dates such as `Date(timeIntervalSince1970:)` are fine.
+SwiftLint fails any test that calls `Task.sleep` or `sleep`, reads `Date()`, `Date.now` or `timeIntervalSinceNow`, uses a `timeout:` label anywhere, or calls `Task.yield`. The rules are `no_real_time_wait_in_tests`, `no_wall_clock_in_tests`, `no_timeout_wait_in_tests` and `no_yield_polling_in_tests` in `.swiftlint.yml`. Fixed dates such as `Date(timeIntervalSince1970:)` are fine.
 
 ### Debug builds
 

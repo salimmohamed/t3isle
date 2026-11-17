@@ -39,7 +39,7 @@ custom_rules:
   no_real_time_wait_in_tests:
     name: No real-time waits in tests
     included: '/Tests/.*\.swift$'
-    regex: '\b(Task|Thread)\s*\.\s*sleep\b|\busleep\s*\(|(?<!func )(?<![.\w])sleep\s*\('
+    regex: '\b(Task|Thread)\s*\.\s*sleep\b|\b(usleep|nanosleep)\s*\(|\bDarwin\s*\.\s*sleep\b|(?<!func )(?<![.\w])sleep\s*\('
     excluded_match_kinds: &not_code
       - comment
       - comment.mark
