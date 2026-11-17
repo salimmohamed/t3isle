@@ -39,7 +39,7 @@ To work on the views without live agents, launch the app with `--demo`. Demo mod
 
 ### Debug builds
 
-The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`) and its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`), so a dev build never touches the installed app. Debug builds never launch at login. Release builds keep `dev.t3isle.app`.
+The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`), its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`, issued under the label "T3 Isle Debug") and its own shelf (`~/Library/Application Support/T3 Isle Debug/Shelf`), so a dev build never touches the installed app. Debug builds never launch at login. Release builds keep `dev.t3isle.app`.
 
 A fresh Debug identity starts with onboarding. To skip it:
 
@@ -181,12 +181,6 @@ scripts/debug-log.sh
 
 It takes the number of minutes and the log file as optional arguments, needs only `jq`, and exits with 2 when the log file is missing.
 
-#### Script the Debug app safely
-
-- Kill only the PID you launched. `app.launched` names it. Never `killall "T3 Isle"`, which also quits the installed app.
-- Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/`).
-- Never reinstall the T3 service.
-
 #### Add a command
 
 The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugCommand.swift`. To add one:
@@ -197,6 +191,77 @@ The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugComma
 4. Add a row to the table in this section.
 
 The compiler flags a case with no tokens, reverse or handler, and `swift test` flags a spec with no row here.
+
+#### A state folder per copy
+
+Launch a Debug build with `--state-dir <path>` and it keeps all of its state in that folder, so two copies running side by side share nothing:
+
+| In the state folder | Holds | Without `--state-dir` |
+| --- | --- | --- |
+| `defaults.plist` | Settings | `defaults read dev.t3isle.app.debug` |
+| `session.json` | T3 session (file `0600`, folder `0700`) | `~/Library/Application Support/T3 Isle Debug/session.json` |
+| `Shelf/` | Shelf items | `~/Library/Application Support/T3 Isle Debug/Shelf` |
+| `logs/` | `events.ndjson` and `state.json` | `~/Library/Logs/T3 Isle Debug/` |
+
+```sh
+open -n -a "$APP" --args --state-dir "$PWD/.build/debug-state" --demo
+defaults read "$PWD/.build/debug-state/defaults"
+defaults write "$PWD/.build/debug-state/defaults" nonNotchHeightMode -string "Custom height"
+```
+
+Pass an absolute path, since `open` starts the app from `/`. `demo on|off` keeps the folder when it relaunches, but Restart T3 Isle in the menu does not, so quit and launch again instead. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
+
+#### Scripts
+
+These scripts build, launch, screenshot and stop a Debug copy with its own state folder. They print results on stdout and progress on stderr.
+
+`scripts/run-debug.sh` builds the Debug app into `.build/DerivedData` with the CI flags (log in `.build/run-debug-build.log`), launches it with `--state-dir .build/debug-state` plus any arguments you pass, waits for its first window, and prints one JSON line:
+
+```sh
+scripts/run-debug.sh --demo
+scripts/run-debug.sh --no-build --state-dir /tmp/t3isle-b --debug tab t3
+```
+
+```json
+{"app":"…/.build/DerivedData/Build/Products/Debug/T3 Isle.app","pid":4242,"log":"…/.build/debug-state/logs/events.ndjson","state":"…/.build/debug-state/logs/state.json","stateDir":"…/.build/debug-state"}
+```
+
+On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
+
+To keep macOS permissions across builds, set a signing identity (a certificate's SHA-1 or name) in your shell, never in the repo. Without one, the app keeps its build signature.
+
+```sh
+export T3ISLE_SIGN_IDENTITY=<certificate SHA-1 or name>
+export T3ISLE_SIGN_KEYCHAIN=<path to the keychain that holds it>
+```
+
+`scripts/capture.sh <label>` saves the windows of the last launched copy to `.build/debug-state/captures/<NN>-<label>.png`, counting `NN` up from `01`, and prints the path. `--pid`, `--out` and `--state-dir` pick another copy or folder. A copy with one window is captured on its own, so other apps don't show up in the image.
+
+```sh
+APP=$(plutil -extract app raw -o - .build/debug-state/run.json)
+open -g -a "$APP" "t3isle-debug://open-notch"
+scripts/capture.sh notch-open
+```
+
+`scripts/stop-debug.sh [pid]` quits the last launched copy, or the PID you give, with SIGTERM, waits for it to exit, and refuses any process that isn't a T3 Isle build outside `/Applications`.
+
+```sh
+scripts/stop-debug.sh
+scripts/stop-debug.sh --state-dir /tmp/t3isle-b
+```
+
+`scripts/check-changed.sh [base-ref]` lints the Swift files changed since the merge base with `origin/main` (or the ref you give), untracked files included, and runs the `T3IsleCore` test classes for them: `Foo.swift` runs `FooTests`, a changed test file runs itself, a changed fixture runs the tests that name it, and a `Package.swift` change runs the whole suite. It ends with a pass/FAIL summary and exits non-zero on a failure. CI still runs everything.
+
+```sh
+scripts/check-changed.sh
+```
+
+#### Hazards
+
+- Quit only the PID you launched. `app.launched` names it. Other checkouts may be running their own copies, and `killall "T3 Isle"` also quits the installed app.
+- Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/session.json`).
+- Never reinstall the T3 service (`t3 service install` or `uninstall`).
+- When two copies run from the same build, `open -a "$APP" "t3isle-debug://…"` reaches only one of them. Pass commands at launch with `--debug` instead.
 
 ### How it talks to T3 Code
 
