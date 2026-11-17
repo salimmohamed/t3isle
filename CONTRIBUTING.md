@@ -39,7 +39,7 @@ To work on the views without live agents, launch the app with `--demo`. Demo mod
 
 ### Debug builds
 
-The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`), its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`) and its own login item, so a dev build never touches the installed app. Release builds keep `dev.t3isle.app`.
+The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`) and its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`), so a dev build never touches the installed app. Debug builds never launch at login. Release builds keep `dev.t3isle.app`.
 
 A fresh Debug identity starts with onboarding. To skip it:
 
