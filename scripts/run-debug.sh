@@ -64,6 +64,9 @@ done
 mkdir -p -m 700 "$state" || fail 3 "cannot create state dir $state"
 state=$(cd "$state" && pwd -P)
 
+running=$(pids_using_state | head -n 1)
+[ -z "$running" ] || fail 3 "a copy already runs with this state dir, stop it with scripts/stop-debug.sh $running" "$running"
+
 if [ "$build" = 1 ]; then
   mkdir -p "$root/.build"
   echo "run-debug: building the Debug app, log in $build_log" >&2
@@ -99,9 +102,6 @@ if [ -n "${T3ISLE_SIGN_IDENTITY:-}" ]; then
 else
   echo "run-debug: T3ISLE_SIGN_IDENTITY is not set, so the app keeps its build signature and macOS may ask for permissions again" >&2
 fi
-
-running=$(pids_using_state | head -n 1)
-[ -z "$running" ] || fail 3 "a copy already runs with this state dir, stop it with scripts/stop-debug.sh $running" "$running"
 
 defaults read "$state/defaults" firstLaunch >/dev/null 2>&1 || defaults write "$state/defaults" firstLaunch -bool false
 
