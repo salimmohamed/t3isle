@@ -36,3 +36,37 @@ custom_rules:
       - identifier
     message: print( is not allowed. Use a logger or remove it.
     severity: error
+  no_real_time_wait_in_tests:
+    name: No real-time waits in tests
+    included: '/Tests/.*\.swift$'
+    regex: '\b(Task|Thread)\s*\.\s*sleep\b|\busleep\s*\('
+    excluded_match_kinds: &not_code
+      - comment
+      - comment.mark
+      - comment.url
+      - doccomment
+      - doccomment.field
+      - string
+    message: 'Tests wait on events, not time. Move time with TestClock.advance(by:), then await the change it causes.'
+    severity: error
+  no_wall_clock_in_tests:
+    name: No wall clock in tests
+    included: '/Tests/.*\.swift$'
+    regex: '\bDate\s*(\.\s*init\s*)?\(\s*\)|\bDate\s*\.\s*now\b|\b(ContinuousClock|SuspendingClock)\b|\bCFAbsoluteTimeGetCurrent\b'
+    excluded_match_kinds: *not_code
+    message: 'Reading the wall clock makes a test depend on when it runs. Use TestClock.now or a fixed date such as Date(timeIntervalSince1970:).'
+    severity: error
+  no_timeout_wait_in_tests:
+    name: No timeout waits in tests
+    included: '/Tests/.*\.swift$'
+    regex: '\b(wait|fulfillment|waitForExpectations)\s*\([^)]*\btimeout\s*:'
+    excluded_match_kinds: *not_code
+    message: 'A test that needs a timeout to pass is wrong. Await the event itself, such as the next element of an AsyncStream or a published value.'
+    severity: error
+  no_yield_polling_in_tests:
+    name: No yield polling in tests
+    included: '/Tests/.*\.swift$'
+    regex: '\bTask\s*\.\s*yield\b'
+    excluded_match_kinds: *not_code
+    message: 'Task.yield only hopes another task has run. Await the event that marks the milestone instead.'
+    severity: error
