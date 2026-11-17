@@ -91,7 +91,7 @@ To tear down, run the reverse of each command you ran, last first. A reverse wit
 
 | Scenario | What it shows |
 | --- | --- |
-| `showcase` | Six threads in three projects: two approvals, a two-question request, a snoozed thread, a failed thread and two providers. Over 18 seconds a plan finishes and one more approval arrives. Demo mode plays it too. |
+| `showcase` | Six threads in three projects: two approvals, a two-question request, a snoozed thread, a failed thread and two providers. Over 12 seconds a plan finishes. Demo mode plays it too. |
 | `busy-session` | Four threads working in two projects, with no questions or approvals |
 | `question` | One thread asks one question, which shows the attention border |
 | `plan-done` | One thread finishes its three-step plan after 1.5 seconds, which shows the "Plan complete" banner |
@@ -135,7 +135,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 }
 ```
 
-`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until any replay has finished and the app has fetched the thread details it was waiting for, up to 10 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
+`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until any replay has finished, the app has taken in every update the replay sent, and it has fetched the thread details it was waiting for, up to 30 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
 
 Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
 
@@ -145,7 +145,7 @@ To read the state from a script, remove the old file, ask for a new one, and wai
 STATE="$HOME/Library/Logs/T3 Isle Debug/state.json"
 rm -f "$STATE"
 open -g -a "$APP" "t3isle-debug://state"
-for _ in $(seq 150); do [ -f "$STATE" ] && break; sleep 0.1; done
+for _ in $(seq 350); do [ -f "$STATE" ] && break; sleep 0.1; done
 jq . "$STATE"
 ```
 

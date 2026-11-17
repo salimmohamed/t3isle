@@ -73,7 +73,7 @@ final class T3DebugMonitor {
     func writeStateWhenSettled(notch: BoringViewModel) {
         Task { @MainActor in
             let clock = ContinuousClock()
-            let deadline = clock.now.advanced(by: .seconds(10))
+            let deadline = clock.now.advanced(by: .seconds(30))
             while !T3IsleRuntime.shared.isSettled, clock.now < deadline {
                 try? await Task.sleep(for: .milliseconds(50))
             }

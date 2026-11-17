@@ -30,29 +30,34 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
 
     public var current: ReplayStatus? { lock.withLock { status } }
 
+    public var threads: [ThreadShell] { lock.withLock { world.snapshot.threads } }
+
     public func onProgress(_ handler: @escaping @Sendable (ReplayProgress) -> Void) {
         lock.withLock { progressHandler = handler }
     }
 
     public func play(_ scenario: Scenario) {
         let schedule = (try? scenario.events(startingAt: Date())) ?? []
-        let handler = lock.withLock {
+        let (playing, handler) = lock.withLock {
             generation += 1
-            let playing = generation
             playback?.cancel()
+            playback = nil
             world = ReplayWorld()
             status = ReplayStatus(scenario: scenario.name, finished: false)
             broadcast(.snapshot(world.snapshot))
-            playback = Task { [weak self] in
-                for (after, event) in schedule {
-                    if after > .zero { try? await Task.sleep(for: after) }
-                    guard self?.apply(event, playing) == true else { return }
-                }
-                self?.finish(scenario.name, playing)
-            }
-            return progressHandler
+            return (generation, progressHandler)
         }
         handler?(.started(scenario.name, steps: scenario.stepCount))
+        let task = Task { [weak self] in
+            for (after, event) in schedule {
+                if after > .zero { try? await Task.sleep(for: after) }
+                guard self?.apply(event, playing) == true else { return }
+            }
+            self?.finish(scenario.name, playing)
+        }
+        lock.withLock {
+            if generation == playing { playback = task } else { task.cancel() }
+        }
     }
 
     public func stop() {
@@ -90,7 +95,9 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
         }
     }
 
-    public func environmentId() async -> String? { "replay" }
+    public static let environment = "replay"
+
+    public func environmentId() async -> String? { Self.environment }
 
     public func providers() -> [ProviderLimits] { lock.withLock { world.providers } }
 

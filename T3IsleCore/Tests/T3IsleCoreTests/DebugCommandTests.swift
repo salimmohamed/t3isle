@@ -185,6 +185,18 @@ final class DebugSourceTests: XCTestCase {
         model.stop()
     }
 
+    func testModelIsCaughtUpOnlyOnceItHasTakenInTheReplay() async throws {
+        let source = ReplaySource(scenario: try Scenario.named("quota-low"))
+        try await until { source.current?.finished == true }
+        let model = T3IsleModel(source: source, opener: { _ in })
+        XCTAssertFalse(model.isCaughtUp(threads: source.threads, providers: source.providers()))
+        model.start()
+        try await until { model.isCaughtUp(threads: source.threads, providers: source.providers()) }
+        XCTAssertEqual(model.threads.count, 2)
+        XCTAssertEqual(model.providers.map(\.id), ["claudeAgent", "codex"])
+        model.stop()
+    }
+
     func testQuestionScenarioStateMatchesTheFixture() async throws {
         let source = ReplaySource(scenario: try Scenario.named("question"))
         let model = T3IsleModel(source: source, opener: { _ in })

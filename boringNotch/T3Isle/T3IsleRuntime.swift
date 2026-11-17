@@ -103,12 +103,15 @@ final class T3IsleRuntime: ObservableObject {
         [debugSource.replay] + [debugSource.base as? ReplaySource].compactMap { $0 }
     }
 
-    private var replayStatus: ReplayStatus? {
-        debugSource.isReplaying ? debugSource.replay.current : (debugSource.base as? ReplaySource)?.current
+    private var activeReplay: ReplaySource? {
+        debugSource.isReplaying ? debugSource.replay : debugSource.base as? ReplaySource
     }
 
+    private var replayStatus: ReplayStatus? { activeReplay?.current }
+
     var isSettled: Bool {
-        replayStatus?.finished != false && !model.isFetchingDetails
+        guard let replay = activeReplay else { return !model.isFetchingDetails }
+        return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
     }
 
     var debugState: DebugState.T3 {
