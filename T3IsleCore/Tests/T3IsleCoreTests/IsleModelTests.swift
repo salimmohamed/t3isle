@@ -13,7 +13,7 @@ final class IsleModelTests: XCTestCase {
     }
 
     private func startedModel() async throws -> T3IsleModel {
-        let model = T3IsleModel(source: DemoSource(), isDemo: true, opener: { _ in })
+        let model = T3IsleModel(source: ReplaySource(scenario: try Scenario.named("showcase")), isDemo: true, opener: { _ in })
         model.start()
         try await until { model.prompts.count >= 4 }
         return model

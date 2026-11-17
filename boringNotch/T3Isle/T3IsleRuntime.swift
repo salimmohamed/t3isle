@@ -28,7 +28,7 @@ final class T3IsleRuntime: ObservableObject {
     }
 
     private init() {
-        let base: T3Source = Self.isDemo ? DemoSource() : LiveSource()
+        let base: T3Source = Self.isDemo ? ReplaySource(scenario: try? Scenario.named("showcase")) : LiveSource()
         #if DEBUG
         debugSource = DebugSource(base: base)
         let source: T3Source = debugSource
