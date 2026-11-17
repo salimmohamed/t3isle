@@ -116,6 +116,7 @@ public final class T3IsleModel: ObservableObject {
     private var environmentId: String?
     private var heldBy: String?
     private var reconnectDelay: TimeInterval = 1
+    private var session = 0
 
     public init(source: T3Source, isDemo: Bool = false, opener: @escaping (URL) -> Void) {
         self.source = source
@@ -162,6 +163,39 @@ public final class T3IsleModel: ObservableObject {
         tickTask = nil
         scheduledFetch.values.forEach { $0.cancel() }
         scheduledFetch.removeAll()
+    }
+
+    public func restart() {
+        stop()
+        session += 1
+        threads = []
+        providers = []
+        prompts = []
+        agentGroups = []
+        selectedAgentId = nil
+        banner = nil
+        notice = nil
+        completedSteps = [:]
+        shells = [:]
+        projects = [:]
+        details = [:]
+        detailPrompts = [:]
+        lastFetch = [:]
+        fetching = []
+        rawThreads = []
+        changes = [:]
+        answered = [:]
+        draftAnswers = [:]
+        stopping = [:]
+        finished = [:]
+        dismissed = []
+        wasWorking = []
+        knownPromptIds = []
+        environmentId = nil
+        heldBy = nil
+        reconnectDelay = 1
+        motionIsAction = false
+        start()
     }
 
     public func apply(_ preferences: T3Preferences) {
@@ -276,9 +310,10 @@ public final class T3IsleModel: ObservableObject {
         guard !fetching.contains(threadId) else { return }
         fetching.insert(threadId)
         lastFetch[threadId] = Date()
+        let session = session
         Task { [weak self, source] in
             let projection = try? await source.detail(threadId: threadId)
-            guard let self else { return }
+            guard let self, self.session == session else { return }
             self.fetching.remove(threadId)
             guard let projection else { return }
             self.absorb(projection)

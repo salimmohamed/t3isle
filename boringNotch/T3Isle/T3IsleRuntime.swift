@@ -86,18 +86,13 @@ final class T3IsleRuntime: ObservableObject {
 
     func play(_ scenario: Scenario) {
         debugSource.play(scenario)
-        resubscribe()
+        model.restart()
     }
 
     func stopReplay() {
         guard debugSource.isReplaying else { return }
         debugSource.stopReplay()
-        resubscribe()
-    }
-
-    private func resubscribe() {
-        model.stop()
-        model.start()
+        model.restart()
     }
 
     var sourceKind: DebugState.T3.Source {

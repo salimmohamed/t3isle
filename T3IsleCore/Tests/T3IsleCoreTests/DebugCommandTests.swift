@@ -128,8 +128,7 @@ final class DebugSourceTests: XCTestCase {
 
     private func switchTo(_ model: T3IsleModel, _ change: () -> Void) {
         change()
-        model.stop()
-        model.start()
+        model.restart()
     }
 
     func testReplayReplacesTheBaseWorldAndOffRestoresIt() async throws {
@@ -170,6 +169,19 @@ final class DebugSourceTests: XCTestCase {
         XCTAssertEqual(model.banner?.threadId, "plan-thread")
         XCTAssertEqual(model.banner?.stepCount, 3)
         XCTAssertEqual(source.replay.current, ReplayStatus(scenario: "plan-done", finished: true))
+        model.stop()
+    }
+
+    func testReplayingPlanDoneAgainShowsANewBanner() async throws {
+        let (model, source) = try await started()
+        let planDone = try Scenario.named("plan-done")
+        switchTo(model) { source.play(planDone) }
+        try await until { model.banner != nil }
+        let first = try XCTUnwrap(model.banner)
+        switchTo(model) { source.play(planDone) }
+        XCTAssertNil(model.banner)
+        try await until { model.banner.map { $0.id != first.id } == true }
+        XCTAssertEqual(model.banner?.threadId, "plan-thread")
         model.stop()
     }
 
