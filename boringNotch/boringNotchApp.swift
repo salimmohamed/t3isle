@@ -12,7 +12,6 @@ import KeyboardShortcuts
 import Sparkle
 import SwiftUI
 
-@main
 struct DynamicNotchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Default(.menubarIcon) var showMenuBarIcon

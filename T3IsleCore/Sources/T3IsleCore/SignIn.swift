@@ -35,19 +35,21 @@ public struct ProcessRunner: CommandRunner {
 }
 
 public actor T3SignIn {
-    public static let clientLabel = "T3 Isle"
     static let scopes = ["orchestration:read", "orchestration:operate"]
 
     private let home: T3Home
     private let store: TokenStore
     private let runner: CommandRunner
+    private let label: String
     private var cached: StoredToken?
     private var issuing: Task<StoredToken, Error>?
 
-    public init(home: T3Home, store: TokenStore = FileTokenStore(), runner: CommandRunner = ProcessRunner()) {
+    public init(home: T3Home, store: TokenStore = FileTokenStore(), runner: CommandRunner = ProcessRunner(),
+                label: String = StateFolders.appName()) {
         self.home = home
         self.store = store
         self.runner = runner
+        self.label = label
     }
 
     public func token() async throws -> String {
@@ -67,7 +69,7 @@ public actor T3SignIn {
     private func issue() async throws -> StoredToken {
         if let issuing { return try await issuing.value }
         let task = Task { () throws -> StoredToken in
-            var arguments = ["auth", "session", "issue", "--ttl", "30d", "--label", Self.clientLabel, "--json"]
+            var arguments = ["auth", "session", "issue", "--ttl", "30d", "--label", label, "--json"]
             for scope in Self.scopes { arguments += ["--scope", scope] }
             let data = try await runner.run(home.cliTool, arguments)
             return try Self.parseIssued(data)

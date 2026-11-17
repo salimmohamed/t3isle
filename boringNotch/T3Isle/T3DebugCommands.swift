@@ -71,7 +71,7 @@ enum T3DebugCommands {
             BoringViewCoordinator.shared.currentView = tab
             notch.open()
         case .demo(let on):
-            if on != T3IsleRuntime.isDemo { relaunch(arguments: on ? ["--demo"] : []) }
+            if on != T3IsleRuntime.isDemo { relaunch(arguments: StateFolders.current.launchArguments + (on ? ["--demo"] : [])) }
         case .replay(let name):
             try requireT3()
             runtime.play(try Scenario.named(name))
