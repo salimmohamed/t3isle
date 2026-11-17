@@ -43,6 +43,8 @@ enum T3DebugCommands {
                 SettingsNavigation.shared.pane = match
             }
             SettingsWindowController.shared.showWindow()
+        case .closeSettings:
+            SettingsWindowController.shared.close()
         case .openNotch:
             notch.open()
         case .closeNotch:
@@ -51,33 +53,23 @@ enum T3DebugCommands {
             BoringViewCoordinator.shared.currentView = tab
             notch.open()
         case .demo(let on):
-            guard on != T3IsleRuntime.isDemo else { return report("demo", "Demo mode is already \(on ? "on" : "off")") }
-            relaunch(arguments: on ? ["--demo"] : [])
-        case .question:
-            return whenConnected(runtime, command) { runtime.debugSource.raiseQuestion() }
-        case .planDone:
-            return whenConnected(runtime, command) { runtime.debugSource.finishPlan() }
+            if on != T3IsleRuntime.isDemo { relaunch(arguments: on ? ["--demo"] : []) }
+        case .replay(let name):
+            guard Defaults[.t3Enabled] else { return report(command.line, "T3 is turned off in Settings") }
+            do {
+                runtime.play(try Scenario.named(name))
+            } catch {
+                return report(command.line, error)
+            }
+        case .replayOff:
+            guard Defaults[.t3Enabled] else { return report(command.line, "T3 is turned off in Settings") }
+            runtime.stopReplay()
         case .airpodsConnect(let name, let battery):
             runtime.showHeadphones(name: name, battery: battery)
         case .airpodsDisconnect:
             runtime.hideHeadphones()
         }
-        log.notice("ran \(String(describing: command), privacy: .public)")
-    }
-
-    private static func whenConnected(_ runtime: T3IsleRuntime, _ command: DebugCommand, _ action: @escaping () -> Void) {
-        guard Defaults[.t3Enabled] else { return report(String(describing: command), "T3 is turned off in Settings") }
-        Task { @MainActor in
-            let deadline = Date().addingTimeInterval(10)
-            while runtime.model.connection == .connecting, Date() < deadline {
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-            guard runtime.model.connection == .live else {
-                return report(String(describing: command), "T3 is not connected. Start T3 Code or run demo on first")
-            }
-            action()
-            log.notice("ran \(String(describing: command), privacy: .public)")
-        }
+        log.notice("ran \(command.line, privacy: .public)")
     }
 
     private static func relaunch(arguments: [String]) {

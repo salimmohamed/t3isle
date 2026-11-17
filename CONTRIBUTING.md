@@ -65,22 +65,22 @@ open -g -a "$APP" "t3isle-debug://open-settings/t3"
 Or pass commands at launch, each after `--debug`:
 
 ```sh
-open -a "$APP" --args --debug open-settings appearance --debug question
+open -a "$APP" --args --debug open-settings appearance --debug replay question
 ```
 
 | Command | What it does | Example |
 | --- | --- | --- |
 | `open-settings [pane]` | Opens Settings, on a pane if given (`general`, `t3`, `appearance`, `media`, `calendar`, `hud`, `battery`, `shelf`, `shortcuts`, `advanced`, `about`) | `open -g -a "$APP" "t3isle-debug://open-settings/t3"` |
+| `close-settings` | Closes Settings | `open -g -a "$APP" "t3isle-debug://close-settings"` |
 | `open-notch` | Opens the notch | `open -g -a "$APP" "t3isle-debug://open-notch"` |
 | `close-notch` | Closes the notch | `open -g -a "$APP" "t3isle-debug://close-notch"` |
 | `tab home\|t3\|shelf` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
 | `demo on\|off` | Relaunches with or without demo data | `open -g -a "$APP" "t3isle-debug://demo/on"` |
-| `question` | Adds a fake T3 thread that asks a question, which shows the attention border and the question carousel | `open -g -a "$APP" "t3isle-debug://question"` |
-| `plan-done` | Adds a fake T3 thread that finishes its plan two seconds later, which shows the "Plan complete" banner | `open -g -a "$APP" "t3isle-debug://plan-done"` |
+| `replay <scenario>\|off` | Replays a recorded T3 scenario in place of the real T3 data, or goes back to it with `off` | `open -g -a "$APP" "t3isle-debug://replay/question"` |
 | `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
 | `airpods-disconnect` | Hides the headphones activity | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
 
-Fake threads live in a project called `debug` next to your real threads, and answering a fake question works like a real one. `question` and `plan-done` need T3 to be connected, or demo mode on. In a URL, arguments are path segments, so encode spaces as `%20`.
+A replay stands in for T3 Code: answering a replayed question or approving a replayed request works like the real thing. `replay` needs the T3 integration turned on in Settings, but not T3 Code itself. In a URL, arguments are path segments, so encode spaces as `%20`.
 
 Every command logs its result. Watch them with:
 

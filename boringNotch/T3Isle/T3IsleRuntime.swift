@@ -83,6 +83,22 @@ final class T3IsleRuntime: ObservableObject {
     func hideHeadphones() {
         headphonesPopup.dismiss()
     }
+
+    func play(_ scenario: Scenario) {
+        debugSource.play(scenario)
+        resubscribe()
+    }
+
+    func stopReplay() {
+        guard debugSource.isReplaying else { return }
+        debugSource.stopReplay()
+        resubscribe()
+    }
+
+    private func resubscribe() {
+        model.stop()
+        model.start()
+    }
     #endif
 }
 

@@ -3,12 +3,13 @@ import Foundation
 
 public enum DebugCommand: Equatable, Sendable {
     case openSettings(pane: String?)
+    case closeSettings
     case openNotch
     case closeNotch
     case tab(NotchTab)
     case demo(Bool)
-    case question
-    case planDone
+    case replay(String)
+    case replayOff
     case airpodsConnect(name: String, battery: Int?)
     case airpodsDisconnect
 
@@ -28,6 +29,7 @@ public enum DebugCommand: Equatable, Sendable {
         Spec(name: "open-settings", arguments: "[pane]", summary: "Open Settings, optionally on a pane such as t3 or appearance") {
             $0.count <= 1 ? .openSettings(pane: $0.first) : nil
         },
+        Spec(name: "close-settings", arguments: "", summary: "Close Settings") { $0.isEmpty ? .closeSettings : nil },
         Spec(name: "open-notch", arguments: "", summary: "Open the notch and keep it open") { $0.isEmpty ? .openNotch : nil },
         Spec(name: "close-notch", arguments: "", summary: "Close the notch") { $0.isEmpty ? .closeNotch : nil },
         Spec(name: "tab", arguments: "home|t3|shelf", summary: "Open the notch on a tab") {
@@ -40,14 +42,49 @@ public enum DebugCommand: Equatable, Sendable {
             default: nil
             }
         },
-        Spec(name: "question", arguments: "", summary: "Add a fake T3 thread that asks a question") { $0.isEmpty ? .question : nil },
-        Spec(name: "plan-done", arguments: "", summary: "Add a fake T3 thread that finishes its plan, which shows the banner") {
-            $0.isEmpty ? .planDone : nil
-        },
+        Spec(name: "replay", arguments: (Scenario.names + ["off"]).joined(separator: "|"),
+             summary: "Replay a recorded T3 scenario in place of the real one, or go back to it with off", build: replay),
         Spec(name: "airpods-connect", arguments: "[name] [battery]", summary: "Show the headphones activity as if they just connected",
              build: airpodsConnect),
         Spec(name: "airpods-disconnect", arguments: "", summary: "Hide the headphones activity") { $0.isEmpty ? .airpodsDisconnect : nil },
     ]
+
+    public var tokens: [String] {
+        switch self {
+        case .openSettings(let pane): ["open-settings"] + (pane.map { [$0] } ?? [])
+        case .closeSettings: ["close-settings"]
+        case .openNotch: ["open-notch"]
+        case .closeNotch: ["close-notch"]
+        case .tab(let tab): ["tab", tab.rawValue]
+        case .demo(let on): ["demo", on ? "on" : "off"]
+        case .replay(let scenario): ["replay", scenario]
+        case .replayOff: ["replay", "off"]
+        case .airpodsConnect(let name, let battery): ["airpods-connect", name] + (battery.map { [String($0)] } ?? [])
+        case .airpodsDisconnect: ["airpods-disconnect"]
+        }
+    }
+
+    public var line: String { tokens.joined(separator: " ") }
+
+    public var reverse: DebugCommand? {
+        switch self {
+        case .openSettings: .closeSettings
+        case .closeSettings: .openSettings(pane: nil)
+        case .openNotch, .tab: .closeNotch
+        case .closeNotch: .openNotch
+        case .demo(let on): .demo(!on)
+        case .replay, .replayOff: .replayOff
+        case .airpodsConnect: .airpodsDisconnect
+        case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil)
+        }
+    }
+
+    private static func replay(_ arguments: [String]) -> DebugCommand? {
+        guard arguments.count == 1 else { return nil }
+        let name = arguments[0].lowercased()
+        if name == "off" { return .replayOff }
+        return Scenario.names.contains(name) ? .replay(name) : nil
+    }
 
     private static func airpodsConnect(_ arguments: [String]) -> DebugCommand? {
         switch arguments.count {
