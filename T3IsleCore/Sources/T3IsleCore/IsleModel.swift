@@ -199,6 +199,7 @@ public final class T3IsleModel: ObservableObject {
             projects = Dictionary(snapshot.projects.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
             connection = .live
             reconnectDelay = 1
+            refreshProviders()
             for shell in snapshot.threads where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
         case .threadUpdated(let shell, let archived):
             if archived { shells[shell.id] = nil } else { shells[shell.id] = shell }
@@ -235,9 +236,13 @@ public final class T3IsleModel: ObservableObject {
             || finished[shell.id] != nil
     }
 
-    private func tick() async {
+    private func refreshProviders() {
         let fresh = source.providers()
         if fresh != providers { providers = fresh }
+    }
+
+    private func tick() async {
+        refreshProviders()
         let now = Date()
         answered = answered.filter { key, at in
             now.timeIntervalSince(at) < 45 || draftAnswers.keys.contains { key.hasPrefix("\($0)#") }

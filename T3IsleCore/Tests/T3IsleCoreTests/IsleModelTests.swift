@@ -121,10 +121,38 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
         return projection
     }
 
+    var limits: [ProviderLimits] = []
+
     func send(_ command: T3Command) async throws {}
     func environmentId() async -> String? { "env-local" }
-    func providers() -> [ProviderLimits] { [] }
+    func providers() -> [ProviderLimits] { limits }
     func signOut() async {}
+}
+
+@MainActor
+final class ProviderRefreshTests: XCTestCase {
+    func testASnapshotRefreshesUsageLimitsWithoutWaitingForATick() async throws {
+        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let source = FixtureSource(ShellSnapshot(threads: [], projects: snapshot.projects))
+        let model = T3IsleModel(source: source, opener: { _ in })
+        model.start()
+        try await until { model.connection == .live }
+        XCTAssertEqual(model.providers, [])
+        let limits = try XCTUnwrap(UsageLimitsReader.parse(Fixture.data("provider-claude.json"), id: "claudeAgent", previous: []))
+        source.limits = [limits]
+        source.push(.snapshot(snapshot))
+        try await until { !model.threads.isEmpty }
+        XCTAssertEqual(model.providers, [limits])
+        model.stop()
+    }
+
+    private func until(_ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition() {
+            guard Date() < deadline else { return XCTFail("Timed out") }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+    }
 }
 
 @MainActor
