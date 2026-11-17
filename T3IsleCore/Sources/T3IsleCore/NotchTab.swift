@@ -7,10 +7,6 @@ public enum NotchTab: String, CaseIterable, Sendable {
 public enum OpeningTab: String, CaseIterable, Sendable {
     case home, t3, shelf, last
 
-    public static func migrated(rememberLastTab: Bool) -> OpeningTab {
-        rememberLastTab ? .last : .t3
-    }
-
     public var title: String {
         switch self {
         case .home: "Home"

@@ -26,9 +26,4 @@ final class NotchTabTests: XCTestCase {
             XCTAssertEqual(choice.tab(current: .home, t3Ready: true, shelfFirst: true), .shelf)
         }
     }
-
-    func testRememberLastTabMigratesToLastUsedTabAndOffMigratesToT3() {
-        XCTAssertEqual(OpeningTab.migrated(rememberLastTab: true), .last)
-        XCTAssertEqual(OpeningTab.migrated(rememberLastTab: false), .t3)
-    }
 }

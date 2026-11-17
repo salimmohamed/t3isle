@@ -145,6 +145,7 @@ struct T3Integration: ViewModifier {
     @ObservedObject var vm: BoringViewModel
     @ObservedObject var model = T3IsleRuntime.shared.model
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @Default(.openingTab) private var openingTab
     @State private var openedByT3 = false
     @State private var closeTask: Task<Void, Never>?
 
@@ -167,6 +168,10 @@ struct T3Integration: ViewModifier {
             .onChange(of: coordinator.currentView) { _, view in
                 guard vm.notchState == .open else { return }
                 vm.notchSize = T3Tabs.openSize(for: view, base: openNotchSize)
+            }
+            .onChange(of: openingTab) { _, _ in
+                guard vm.notchState == .closed else { return }
+                coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
             }
             .onChange(of: vm.notchState) { _, state in
                 if state == .closed {

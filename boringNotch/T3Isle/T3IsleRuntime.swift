@@ -108,8 +108,7 @@ enum T3Tabs {
 
     static func migrateRememberLastTab() {
         let legacyKey = "openLastTabByDefault"
-        guard let rememberLastTab = UserDefaults.standard.object(forKey: legacyKey) as? Bool else { return }
-        Defaults[.openingTab] = .migrated(rememberLastTab: rememberLastTab)
+        if UserDefaults.standard.bool(forKey: legacyKey) { Defaults[.openingTab] = .last }
         UserDefaults.standard.removeObject(forKey: legacyKey)
     }
 
