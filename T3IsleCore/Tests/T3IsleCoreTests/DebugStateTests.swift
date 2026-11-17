@@ -67,12 +67,12 @@ final class DebugEventLogTests: XCTestCase {
         try old.write(to: folders.eventLog)
 
         let rotating = DebugEventLog(folders: folders, rotateAtBytes: 32)
-        rotating.record("first")
+        rotating.record("first", at: Date(timeIntervalSince1970: 0))
         rotating.flush()
         XCTAssertEqual(try Data(contentsOf: folders.rotatedEventLog), old)
 
         let appending = DebugEventLog(folders: folders, rotateAtBytes: 5_000_000)
-        appending.record("second", ["n": "2"])
+        appending.record("second", ["n": "2"], at: Date(timeIntervalSince1970: 0))
         appending.flush()
         let lines = try String(contentsOf: folders.eventLog, encoding: .utf8).split(separator: "\n")
         let events = try lines.map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])["event"] as? String }
