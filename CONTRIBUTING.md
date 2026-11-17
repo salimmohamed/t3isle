@@ -117,7 +117,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 {
   "closedActivity" : "t3",
   "headphones" : null,
-  "notch" : "closed",
+  "notch" : "open",
   "settingsOpen" : false,
   "t3" : {
     "agents" : [ { "id" : "question-thread", "state" : "needsYou" } ],
@@ -131,11 +131,13 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
     "source" : "replay",
     "threads" : [ { "id" : "question-thread", "mood" : "needsYou", "project" : "web", "snoozed" : false, "title" : "Check the attention border" } ]
   },
-  "tab" : "home"
+  "tab" : "t3"
 }
 ```
 
-`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. A scenario with timed steps keeps changing until `t3.replay.finished` is `true`, or until its `replay.finished` event appears in the log.
+`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until any replay has finished and the app has fetched the thread details it was waiting for, up to 10 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
+
+Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
 
 To read the state from a script, remove the old file, ask for a new one, and wait for it:
 
@@ -143,7 +145,7 @@ To read the state from a script, remove the old file, ask for a new one, and wai
 STATE="$HOME/Library/Logs/T3 Isle Debug/state.json"
 rm -f "$STATE"
 open -g -a "$APP" "t3isle-debug://state"
-for _ in $(seq 50); do [ -f "$STATE" ] && break; sleep 0.1; done
+for _ in $(seq 150); do [ -f "$STATE" ] && break; sleep 0.1; done
 jq . "$STATE"
 ```
 
@@ -168,7 +170,8 @@ Debug builds append one JSON object per line to `~/Library/Logs/T3 Isle Debug/ev
 | `activity.changed` | `closedActivity` |
 | `prompts.changed` | `count` |
 | `banner.shown` | `threadId` |
-| `state.written` | `path` |
+| `state.written` | `path`, `settled` |
+| `state.failed` | `message` |
 
 When the log is over 5 MB at launch, the app moves it to `events.1.ndjson` and starts a new one. To summarize the last 10 minutes (counts per event, failed commands, and the last 20 events), run:
 

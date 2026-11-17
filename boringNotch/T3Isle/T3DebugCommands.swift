@@ -79,7 +79,7 @@ enum T3DebugCommands {
             try requireT3()
             runtime.stopReplay()
         case .state:
-            try monitor.writeState(notch: notch)
+            monitor.writeStateWhenSettled(notch: notch)
         case .airpodsConnect(let name, let battery):
             runtime.showHeadphones(name: name, battery: battery)
         case .airpodsDisconnect:

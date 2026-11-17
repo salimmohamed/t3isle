@@ -70,7 +70,22 @@ final class T3DebugMonitor {
             .store(in: &cancellables)
     }
 
-    func writeState(notch: BoringViewModel) throws {
+    func writeStateWhenSettled(notch: BoringViewModel) {
+        Task { @MainActor in
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: .seconds(10))
+            while !T3IsleRuntime.shared.isSettled, clock.now < deadline {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            do {
+                try writeState(notch: notch, settled: T3IsleRuntime.shared.isSettled)
+            } catch {
+                record("state.failed", ["message": error.localizedDescription])
+            }
+        }
+    }
+
+    private func writeState(notch: BoringViewModel, settled: Bool) throws {
         let runtime = T3IsleRuntime.shared
         let state = DebugState(notch: notch.notchState == .open ? .open : .closed,
                                tab: BoringViewCoordinator.shared.currentView,
@@ -80,7 +95,7 @@ final class T3DebugMonitor {
                                t3: runtime.debugState)
         try paths.create()
         try DebugState.encoded(state).write(to: paths.state, options: .atomic)
-        record("state.written", ["path": paths.state.path])
+        record("state.written", ["path": paths.state.path, "settled": String(settled)])
     }
 }
 #endif

@@ -124,6 +124,7 @@ public final class T3IsleModel: ObservableObject {
         self.opener = opener
     }
 
+    public var isFetchingDetails: Bool { !fetching.isEmpty || !scheduledFetch.isEmpty }
     public var hasAgents: Bool { !threads.isEmpty || !agentGroups.isEmpty }
     public var needsAttention: Bool { !prompts.isEmpty }
     public var workingCount: Int { threads.filter { $0.mood.isBusy }.count }
