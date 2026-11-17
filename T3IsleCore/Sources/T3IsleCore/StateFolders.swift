@@ -12,9 +12,6 @@ public struct StateFolders: Equatable, Sendable {
     public let shelf: URL
     public let logs: URL
 
-    public var eventLog: URL { logs.appendingPathComponent("events.ndjson") }
-    public var stateFile: URL { logs.appendingPathComponent("state.json") }
-
     public static let current = resolve(
         arguments: CommandLine.arguments,
         currentDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
@@ -58,6 +55,9 @@ extension StateFolders {
     public static let flag = "--state-dir"
 
     public var defaults: URL? { root?.appendingPathComponent("defaults.plist") }
+    public var eventLog: URL { logs.appendingPathComponent("events.ndjson") }
+    public var rotatedEventLog: URL { logs.appendingPathComponent("events.1.ndjson") }
+    public var stateFile: URL { logs.appendingPathComponent("state.json") }
     public var launchArguments: [String] { root.map { [Self.flag, $0.path] } ?? [] }
 
     public static func isolated(in root: URL) -> StateFolders {
@@ -74,6 +74,10 @@ extension StateFolders {
         let path = arguments[index + 1]
         guard !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true, relativeTo: currentDirectory).absoluteURL.standardizedFileURL
+    }
+
+    public func createLogs() throws {
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
     }
 
     public func isolate() throws {

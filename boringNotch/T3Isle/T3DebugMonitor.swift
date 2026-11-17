@@ -7,15 +7,9 @@ import T3IsleCore
 final class T3DebugMonitor {
     static let shared = T3DebugMonitor()
 
-    let paths: DebugPaths
-    private let log: DebugEventLog
+    private let folders = StateFolders.current
+    private let log = DebugEventLog(folders: .current)
     private var cancellables: Set<AnyCancellable> = []
-
-    private init() {
-        let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "T3 Isle"
-        paths = DebugPaths(appName: name)
-        log = DebugEventLog(paths: paths)
-    }
 
     func record(_ event: String, _ attributes: [String: String] = [:]) {
         log.record(event, attributes)
@@ -93,9 +87,9 @@ final class T3DebugMonitor {
                                closedActivity: T3Tabs.closedActivity(),
                                headphones: runtime.headphones,
                                t3: runtime.debugState)
-        try paths.create()
-        try DebugState.encoded(state).write(to: paths.state, options: .atomic)
-        record("state.written", ["path": paths.state.path, "settled": String(settled)])
+        try folders.createLogs()
+        try DebugState.encoded(state).write(to: folders.stateFile, options: .atomic)
+        record("state.written", ["path": folders.stateFile.path, "settled": String(settled)])
     }
 }
 #endif

@@ -1,28 +1,6 @@
 #if DEBUG
 import Foundation
 
-public struct DebugPaths: Sendable {
-    public let directory: URL
-
-    public init(directory: URL) {
-        self.directory = directory
-    }
-
-    public init(appName: String) {
-        self.init(directory: FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs", isDirectory: true)
-            .appendingPathComponent(appName, isDirectory: true))
-    }
-
-    public var events: URL { directory.appendingPathComponent("events.ndjson") }
-    public var rotatedEvents: URL { directory.appendingPathComponent("events.1.ndjson") }
-    public var state: URL { directory.appendingPathComponent("state.json") }
-
-    public func create() throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    }
-}
-
 public struct DebugEvent: Equatable, Sendable {
     public let time: Date
     public let name: String
@@ -49,8 +27,8 @@ public final class DebugEventLog: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.t3isle.debug-event-log")
     private var handle: FileHandle?
 
-    public init(paths: DebugPaths, rotateAtBytes: Int = 5_000_000) {
-        queue.async { [self] in handle = Self.open(paths, rotateAtBytes: rotateAtBytes) }
+    public init(folders: StateFolders, rotateAtBytes: Int = 5_000_000) {
+        queue.async { [self] in handle = Self.open(folders, rotateAtBytes: rotateAtBytes) }
     }
 
     public func record(_ name: String, _ attributes: [String: String] = [:], at time: Date = Date()) {
@@ -62,18 +40,18 @@ public final class DebugEventLog: @unchecked Sendable {
         queue.sync {}
     }
 
-    private static func open(_ paths: DebugPaths, rotateAtBytes: Int) -> FileHandle? {
+    private static func open(_ folders: StateFolders, rotateAtBytes: Int) -> FileHandle? {
         let files = FileManager.default
-        try? paths.create()
-        let size = (try? files.attributesOfItem(atPath: paths.events.path)[.size] as? Int) ?? 0
+        try? folders.createLogs()
+        let size = (try? files.attributesOfItem(atPath: folders.eventLog.path)[.size] as? Int) ?? 0
         if size > rotateAtBytes {
-            try? files.removeItem(at: paths.rotatedEvents)
-            try? files.moveItem(at: paths.events, to: paths.rotatedEvents)
+            try? files.removeItem(at: folders.rotatedEventLog)
+            try? files.moveItem(at: folders.eventLog, to: folders.rotatedEventLog)
         }
-        if !files.fileExists(atPath: paths.events.path) {
-            files.createFile(atPath: paths.events.path, contents: nil)
+        if !files.fileExists(atPath: folders.eventLog.path) {
+            files.createFile(atPath: folders.eventLog.path, contents: nil)
         }
-        let handle = try? FileHandle(forWritingTo: paths.events)
+        let handle = try? FileHandle(forWritingTo: folders.eventLog)
         _ = try? handle?.seekToEnd()
         return handle
     }

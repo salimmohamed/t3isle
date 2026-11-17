@@ -33,6 +33,7 @@ final class StateFoldersTests: XCTestCase {
         XCTAssertEqual(folders.session.path, "/Users/someone/Library/Application Support/T3 Isle Debug/session.json")
         XCTAssertEqual(folders.shelf.path, "/Users/someone/Library/Application Support/T3 Isle Debug/Shelf")
         XCTAssertEqual(folders.eventLog.path, "/Users/someone/Library/Logs/T3 Isle Debug/events.ndjson")
+        XCTAssertEqual(folders.rotatedEventLog.path, "/Users/someone/Library/Logs/T3 Isle Debug/events.1.ndjson")
         XCTAssertEqual(folders.stateFile.path, "/Users/someone/Library/Logs/T3 Isle Debug/state.json")
     }
 
@@ -49,6 +50,7 @@ final class StateFoldersTests: XCTestCase {
         XCTAssertEqual(folders.shelf.path, "/work/state/Shelf")
         XCTAssertEqual(folders.logs.path, "/work/state/logs")
         XCTAssertEqual(folders.eventLog.path, "/work/state/logs/events.ndjson")
+        XCTAssertEqual(folders.rotatedEventLog.path, "/work/state/logs/events.1.ndjson")
         XCTAssertEqual(folders.stateFile.path, "/work/state/logs/state.json")
     }
 
