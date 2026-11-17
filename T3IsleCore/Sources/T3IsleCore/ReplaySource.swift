@@ -30,7 +30,9 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
 
     public var current: ReplayStatus? { lock.withLock { status } }
 
+    #if DEBUG
     public var threads: [ThreadShell] { lock.withLock { world.snapshot.threads } }
+    #endif
 
     public func onProgress(_ handler: @escaping @Sendable (ReplayProgress) -> Void) {
         lock.withLock { progressHandler = handler }

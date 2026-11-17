@@ -528,9 +528,11 @@ public final class T3IsleModel: ObservableObject {
             publish()
         }
         guard !isDemo else { return }
+        let session = session
         Task {
             var environment = environmentId
             if environment == nil { environment = await source.environmentId() }
+            guard self.session == session else { return }
             environmentId = environment
             guard environment != ReplaySource.environment else { return }
             if let threadId, let environment,

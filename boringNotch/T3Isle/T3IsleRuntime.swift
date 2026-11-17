@@ -110,7 +110,7 @@ final class T3IsleRuntime: ObservableObject {
     private var replayStatus: ReplayStatus? { activeReplay?.current }
 
     var isSettled: Bool {
-        guard let replay = activeReplay else { return !model.isFetchingDetails }
+        guard Defaults[.t3Enabled], let replay = activeReplay else { return !model.isFetchingDetails }
         return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
     }
 
