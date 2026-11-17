@@ -48,11 +48,7 @@ enum T3DebugCommands {
         case .closeNotch:
             notch.close()
         case .tab(let tab):
-            BoringViewCoordinator.shared.currentView = switch tab {
-            case .home: .home
-            case .shelf: .shelf
-            case .t3: .t3
-            }
+            BoringViewCoordinator.shared.currentView = tab
             notch.open()
         case .demo(let on):
             guard on != T3IsleRuntime.isDemo else { return report("demo", "Demo mode is already \(on ? "on" : "off")") }

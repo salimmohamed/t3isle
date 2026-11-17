@@ -3,9 +3,11 @@ import Foundation
 import T3IsleCore
 
 extension QuotaWindowChoice: Defaults.Serializable {}
+extension OpeningTab: Defaults.Serializable {}
 
 extension Defaults.Keys {
     static let t3Enabled = Key<Bool>("t3Enabled", default: true)
+    static let openingTab = Key<OpeningTab>("openingTab", default: .t3)
     static let t3AttentionBorder = Key<Bool>("t3AttentionBorder", default: true)
     static let t3AttentionBorderHex = Key<String>("t3AttentionBorderHex", default: BorderPalette.standardHex)
     static let t3OpenOnQuestion = Key<Bool>("t3OpenOnQuestion", default: true)

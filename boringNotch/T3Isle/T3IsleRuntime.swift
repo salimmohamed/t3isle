@@ -92,16 +92,25 @@ enum T3Tabs {
     @MainActor
     static func visible(_ tabs: [TabModel]) -> [TabModel] {
         guard Defaults[.t3Enabled] else { return tabs }
-        return [TabModel(label: "T3", icon: Image("t3.blob"), view: .t3)] + tabs
+        let t3 = TabModel(label: "T3", icon: Image("t3.blob"), view: .t3)
+        return tabs.flatMap { $0.view == .home ? [$0, t3] : [$0] }
     }
 
     @MainActor
     static var isAvailable: Bool { Defaults[.t3Enabled] }
 
     @MainActor
-    static func defaultView(fallback: NotchViews) -> NotchViews {
-        guard Defaults[.t3Enabled], T3IsleRuntime.shared.model.hasAgents else { return fallback }
-        return .t3
+    static func openingView(current: NotchViews) -> NotchViews {
+        Defaults[.openingTab].tab(current: current,
+                                  t3Ready: Defaults[.t3Enabled] && T3IsleRuntime.shared.model.hasAgents,
+                                  shelfFirst: !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault])
+    }
+
+    static func migrateRememberLastTab() {
+        let legacyKey = "openLastTabByDefault"
+        guard let rememberLastTab = UserDefaults.standard.object(forKey: legacyKey) as? Bool else { return }
+        Defaults[.openingTab] = .migrated(rememberLastTab: rememberLastTab)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
     }
 
     @MainActor

@@ -28,7 +28,7 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertThrowsError(try DebugCommand.parse([])) { XCTAssertEqual($0 as? DebugCommandError, .empty) }
         XCTAssertThrowsError(try DebugCommand.parse(["dance"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("dance")) }
         let bad: [([String], String)] = [
-            (["tab", "calendar"], "tab home|shelf|t3"),
+            (["tab", "calendar"], "tab home|t3|shelf"),
             (["demo"], "demo on|off"),
             (["question", "now"], "question"),
             (["airpods-connect", "AirPods", "120"], "airpods-connect [name] [battery]"),
