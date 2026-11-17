@@ -16,6 +16,7 @@ public enum ReplayProgress: Equatable, Sendable {
 }
 
 public final class ReplaySource: T3Source, @unchecked Sendable {
+    private let clock: any T3Clock
     private let lock = NSLock()
     private var world = ReplayWorld()
     private var subscribers: [UUID: AsyncStream<ShellUpdate>.Continuation] = [:]
@@ -24,7 +25,8 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
     private var status: ReplayStatus?
     private var progressHandler: (@Sendable (ReplayProgress) -> Void)?
 
-    public init(scenario: Scenario?) {
+    public init(scenario: Scenario?, clock: any T3Clock = LiveClock()) {
+        self.clock = clock
         if let scenario { play(scenario) }
     }
 
@@ -39,7 +41,8 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
     }
 
     public func play(_ scenario: Scenario) {
-        let schedule = (try? scenario.events(startingAt: Date())) ?? []
+        let start = clock.now
+        let schedule = (try? scenario.events(startingAt: start)) ?? []
         let (playing, handler) = lock.withLock {
             generation += 1
             playback?.cancel()
@@ -50,9 +53,11 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
             return (generation, progressHandler)
         }
         handler?(.started(scenario.name, steps: scenario.stepCount))
-        let task = Task { [weak self] in
+        let task = Task { [weak self, clock] in
+            var offset = Duration.zero
             for (after, event) in schedule {
-                if after > .zero { try? await Task.sleep(for: after) }
+                offset += after
+                if after > .zero { try? await clock.sleep(until: start + offset / .seconds(1)) }
                 guard self?.apply(event, playing) == true else { return }
             }
             self?.finish(scenario.name, playing)
@@ -93,7 +98,7 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
 
     public func send(_ command: T3Command) async throws {
         try lock.withLock {
-            broadcast(try world.respond(to: command, at: Date()))
+            broadcast(try world.respond(to: command, at: clock.now))
         }
     }
 

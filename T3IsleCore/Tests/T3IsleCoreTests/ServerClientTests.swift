@@ -4,29 +4,25 @@ import XCTest
 
 final class ServerClientTests: XCTestCase {
     func testDisconnectDuringConnectClosesSocket() async throws {
-        let server = try SocketServer()
+        let server = try await SocketServer.start()
         let home = try Self.home(port: server.port)
         let runner = HeldRunner()
         let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner))
 
         let updates = await client.shellUpdates()
-        let disconnected = expectation(description: "stream reports the disconnect")
-        let reader = Task {
-            for await update in updates {
-                if case .disconnected = update {
-                    disconnected.fulfill()
-                    return
-                }
-            }
-        }
-        await fulfillment(of: [runner.started], timeout: 5)
+        await runner.started()
         await client.disconnect()
         runner.release()
 
-        await fulfillment(of: [disconnected], timeout: 3)
-        try await Self.until { server.openConnections == 0 }
-        XCTAssertEqual(server.openConnections, 0, "socket stayed open after disconnect")
-        reader.cancel()
+        var disconnected = false
+        for await update in updates {
+            if case .disconnected = update {
+                disconnected = true
+                break
+            }
+        }
+        XCTAssertTrue(disconnected, "stream ended without reporting the disconnect")
+        await server.idle()
     }
 
     private static func home(port: UInt16) throws -> T3Home {
@@ -37,26 +33,24 @@ final class ServerClientTests: XCTestCase {
         try Data(runtime.utf8).write(to: userdata.appendingPathComponent("server-runtime.json"))
         return T3Home(root: root)
     }
-
-    private static func until(_ timeout: TimeInterval = 3, _ condition: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() && Date() < deadline {
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
 }
 
 private final class HeldRunner: CommandRunner, @unchecked Sendable {
-    let started = XCTestExpectation(description: "sign-in started")
     private let lock = NSLock()
     private var waiter: CheckedContinuation<Void, Never>?
+    private let (starts, starting) = AsyncStream<Void>.makeStream()
+
+    func started() async {
+        var iterator = starts.makeAsyncIterator()
+        await iterator.next()
+    }
 
     func run(_ tool: URL, _ arguments: [String]) async throws -> Data {
         await withCheckedContinuation { continuation in
             lock.lock()
             waiter = continuation
             lock.unlock()
-            started.fulfill()
+            starting.yield()
         }
         return Data(#"{"token":"held","expiresAt":"2099-01-01T00:00:00Z"}"#.utf8)
     }
@@ -74,16 +68,17 @@ private final class SocketServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "SocketServer")
     private let lock = NSLock()
     private var openCount = 0
+    private var readiness: CheckedContinuation<Void, Error>?
+    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init() throws {
+    static func start() async throws -> SocketServer {
+        let server = try SocketServer()
+        try await server.listen()
+        return server
+    }
+
+    private init() throws {
         listener = try NWListener(using: .tcp, on: .any)
-        let ready = DispatchSemaphore(value: 0)
-        listener.stateUpdateHandler = { state in
-            if case .ready = state { ready.signal() }
-        }
-        listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-        listener.start(queue: queue)
-        guard ready.wait(timeout: .now() + 5) == .success else { throw T3Failure.notRunning }
     }
 
     var port: UInt16 { listener.port?.rawValue ?? 0 }
@@ -92,10 +87,38 @@ private final class SocketServer: @unchecked Sendable {
         listener.cancel()
     }
 
-    var openConnections: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return openCount
+    func idle() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let isIdle: Bool = lock.withLock {
+                guard openCount > 0 else { return true }
+                idleWaiters.append(continuation)
+                return false
+            }
+            if isIdle { continuation.resume() }
+        }
+    }
+
+    private func listen() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            lock.withLock { readiness = continuation }
+            listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
+            listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
+            listener.start(queue: queue)
+        }
+    }
+
+    private func changed(_ state: NWListener.State) {
+        let result: Result<Void, Error>
+        switch state {
+        case .ready: result = .success(())
+        case .failed(let error): result = .failure(error)
+        default: return
+        }
+        let waiter: CheckedContinuation<Void, Error>? = lock.withLock {
+            defer { readiness = nil }
+            return readiness
+        }
+        waiter?.resume(with: result)
     }
 
     private func accept(_ connection: NWConnection) {
@@ -110,10 +133,14 @@ private final class SocketServer: @unchecked Sendable {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] _, _, isComplete, error in
             guard let self else { return }
             if isComplete || error != nil {
-                self.lock.lock()
-                self.openCount -= 1
-                self.lock.unlock()
+                let idle: [CheckedContinuation<Void, Never>] = self.lock.withLock {
+                    self.openCount -= 1
+                    guard self.openCount == 0 else { return [] }
+                    defer { self.idleWaiters.removeAll() }
+                    return self.idleWaiters
+                }
                 connection.cancel()
+                for waiter in idle { waiter.resume() }
             } else {
                 self.drain(connection)
             }

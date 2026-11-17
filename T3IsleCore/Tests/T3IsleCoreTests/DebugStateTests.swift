@@ -51,7 +51,7 @@ final class DebugEventLogTests: XCTestCase {
 
     func testEscapesValuesIntoValidJSON() throws {
         let message = "Usage: \"replay\"\nnext line"
-        let line = DebugEvent(time: Date(), name: "command.failed", attributes: ["message": message]).line
+        let line = DebugEvent(time: Scenario.anchor, name: "command.failed", attributes: ["message": message]).line
         XCTAssertFalse(line.contains("\n"))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
         XCTAssertEqual((object["attributes"] as? [String: String])?["message"], message)

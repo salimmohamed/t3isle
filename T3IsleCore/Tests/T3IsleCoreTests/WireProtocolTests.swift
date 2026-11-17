@@ -87,10 +87,14 @@ final class WireProtocolTests: XCTestCase {
 
     func testIssuedSessionParsing() throws {
         let data = Data(#"{"sessionId":"s1","token":"abc","expiresAt":"2026-12-15T20:03:06.708Z"}"#.utf8)
-        let token = try T3SignIn.parseIssued(data)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let token = try T3SignIn.parseIssued(data, now: now)
         XCTAssertEqual(token.token, "abc")
         XCTAssertEqual(token.sessionId, "s1")
-        XCTAssertThrowsError(try T3SignIn.parseIssued(Data("{}".utf8)))
+        XCTAssertEqual(token.expiresAt, WireDate.parse("2026-12-15T20:03:06.708Z"))
+        let undated = try T3SignIn.parseIssued(Data(#"{"token":"abc"}"#.utf8), now: now)
+        XCTAssertEqual(undated.expiresAt, now.addingTimeInterval(86_400))
+        XCTAssertThrowsError(try T3SignIn.parseIssued(Data("{}".utf8), now: now))
     }
 
     func testThreadIdsArePercentEncoded() {

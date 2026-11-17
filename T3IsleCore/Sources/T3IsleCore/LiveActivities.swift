@@ -162,18 +162,21 @@ public struct BluetoothReport: Equatable, Sendable {
 public final class HeadphonesPopup: ObservableObject {
     @Published public private(set) var current: HeadphonesConnect?
 
-    public let showFor: Duration
+    public let showFor: TimeInterval
+    private let clock: any T3Clock
     private var hideTask: Task<Void, Never>?
 
-    public init(showFor: Duration = .seconds(4)) {
+    public init(showFor: TimeInterval = 4, clock: any T3Clock = LiveClock()) {
         self.showFor = showFor
+        self.clock = clock
     }
 
     public func show(_ connect: HeadphonesConnect) {
         current = connect
         hideTask?.cancel()
-        hideTask = Task { [weak self, showFor, id = connect.id] in
-            try? await Task.sleep(for: showFor)
+        let hideAt = clock.now + showFor
+        hideTask = Task { [weak self, clock, id = connect.id] in
+            try? await clock.sleep(until: hideAt)
             guard !Task.isCancelled, self?.current?.id == id else { return }
             self?.current = nil
         }
