@@ -225,6 +225,8 @@ public final class DemoSource: T3Source, @unchecked Sendable {
         agent.shell.status = "running"
         agent.shell.activityRunStatus = "running"
         agent.runStart = Date()
+        agent.shell.latestUserAuthoredMessageAt = agent.runStart
+        agent.shell.latestRunRequestedAt = agent.runStart
         agent.plan = agent.plan.enumerated().map { index, step in
             PlanStep(id: "\(step.id)-r\(self.step)", text: step.text, status: index == 0 ? "running" : "pending")
         }
@@ -270,9 +272,10 @@ public final class DemoSource: T3Source, @unchecked Sendable {
         ThreadShell(id: id, projectId: project, title: title, providerInstanceId: provider,
                     modelSelection: ModelSelection(instanceId: provider, model: model), branch: branch,
                     status: status, activityRunStatus: status == "running" ? "running" : nil, latestRunId: "\(id)-run",
-                    latestRunStartedAt: start, latestRunCompletedAt: completed, activityRunStartedAt: start,
-                    lastError: error, latestVisibleMessage: message.map { VisibleMessage(role: "assistant", text: $0) },
-                    updatedAt: completed ?? start ?? Date(), snoozedUntil: snoozedUntil,
+                    latestRunRequestedAt: start, latestRunStartedAt: start, latestRunCompletedAt: completed,
+                    activityRunStartedAt: start, lastError: error,
+                    latestVisibleMessage: message.map { VisibleMessage(role: "assistant", text: $0) },
+                    latestUserAuthoredMessageAt: start, updatedAt: completed ?? start ?? Date(), snoozedUntil: snoozedUntil,
                     snoozedAt: snoozedUntil == nil ? nil : Date().addingTimeInterval(-600))
     }
 

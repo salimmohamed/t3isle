@@ -62,12 +62,31 @@ public struct InboxBuilder {
     }
 
     public func threads(from shells: [ThreadShell], projects: [String: ProjectShell], now: Date = Date()) -> [T3Thread] {
-        let listed = shells.filter { Self.belongsInInbox($0) }
-            .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
-        let built = listed.map { thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now) }
-        return built.enumerated()
-            .sorted { ($0.element.mood, $0.offset) < ($1.element.mood, $1.offset) }
-            .map(\.element)
+        shells.filter { Self.belongsInInbox($0) }
+            .map { (shell: $0, thread: thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now)) }
+            .sorted { Self.precedes($0.shell, $0.thread.mood, $1.shell, $1.thread.mood) }
+            .map(\.thread)
+    }
+
+    static func precedes(_ lhs: ThreadShell, _ lhsMood: ThreadMood, _ rhs: ThreadShell, _ rhsMood: ThreadMood) -> Bool {
+        let left = orderKey(lhs, mood: lhsMood)
+        let right = orderKey(rhs, mood: rhsMood)
+        if left.rank != right.rank { return left.rank < right.rank }
+        if left.at != right.at { return left.at > right.at }
+        return lhs.id < rhs.id
+    }
+
+    static func orderKey(_ shell: ThreadShell, mood: ThreadMood) -> (rank: Int, at: Date) {
+        mood.isBusy ? (ThreadMood.working.rawValue, sentAt(shell)) : (mood.rawValue, returnedAt(shell))
+    }
+
+    static func sentAt(_ shell: ThreadShell) -> Date {
+        [shell.createdAt, shell.latestUserAuthoredMessageAt].compactMap { $0 }.max() ?? .distantPast
+    }
+
+    static func returnedAt(_ shell: ThreadShell) -> Date {
+        [shell.createdAt, shell.unsettledAt, shell.latestRunRequestedAt, shell.latestRunCompletedAt,
+         shell.pendingRuntimeRequest?.createdAt].compactMap { $0 }.max() ?? .distantPast
     }
 
     public static func belongsInInbox(_ shell: ThreadShell) -> Bool {
