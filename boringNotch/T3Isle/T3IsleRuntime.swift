@@ -99,6 +99,19 @@ final class T3IsleRuntime: ObservableObject {
         model.stop()
         model.start()
     }
+
+    var sourceKind: DebugState.T3.Source {
+        debugSource.isReplaying ? .replay : Self.isDemo ? .demo : .live
+    }
+
+    var replaySources: [ReplaySource] {
+        [debugSource.replay] + [debugSource.base as? ReplaySource].compactMap { $0 }
+    }
+
+    var debugState: DebugState.T3 {
+        let replay = debugSource.isReplaying ? debugSource.replay.current : (debugSource.base as? ReplaySource)?.current
+        return model.debugState(enabled: Defaults[.t3Enabled], source: sourceKind, replay: replay)
+    }
     #endif
 }
 
@@ -134,10 +147,12 @@ enum T3Tabs {
     }
 
     @MainActor
-    static func closedActivity(nowPlaying: Bool) -> ClosedActivity {
+    static func closedActivity() -> ClosedActivity {
         let runtime = T3IsleRuntime.shared
+        let music = MusicManager.shared
         return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
                                       headphones: Defaults[.t3HeadphonesActivity] ? runtime.headphones : nil,
-                                      nowPlaying: nowPlaying)
+                                      nowPlaying: (music.isPlaying || !music.isPlayerIdle)
+                                          && BoringViewCoordinator.shared.musicLiveActivityEnabled)
     }
 }

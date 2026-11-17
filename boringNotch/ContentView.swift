@@ -61,7 +61,7 @@ struct ContentView: View {
     }
 
     private var closedActivity: ClosedActivity {
-        T3Tabs.closedActivity(nowPlaying: (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled)
+        T3Tabs.closedActivity()
     }
 
     private var computedChinWidth: CGFloat {

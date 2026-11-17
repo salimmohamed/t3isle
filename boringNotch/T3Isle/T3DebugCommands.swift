@@ -1,44 +1,62 @@
 #if DEBUG
 import AppKit
 import Defaults
-import OSLog
 import T3IsleCore
 
 @MainActor
 enum T3DebugCommands {
-    private static let log = Logger(subsystem: bundleIdentifier, category: "debug-command")
+    private struct Failure: LocalizedError {
+        let errorDescription: String?
+
+        init(_ message: String) {
+            errorDescription = message
+        }
+    }
+
     private static let settingsPanes = ["General", "T3", "Appearance", "Media", "Calendar", "HUD", "Battery", "Shelf",
                                         "Shortcuts", "Advanced", "About"]
+    private static var monitor: T3DebugMonitor { .shared }
 
     static func run(launchArguments arguments: [String], notch: @escaping @MainActor () -> BoringViewModel) {
         let commands: [DebugCommand]
         do {
             commands = try DebugCommand.launchCommands(arguments)
         } catch {
-            return report(arguments.joined(separator: " "), error)
+            return failed(arguments.joined(separator: " "), error)
         }
         guard !commands.isEmpty else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1))
-            for command in commands { run(command, notch: notch()) }
+            for command in commands { run(command, input: "\(DebugCommand.launchFlag) \(command.line)", notch: notch()) }
         }
     }
 
     static func run(url: URL, notch: BoringViewModel) {
         do {
-            run(try DebugCommand.parse(url: url), notch: notch)
+            run(try DebugCommand.parse(url: url), input: url.absoluteString, notch: notch)
         } catch {
-            report(url.absoluteString, error)
+            failed(url.absoluteString, error)
         }
     }
 
-    static func run(_ command: DebugCommand, notch: BoringViewModel) {
+    private static func run(_ command: DebugCommand, input: String, notch: BoringViewModel) {
+        do {
+            try perform(command, notch: notch)
+            var attributes = ["input": input, "command": command.line]
+            attributes["reverse"] = command.reverse?.line
+            monitor.record("command.ran", attributes)
+        } catch {
+            failed(input, error)
+        }
+    }
+
+    private static func perform(_ command: DebugCommand, notch: BoringViewModel) throws {
         let runtime = T3IsleRuntime.shared
         switch command {
         case .openSettings(let pane):
             if let pane {
                 guard let match = settingsPanes.first(where: { $0.caseInsensitiveCompare(pane) == .orderedSame }) else {
-                    return report("open-settings \(pane)", "Unknown pane. Panes: \(settingsPanes.joined(separator: ", "))")
+                    throw Failure("Unknown pane. Panes: \(settingsPanes.joined(separator: ", "))")
                 }
                 SettingsNavigation.shared.pane = match
             }
@@ -55,21 +73,22 @@ enum T3DebugCommands {
         case .demo(let on):
             if on != T3IsleRuntime.isDemo { relaunch(arguments: on ? ["--demo"] : []) }
         case .replay(let name):
-            guard Defaults[.t3Enabled] else { return report(command.line, "T3 is turned off in Settings") }
-            do {
-                runtime.play(try Scenario.named(name))
-            } catch {
-                return report(command.line, error)
-            }
+            try requireT3()
+            runtime.play(try Scenario.named(name))
         case .replayOff:
-            guard Defaults[.t3Enabled] else { return report(command.line, "T3 is turned off in Settings") }
+            try requireT3()
             runtime.stopReplay()
+        case .state:
+            try monitor.writeState(notch: notch)
         case .airpodsConnect(let name, let battery):
             runtime.showHeadphones(name: name, battery: battery)
         case .airpodsDisconnect:
             runtime.hideHeadphones()
         }
-        log.notice("ran \(command.line, privacy: .public)")
+    }
+
+    private static func requireT3() throws {
+        guard Defaults[.t3Enabled] else { throw Failure("T3 is turned off in Settings") }
     }
 
     private static func relaunch(arguments: [String]) {
@@ -78,18 +97,14 @@ enum T3DebugCommands {
         configuration.arguments = arguments
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
             Task { @MainActor in
-                if let error { return report("relaunch", error) }
+                if let error { return failed("relaunch", error) }
                 NSApp.terminate(nil)
             }
         }
     }
 
-    private static func report(_ input: String, _ error: Error) {
-        report(input, error.localizedDescription)
-    }
-
-    private static func report(_ input: String, _ message: String) {
-        log.error("failed \(input, privacy: .public): \(message, privacy: .public)")
+    private static func failed(_ input: String, _ error: Error) {
+        monitor.record("command.failed", ["input": input, "message": error.localizedDescription])
     }
 }
 #endif

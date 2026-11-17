@@ -10,6 +10,7 @@ public enum DebugCommand: Equatable, Sendable {
     case demo(Bool)
     case replay(String)
     case replayOff
+    case state
     case airpodsConnect(name: String, battery: Int?)
     case airpodsDisconnect
 
@@ -44,6 +45,7 @@ public enum DebugCommand: Equatable, Sendable {
         },
         Spec(name: "replay", arguments: (Scenario.names + ["off"]).joined(separator: "|"),
              summary: "Replay a recorded T3 scenario in place of the real one, or go back to it with off", build: replay),
+        Spec(name: "state", arguments: "", summary: "Write what the app shows as JSON to the state file") { $0.isEmpty ? .state : nil },
         Spec(name: "airpods-connect", arguments: "[name] [battery]", summary: "Show the headphones activity as if they just connected",
              build: airpodsConnect),
         Spec(name: "airpods-disconnect", arguments: "", summary: "Hide the headphones activity") { $0.isEmpty ? .airpodsDisconnect : nil },
@@ -59,6 +61,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .demo(let on): ["demo", on ? "on" : "off"]
         case .replay(let scenario): ["replay", scenario]
         case .replayOff: ["replay", "off"]
+        case .state: ["state"]
         case .airpodsConnect(let name, let battery): ["airpods-connect", name] + (battery.map { [String($0)] } ?? [])
         case .airpodsDisconnect: ["airpods-disconnect"]
         }
@@ -74,6 +77,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .closeNotch: .openNotch
         case .demo(let on): .demo(!on)
         case .replay, .replayOff: .replayOff
+        case .state: nil
         case .airpodsConnect: .airpodsDisconnect
         case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil)
         }

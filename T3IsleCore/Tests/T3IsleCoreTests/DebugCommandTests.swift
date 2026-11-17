@@ -14,6 +14,7 @@ final class DebugCommandTests: XCTestCase {
         (["replay", "question"], .replay("question")),
         (["replay", "Plan-Done"], .replay("plan-done")),
         (["replay", "off"], .replayOff),
+        (["state"], .state),
         (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil)),
         (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil)),
         (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64)),
@@ -27,8 +28,13 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertEqual(Set(everyCommand.map { $0.0[0] }), Set(DebugCommand.specs.map(\.name)))
     }
 
-    func testEveryCommandHasAReverseThatParses() throws {
+    func testEveryCommandButStateHasAReverseThatParses() throws {
+        let readOnly: Set<String> = ["state"]
         for (tokens, command) in everyCommand {
+            guard !readOnly.contains(tokens[0]) else {
+                XCTAssertNil(command.reverse, "\(tokens) is read-only")
+                continue
+            }
             let reverse = try XCTUnwrap(command.reverse, "\(tokens) has no reverse")
             XCTAssertEqual(try DebugCommand.parse(reverse.tokens), reverse, "\(tokens)")
             XCTAssertEqual(try DebugCommand.parse(command.tokens), command, "\(tokens)")
@@ -49,6 +55,7 @@ final class DebugCommandTests: XCTestCase {
             (["tab", "calendar"], "tab home|t3|shelf"),
             (["demo"], "demo on|off"),
             (["close-settings", "now"], "close-settings"),
+            (["state", "now"], "state"),
             (["replay"], replayUsage),
             (["replay", "nope"], replayUsage),
             (["replay", "question", "twice"], replayUsage),
@@ -81,7 +88,7 @@ final class DebugCommandTests: XCTestCase {
             let url = try XCTUnwrap(URL(string: "t3isle-debug://replay/question\(suffix)"))
             XCTAssertEqual(try DebugCommand.parse(url: url), plain, suffix)
         }
-        XCTAssertEqual(try DebugCommand.parse(url: try XCTUnwrap(URL(string: "t3isle-debug://close-notch?n=9"))), .closeNotch)
+        XCTAssertEqual(try DebugCommand.parse(url: try XCTUnwrap(URL(string: "t3isle-debug://state?n=9"))), .state)
     }
 
     func testContributingDocumentsEveryCommand() throws {
@@ -163,6 +170,16 @@ final class DebugSourceTests: XCTestCase {
         XCTAssertEqual(model.banner?.threadId, "plan-thread")
         XCTAssertEqual(model.banner?.stepCount, 3)
         XCTAssertEqual(source.replay.current, ReplayStatus(scenario: "plan-done", finished: true))
+        model.stop()
+    }
+
+    func testQuestionScenarioStateMatchesTheFixture() async throws {
+        let source = ReplaySource(scenario: try Scenario.named("question"))
+        let model = T3IsleModel(source: source, opener: { _ in })
+        model.start()
+        try await until { model.prompts.count == 1 && source.current?.finished == true }
+        let expected = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
+        XCTAssertEqual(model.debugState(enabled: true, source: .replay, replay: source.current), expected)
         model.stop()
     }
 

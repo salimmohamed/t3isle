@@ -77,6 +77,7 @@ open -a "$APP" --args --debug open-settings appearance --debug replay question
 | `tab home\|t3\|shelf` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
 | `demo on\|off` | Relaunches with or without demo data | `open -g -a "$APP" "t3isle-debug://demo/on"` |
 | `replay <scenario>\|off` | Replays a recorded T3 scenario in place of the real T3 data, or goes back to it with `off` | `open -g -a "$APP" "t3isle-debug://replay/question"` |
+| `state` | Writes what the app shows as JSON to the state file | `open -g -a "$APP" "t3isle-debug://state"` |
 | `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
 | `airpods-disconnect` | Hides the headphones activity | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
 

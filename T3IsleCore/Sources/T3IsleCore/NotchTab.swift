@@ -1,6 +1,6 @@
 import Foundation
 
-public enum NotchTab: String, CaseIterable, Sendable {
+public enum NotchTab: String, CaseIterable, Codable, Sendable {
     case home, t3, shelf
 }
 
