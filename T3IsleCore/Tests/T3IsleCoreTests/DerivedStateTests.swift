@@ -12,8 +12,8 @@ final class DerivedStateTests: XCTestCase {
         try WireDecoder.make().decode(ThreadDetailEnvelope.self, from: Fixture.data("detail-question.json")).projection
     }
 
-    private func inbox() throws -> [T3Thread] {
-        let snapshot = try shell()
+    private func inbox(_ snapshot: ShellSnapshot? = nil) throws -> [T3Thread] {
+        let snapshot = try snapshot ?? shell()
         let projects = Dictionary(uniqueKeysWithValues: snapshot.projects.map { ($0.id, $0) })
         return InboxBuilder(providerNames: ["claudeAgent": "Claude"]).threads(from: snapshot.threads, projects: projects, now: now)
     }
@@ -44,7 +44,53 @@ final class DerivedStateTests: XCTestCase {
         XCTAssertEqual(mood["t-waiting-pr"], .waiting)
         XCTAssertEqual(mood["t-snoozed"], .idle)
         XCTAssertEqual(threads.first?.id, "t-question")
-        XCTAssertEqual(threads.map(\.mood), threads.map(\.mood).sorted())
+        let waiting = threads.prefix { !$0.mood.isBusy }
+        XCTAssertEqual(waiting.map(\.mood), waiting.map(\.mood).sorted())
+        XCTAssertTrue(threads.dropFirst(waiting.count).allSatisfy(\.mood.isBusy))
+    }
+
+    func testWorkingSortsByLastUserMessage() throws {
+        XCTAssertEqual(try inbox().filter(\.mood.isBusy).map(\.id),
+                       ["t-subagent", "t-working", "t-side-chat", "t-delegated", "t-waiting-pr"])
+    }
+
+    func testRunningCommandOrWakeKeepsWorkingOrder() throws {
+        let before = try inbox().filter(\.mood.isBusy).map(\.id)
+        var snapshot = try shell()
+        let delegated = try XCTUnwrap(snapshot.threads.firstIndex { $0.id == "t-delegated" })
+        snapshot.threads[delegated].updatedAt = now
+        snapshot.threads[delegated].latestRunRequestedAt = now
+        snapshot.threads[delegated].latestVisibleMessage = VisibleMessage(role: "assistant", text: "$ rm -rf ~/Library/Caches/tmp")
+        let subagent = try XCTUnwrap(snapshot.threads.firstIndex { $0.id == "t-subagent" })
+        snapshot.threads[subagent].latestRunRequestedAt = now
+        let waitingPR = try XCTUnwrap(snapshot.threads.firstIndex { $0.id == "t-waiting-pr" })
+        snapshot.threads[waitingPR].status = "running"
+        snapshot.threads[waitingPR].activityRunStatus = "running"
+        snapshot.threads[waitingPR].latestRunRequestedAt = now
+        snapshot.threads[waitingPR].activityRunStartedAt = now
+        snapshot.threads[waitingPR].updatedAt = now
+        let after = try inbox(snapshot)
+        XCTAssertEqual(after.first { $0.id == "t-waiting-pr" }?.mood, .working)
+        XCTAssertEqual(after.filter(\.mood.isBusy).map(\.id), before)
+    }
+
+    func testNewUserMessageMovesWorkingThreadToTop() throws {
+        var snapshot = try shell()
+        let delegated = try XCTUnwrap(snapshot.threads.firstIndex { $0.id == "t-delegated" })
+        snapshot.threads[delegated].latestUserAuthoredMessageAt = now
+        XCTAssertEqual(try inbox(snapshot).filter(\.mood.isBusy).first?.id, "t-delegated")
+    }
+
+    func testWaitingOnYouSortsByWhenThreadCameBack() throws {
+        let earlier = WireDate.parse("2026-11-15T10:00:00.000Z")
+        let later = WireDate.parse("2026-11-15T11:00:00.000Z")
+        let bumped = ThreadShell(id: "a", title: "A", status: "completed", latestRunCompletedAt: earlier,
+                                 updatedAt: now, lastVisitedAt: .distantPast)
+        let returned = ThreadShell(id: "b", title: "B", status: "completed", latestRunCompletedAt: later,
+                                   updatedAt: later, lastVisitedAt: .distantPast)
+        let threads = InboxBuilder().threads(from: [bumped, returned], projects: [:], now: now)
+        XCTAssertEqual(threads.map(\.mood), [.replied, .replied])
+        XCTAssertEqual(threads.map(\.id), ["b", "a"])
     }
 
     func testThreadFieldsAndLines() throws {

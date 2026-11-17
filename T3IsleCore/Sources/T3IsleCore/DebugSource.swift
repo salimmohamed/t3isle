@@ -144,7 +144,8 @@ public final class DebugSource: T3Source, @unchecked Sendable {
         ThreadShell(id: id, projectId: "debug", title: title, providerInstanceId: "claudeAgent",
                     modelSelection: ModelSelection(instanceId: "claudeAgent", model: "claude-opus-5-5"), branch: "debug",
                     status: status, activityRunStatus: status == "running" ? "running" : nil, latestRunId: "\(id)-run",
-                    latestRunStartedAt: date, activityRunStartedAt: date, updatedAt: date)
+                    latestRunRequestedAt: date, latestRunStartedAt: date, activityRunStartedAt: date,
+                    latestUserAuthoredMessageAt: date, updatedAt: date)
     }
 
     private static func projection(_ shell: ThreadShell, plan: [PlanStep], requests: [RuntimeRequest],

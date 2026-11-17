@@ -109,12 +109,15 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
     public var pendingBackgroundTasks: [AnyWireValue]?
     public var pullRequests: [PullRequestRef]?
     public var latestVisibleMessage: VisibleMessage?
+    public var latestUserAuthoredMessageAt: Date?
     public var hasActionableProposedPlan: Bool?
+    public var createdAt: Date?
     public var updatedAt: Date?
     public var archivedAt: Date?
     public var deletedAt: Date?
     public var settledOverride: String?
     public var settledAt: Date?
+    public var unsettledAt: Date?
     public var snoozedUntil: Date?
     public var snoozedAt: Date?
     public var lastVisitedAt: Date?
@@ -127,10 +130,11 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
                 blockedOnThreadWait: Bool? = nil, lastError: String? = nil,
                 pendingRuntimeRequest: PendingRequestSummary? = nil, pendingGuestMessageCount: Int? = nil,
                 pendingBackgroundTasks: [AnyWireValue]? = nil, pullRequests: [PullRequestRef]? = nil,
-                latestVisibleMessage: VisibleMessage? = nil, hasActionableProposedPlan: Bool? = nil,
+                latestVisibleMessage: VisibleMessage? = nil, latestUserAuthoredMessageAt: Date? = nil,
+                hasActionableProposedPlan: Bool? = nil, createdAt: Date? = nil,
                 updatedAt: Date? = nil, archivedAt: Date? = nil, deletedAt: Date? = nil,
-                settledOverride: String? = nil, settledAt: Date? = nil, snoozedUntil: Date? = nil,
-                snoozedAt: Date? = nil, lastVisitedAt: Date? = nil) {
+                settledOverride: String? = nil, settledAt: Date? = nil, unsettledAt: Date? = nil,
+                snoozedUntil: Date? = nil, snoozedAt: Date? = nil, lastVisitedAt: Date? = nil) {
         self.id = id
         self.projectId = projectId
         self.title = title
@@ -154,12 +158,15 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
         self.pendingBackgroundTasks = pendingBackgroundTasks
         self.pullRequests = pullRequests
         self.latestVisibleMessage = latestVisibleMessage
+        self.latestUserAuthoredMessageAt = latestUserAuthoredMessageAt
         self.hasActionableProposedPlan = hasActionableProposedPlan
+        self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.archivedAt = archivedAt
         self.deletedAt = deletedAt
         self.settledOverride = settledOverride
         self.settledAt = settledAt
+        self.unsettledAt = unsettledAt
         self.snoozedUntil = snoozedUntil
         self.snoozedAt = snoozedAt
         self.lastVisitedAt = lastVisitedAt
