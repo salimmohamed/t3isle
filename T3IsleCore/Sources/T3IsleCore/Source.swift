@@ -12,8 +12,9 @@ public final class LiveSource: T3Source {
     private let client: T3ServerClient
     private let limits: UsageLimitsReader
 
-    public init(home: T3Home = T3Home(), tokenStore: TokenStore = FileTokenStore()) {
-        client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: tokenStore))
+    public init(home: T3Home = T3Home(), tokenStore: TokenStore = FileTokenStore(), clock: any T3Clock = LiveClock()) {
+        let signIn = T3SignIn(home: home, store: tokenStore, runner: ProcessRunner(clock: clock), clock: clock)
+        client = T3ServerClient(home: home, signIn: signIn)
         limits = UsageLimitsReader(home: home)
     }
 

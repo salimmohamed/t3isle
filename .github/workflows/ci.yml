@@ -80,6 +80,7 @@ jobs:
             fi
           done
       - name: Test Swift packages
+        timeout-minutes: 10
         run: |
           set -o pipefail
           git ls-files -z -- '*Package.swift' | while IFS= read -r -d '' manifest; do

@@ -3,12 +3,13 @@ import Foundation
 
 public final class DebugSource: T3Source, @unchecked Sendable {
     public let base: T3Source
-    public let replay = ReplaySource(scenario: nil)
+    public let replay: ReplaySource
     private let lock = NSLock()
     private var replaying = false
 
-    public init(base: T3Source) {
+    public init(base: T3Source, clock: any T3Clock = LiveClock()) {
         self.base = base
+        replay = ReplaySource(scenario: nil, clock: clock)
     }
 
     public var isReplaying: Bool { lock.withLock { replaying } }

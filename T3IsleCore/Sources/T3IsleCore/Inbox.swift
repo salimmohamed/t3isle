@@ -61,7 +61,7 @@ public struct InboxBuilder {
         self.providerNames = providerNames
     }
 
-    public func threads(from shells: [ThreadShell], projects: [String: ProjectShell], now: Date = Date()) -> [T3Thread] {
+    public func threads(from shells: [ThreadShell], projects: [String: ProjectShell], now: Date) -> [T3Thread] {
         shells.filter { Self.belongsInInbox($0) }
             .map { (shell: $0, thread: thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now)) }
             .sorted { Self.precedes($0.shell, $0.thread.mood, $1.shell, $1.thread.mood) }

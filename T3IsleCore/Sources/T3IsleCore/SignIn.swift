@@ -5,7 +5,11 @@ public protocol CommandRunner: Sendable {
 }
 
 public struct ProcessRunner: CommandRunner {
-    public init() {}
+    private let clock: any T3Clock
+
+    public init(clock: any T3Clock = LiveClock()) {
+        self.clock = clock
+    }
 
     public func run(_ tool: URL, _ arguments: [String]) async throws -> Data {
         guard FileManager.default.isExecutableFile(atPath: tool.path) else { throw T3Failure.cliMissing }
@@ -16,9 +20,12 @@ public struct ProcessRunner: CommandRunner {
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         try process.run()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 15) {
+        let giveUpAt = clock.now + 15
+        let watchdog = Task { [clock] in
+            try await clock.sleep(until: giveUpAt)
             if process.isRunning { process.terminate() }
         }
+        defer { watchdog.cancel() }
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let data = output.fileHandleForReading.readDataToEndOfFile()
@@ -41,20 +48,23 @@ public actor T3SignIn {
     private let store: TokenStore
     private let runner: CommandRunner
     private let label: String
+    private let clock: any T3Clock
     private var cached: StoredToken?
     private var issuing: Task<StoredToken, Error>?
 
     public init(home: T3Home, store: TokenStore = FileTokenStore(), runner: CommandRunner = ProcessRunner(),
-                label: String = StateFolders.appName()) {
+                label: String = StateFolders.appName(), clock: any T3Clock = LiveClock()) {
         self.home = home
         self.store = store
         self.runner = runner
         self.label = label
+        self.clock = clock
     }
 
     public func token() async throws -> String {
-        if let cached, cached.isUsable() { return cached.token }
-        if let saved = store.load(), saved.isUsable() {
+        let now = clock.now
+        if let cached, cached.isUsable(at: now) { return cached.token }
+        if let saved = store.load(), saved.isUsable(at: now) {
             cached = saved
             return saved.token
         }
@@ -72,7 +82,7 @@ public actor T3SignIn {
             var arguments = ["auth", "session", "issue", "--ttl", "30d", "--label", label, "--json"]
             for scope in Self.scopes { arguments += ["--scope", scope] }
             let data = try await runner.run(home.cliTool, arguments)
-            return try Self.parseIssued(data)
+            return try Self.parseIssued(data, now: clock.now)
         }
         issuing = task
         defer { issuing = nil }
@@ -82,11 +92,11 @@ public actor T3SignIn {
         return fresh
     }
 
-    static func parseIssued(_ data: Data) throws -> StoredToken {
+    static func parseIssued(_ data: Data, now: Date) throws -> StoredToken {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let token = object["token"] as? String, !token.isEmpty
         else { throw T3Failure.signInRefused("T3's command-line tool didn't issue a session.") }
-        let expires = WireDate.parse(object["expiresAt"] as? String) ?? Date().addingTimeInterval(86_400)
+        let expires = WireDate.parse(object["expiresAt"] as? String) ?? now.addingTimeInterval(86_400)
         return StoredToken(token: token, expiresAt: expires, sessionId: object["sessionId"] as? String)
     }
 }

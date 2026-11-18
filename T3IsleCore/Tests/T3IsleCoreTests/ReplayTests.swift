@@ -11,7 +11,7 @@ final class ScenarioTests: XCTestCase {
             do {
                 let scenario = try Scenario.named(name)
                 XCTAssertFalse(scenario.summary.isEmpty, name)
-                XCTAssertGreaterThan(try scenario.events(startingAt: Date()).count, 0, name)
+                XCTAssertGreaterThan(try scenario.events(startingAt: Scenario.anchor).count, 0, name)
             } catch {
                 XCTFail("\(name): \(error.localizedDescription)")
             }
@@ -56,6 +56,26 @@ final class ScenarioTests: XCTestCase {
             return XCTFail("expected a thread update")
         }
         XCTAssertEqual(shell.updatedAt, start.addingTimeInterval(10))
+    }
+}
+
+final class ReplaySourceTests: XCTestCase {
+    func testStepsWaitForTheClockAndRecordedDatesStartAtItsNow() async throws {
+        let clock = TestClock()
+        let source = ReplaySource(scenario: nil, clock: clock)
+        let progress = source.progress()
+        source.play(try Scenario.named("plan-done"))
+        await clock.waitForSleepers()
+        XCTAssertEqual(clock.deadlines, [clock.now + 1.5])
+        let running = try XCTUnwrap(source.threads.first)
+        XCTAssertEqual(running.status, "running")
+        XCTAssertEqual(running.updatedAt, clock.now)
+
+        clock.advance(by: 1.5)
+        _ = await progress.first { $0 == .finished("plan-done") }
+        let completed = try XCTUnwrap(source.threads.first)
+        XCTAssertEqual(completed.status, "completed")
+        XCTAssertEqual(completed.latestRunCompletedAt, clock.now)
     }
 }
 

@@ -110,19 +110,13 @@ final class DebugCommandTests: XCTestCase {
 
 @MainActor
 final class DebugSourceTests: XCTestCase {
-    private func until(_ condition: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(8)
-        while !condition() {
-            guard Date() < deadline else { return XCTFail("Timed out") }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
+    private let clock = TestClock()
 
-    private func started() async throws -> (T3IsleModel, DebugSource) {
-        let source = DebugSource(base: BaseSource())
-        let model = T3IsleModel(source: source, opener: { _ in })
+    private func started() async -> (T3IsleModel, DebugSource) {
+        let source = DebugSource(base: BaseSource(finishedAt: clock.now), clock: clock)
+        let model = T3IsleModel(source: source, clock: clock, opener: { _ in })
         model.start()
-        try await until { model.threads.map(\.id) == ["base-thread"] }
+        await until(model) { model.threads.map(\.id) == ["base-thread"] }
         return (model, source)
     }
 
@@ -131,18 +125,31 @@ final class DebugSourceTests: XCTestCase {
         model.restart()
     }
 
+    private func finishPlan(_ model: T3IsleModel, _ source: DebugSource) async throws -> PlanBanner {
+        let planDone = try Scenario.named("plan-done")
+        switchTo(model) { source.play(planDone) }
+        XCTAssertNil(model.banner)
+        await until(model) { model.detail(for: "plan-thread")?.plan?.isComplete == false }
+        clock.advance(by: 1.5)
+        await until(model) { model.threads.first?.mood == .replied }
+        XCTAssertNil(model.banner)
+        clock.advance(by: 0.5)
+        await until(model) { model.banner != nil }
+        return try XCTUnwrap(model.banner)
+    }
+
     func testReplayReplacesTheBaseWorldAndOffRestoresIt() async throws {
-        let (model, source) = try await started()
+        let (model, source) = await started()
         let question = try Scenario.named("question")
         switchTo(model) { source.play(question) }
-        try await until { model.needsAttention }
+        await until(model) { model.needsAttention }
         XCTAssertTrue(source.isReplaying)
         XCTAssertEqual(model.threads.map(\.id), ["question-thread"])
         XCTAssertEqual(model.closedPresence, .alert)
         XCTAssertEqual(model.threads.first?.mood, .needsYou)
 
         switchTo(model) { source.stopReplay() }
-        try await until { model.threads.map(\.id) == ["base-thread"] }
+        await until(model) { model.threads.map(\.id) == ["base-thread"] }
         XCTAssertFalse(source.isReplaying)
         XCTAssertNil(source.replay.current)
         XCTAssertFalse(model.needsAttention)
@@ -150,70 +157,70 @@ final class DebugSourceTests: XCTestCase {
     }
 
     func testAnsweringAReplayedQuestionClearsIt() async throws {
-        let (model, source) = try await started()
+        let (model, source) = await started()
         let question = try Scenario.named("question")
         switchTo(model) { source.play(question) }
-        try await until { model.needsAttention }
+        await until(model) { model.needsAttention }
         let prompt = try XCTUnwrap(model.prompts.first)
         model.answer(prompt, with: .choices(["Yes"]))
-        try await until { !model.needsAttention && model.threads.first?.mood == .working }
+        await until(model) { !model.needsAttention && model.threads.first?.mood == .working }
         XCTAssertEqual(model.threads.map(\.id), ["question-thread"])
         model.stop()
     }
 
     func testPlanDoneShowsTheBanner() async throws {
-        let (model, source) = try await started()
-        let planDone = try Scenario.named("plan-done")
-        switchTo(model) { source.play(planDone) }
-        try await until { model.banner != nil }
-        XCTAssertEqual(model.banner?.threadId, "plan-thread")
-        XCTAssertEqual(model.banner?.stepCount, 3)
+        let (model, source) = await started()
+        let progress = source.replay.progress()
+        let banner = try await finishPlan(model, source)
+        XCTAssertEqual(banner.threadId, "plan-thread")
+        XCTAssertEqual(banner.stepCount, 3)
+        _ = await progress.first { $0 == .finished("plan-done") }
         XCTAssertEqual(source.replay.current, ReplayStatus(scenario: "plan-done", finished: true))
         model.stop()
     }
 
     func testReplayingPlanDoneAgainShowsANewBanner() async throws {
-        let (model, source) = try await started()
-        let planDone = try Scenario.named("plan-done")
-        switchTo(model) { source.play(planDone) }
-        try await until { model.banner != nil }
-        let first = try XCTUnwrap(model.banner)
-        switchTo(model) { source.play(planDone) }
-        XCTAssertNil(model.banner)
-        try await until { model.banner.map { $0.id != first.id } == true }
-        XCTAssertEqual(model.banner?.threadId, "plan-thread")
+        let (model, source) = await started()
+        let first = try await finishPlan(model, source)
+        let second = try await finishPlan(model, source)
+        XCTAssertNotEqual(second.id, first.id)
+        XCTAssertEqual(second.threadId, "plan-thread")
         model.stop()
     }
 
     func testModelIsCaughtUpOnlyOnceItHasTakenInTheReplay() async throws {
-        let source = ReplaySource(scenario: try Scenario.named("quota-low"))
-        try await until { source.current?.finished == true }
-        let model = T3IsleModel(source: source, opener: { _ in })
+        let source = ReplaySource(scenario: nil, clock: clock)
+        let progress = source.progress()
+        source.play(try Scenario.named("quota-low"))
+        _ = await progress.first { $0 == .finished("quota-low") }
+        let model = T3IsleModel(source: source, clock: clock, opener: { _ in })
         XCTAssertFalse(model.isCaughtUp(threads: source.threads, providers: source.providers()))
         model.start()
-        try await until { model.isCaughtUp(threads: source.threads, providers: source.providers()) }
+        await until(model) { model.isCaughtUp(threads: source.threads, providers: source.providers()) }
         XCTAssertEqual(model.threads.count, 2)
         XCTAssertEqual(model.providers.map(\.id), ["claudeAgent", "codex"])
         model.stop()
     }
 
     func testQuestionScenarioStateMatchesTheFixture() async throws {
-        let source = ReplaySource(scenario: try Scenario.named("question"))
-        let model = T3IsleModel(source: source, opener: { _ in })
+        let source = ReplaySource(scenario: nil, clock: clock)
+        let progress = source.progress()
+        source.play(try Scenario.named("question"))
+        let model = T3IsleModel(source: source, clock: clock, opener: { _ in })
         model.start()
-        try await until { model.prompts.count == 1 && source.current?.finished == true }
+        await until(model) { model.prompts.count == 1 }
+        _ = await progress.first { $0 == .finished("question") }
         let expected = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
         XCTAssertEqual(model.debugState(enabled: true, source: .replay, replay: source.current), expected)
         model.stop()
     }
 
     func testReplayReportsProgressAndStreamsTheCurrentWorldFirst() async throws {
-        let progress = ProgressLog()
-        let source = ReplaySource(scenario: nil)
-        source.onProgress { progress.append($0) }
+        let source = ReplaySource(scenario: nil, clock: clock)
+        let progress = source.progress()
         source.play(try Scenario.named("question"))
-        try await until { progress.events.count == 2 }
-        XCTAssertEqual(progress.events, [.started("question", steps: 2), .finished("question")])
+        let events = await progress.prefix(2).reduce(into: []) { $0.append($1) }
+        XCTAssertEqual(events, [.started("question", steps: 2), .finished("question")])
         XCTAssertEqual(source.current, ReplayStatus(scenario: "question", finished: true))
 
         var updates = await source.updates().makeAsyncIterator()
@@ -226,17 +233,13 @@ final class DebugSourceTests: XCTestCase {
     }
 }
 
-private final class ProgressLog: @unchecked Sendable {
-    private let lock = NSLock()
-    private var recorded: [ReplayProgress] = []
-
-    func append(_ progress: ReplayProgress) { lock.withLock { recorded.append(progress) } }
-    var events: [ReplayProgress] { lock.withLock { recorded } }
-}
-
 private final class BaseSource: T3Source, @unchecked Sendable {
-    private let shell = ThreadShell(id: "base-thread", projectId: "base", title: "Base thread", status: "completed",
-                                    latestRunCompletedAt: Date(), updatedAt: Date())
+    private let shell: ThreadShell
+
+    init(finishedAt: Date) {
+        shell = ThreadShell(id: "base-thread", projectId: "base", title: "Base thread", status: "completed",
+                            latestRunCompletedAt: finishedAt, updatedAt: finishedAt)
+    }
 
     func updates() async -> AsyncStream<ShellUpdate> {
         let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()

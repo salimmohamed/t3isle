@@ -4,19 +4,18 @@ import XCTest
 
 @MainActor
 final class IsleModelTests: XCTestCase {
-    private func until(_ timeout: TimeInterval = 5, _ condition: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() {
-            guard Date() < deadline else { return XCTFail("Timed out") }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
-    }
+    private let clock = TestClock()
 
     private func startedModel() async throws -> T3IsleModel {
-        let model = T3IsleModel(source: ReplaySource(scenario: try Scenario.named("showcase")), isDemo: true, opener: { _ in })
+        let source = ReplaySource(scenario: try Scenario.named("showcase"), clock: clock)
+        let model = T3IsleModel(source: source, isDemo: true, clock: clock, opener: { _ in })
         model.start()
-        try await until { model.prompts.count >= 4 }
+        await until(model) { model.prompts.count >= 4 }
         return model
+    }
+
+    private func updatedAt(_ threadId: String, in model: T3IsleModel) -> Date? {
+        model.threads.first { $0.id == threadId }?.updatedAt
     }
 
     func testDemoProducesInboxPromptsAndAgents() async throws {
@@ -32,10 +31,11 @@ final class IsleModelTests: XCTestCase {
         let model = try await startedModel()
         let approval = try XCTUnwrap(model.prompts.first { $0.isApproval })
         let before = model.prompts.count
+        let sent = updatedAt(approval.threadId, in: model)
         model.respond(approval, decision: .accept)
         XCTAssertEqual(model.prompts.count, before - 1)
         XCTAssertFalse(model.prompts.contains { $0.id == approval.id })
-        try await Task.sleep(nanoseconds: 1_200_000_000)
+        await until(model) { updatedAt(approval.threadId, in: model) != sent }
         XCTAssertFalse(model.prompts.contains { $0.id == approval.id })
         model.stop()
     }
@@ -45,11 +45,12 @@ final class IsleModelTests: XCTestCase {
         let questions = model.prompts.filter { !$0.isApproval }
         XCTAssertEqual(questions.count, 2)
         XCTAssertEqual(questions.map(\.title), ["Retries", "Backoff"])
+        let sent = updatedAt(questions[0].threadId, in: model)
         model.answer(questions[0], with: .choices(["5xx"]))
         XCTAssertEqual(model.prompts.filter { !$0.isApproval }.map(\.id), [questions[1].id])
         model.answer(questions[1], with: .text("2 minutes"))
         XCTAssertTrue(model.prompts.filter { !$0.isApproval }.isEmpty)
-        try await Task.sleep(nanoseconds: 1_200_000_000)
+        await until(model) { updatedAt(questions[0].threadId, in: model) != sent }
         XCTAssertTrue(model.prompts.filter { !$0.isApproval }.isEmpty)
         model.stop()
     }
@@ -73,12 +74,12 @@ final class IsleModelTests: XCTestCase {
 
     func testClosedPresenceClearsWhenDisabled() async throws {
         let model = try await startedModel()
-        var observed: [ClosedPresence] = []
+        let (observed, seen) = AsyncStream<ClosedPresence>.makeStream()
         let observer = model.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { observed.append(model.closedPresence) }
+            .sink { seen.yield(model.closedPresence) }
         model.apply(T3Preferences(enabled: false))
-        try await until { observed.contains(.none) }
+        _ = await observed.first { $0 == ClosedPresence.none }
         XCTAssertEqual(model.closedPresence, .none)
         observer.cancel()
         model.apply(T3Preferences(enabled: true))
@@ -134,24 +135,16 @@ final class ProviderRefreshTests: XCTestCase {
     func testASnapshotRefreshesUsageLimitsWithoutWaitingForATick() async throws {
         let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
         let source = FixtureSource(ShellSnapshot(threads: [], projects: snapshot.projects))
-        let model = T3IsleModel(source: source, opener: { _ in })
+        let model = T3IsleModel(source: source, clock: TestClock(), opener: { _ in })
         model.start()
-        try await until { model.connection == .live }
+        await until(model) { model.connection == .live }
         XCTAssertEqual(model.providers, [])
         let limits = try XCTUnwrap(UsageLimitsReader.parse(Fixture.data("provider-claude.json"), id: "claudeAgent", previous: []))
         source.limits = [limits]
         source.push(.snapshot(snapshot))
-        try await until { !model.threads.isEmpty }
+        await until(model) { !model.threads.isEmpty }
         XCTAssertEqual(model.providers, [limits])
         model.stop()
-    }
-
-    private func until(_ condition: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(5)
-        while !condition() {
-            guard Date() < deadline else { return XCTFail("Timed out") }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
     }
 }
 
@@ -159,7 +152,8 @@ final class ProviderRefreshTests: XCTestCase {
 final class SubagentVisibilityTests: XCTestCase {
     private var snapshot: ShellSnapshot!
     private var source: FixtureSource!
-    private var opened: [URL] = []
+    private let clock = TestClock()
+    private let (opened, opening) = AsyncStream<URL>.makeStream()
 
     override func setUp() async throws {
         snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
@@ -180,18 +174,10 @@ final class SubagentVisibilityTests: XCTestCase {
     }
 
     private func model() async throws -> T3IsleModel {
-        let model = T3IsleModel(source: source, opener: { [weak self] url in self?.opened.append(url) })
+        let model = T3IsleModel(source: source, clock: clock, opener: { [opening] url in opening.yield(url) })
         model.start()
-        try await until { !model.threads.isEmpty }
+        await until(model) { !model.threads.isEmpty }
         return model
-    }
-
-    private func until(_ condition: () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(5)
-        while !condition() {
-            guard Date() < deadline else { return XCTFail("Timed out") }
-            try await Task.sleep(nanoseconds: 50_000_000)
-        }
     }
 
     private func shell(_ id: String) throws -> ThreadShell {
@@ -220,14 +206,16 @@ final class SubagentVisibilityTests: XCTestCase {
     }
 
     private func assertHasAPromptFor(_ model: T3IsleModel, _ id: String) async throws {
-        try await until { model.prompts.contains { $0.threadId == id } }
+        await until(model) { model.prompts.contains { $0.threadId == id } }
         XCTAssertEqual(Set(model.prompts.map(\.requestId)), ["\(id)-req-cmd", "\(id)-req-q"])
     }
 
     private func assertHiddenAgain(_ model: T3IsleModel, _ id: String) async throws {
-        try await until { !shownIds(model).contains(id) && model.detail(for: id) == nil }
+        await until(model) { !shownIds(model).contains(id) }
         XCTAssertTrue(model.prompts.isEmpty)
         XCTAssertEqual(model.workingCount, 2)
+        clock.advance(by: 2)
+        await until(model) { model.detail(for: id) == nil }
     }
 
     private func shownIds(_ model: T3IsleModel) -> Set<String> {
@@ -300,8 +288,8 @@ final class SubagentVisibilityTests: XCTestCase {
         try await assertHasAPromptFor(model, "t-subagent")
         let prompt = try XCTUnwrap(model.prompts.first)
         model.open(prompt.threadId)
-        try await until { !opened.isEmpty }
-        XCTAssertEqual(opened.map(\.absoluteString), ["t3code://threads/env-local/t-subagent"])
+        let url = await opened.first { _ in true }
+        XCTAssertEqual(url?.absoluteString, "t3code://threads/env-local/t-subagent")
         model.stop()
     }
 
@@ -313,7 +301,7 @@ final class SubagentVisibilityTests: XCTestCase {
         XCTAssertEqual(model.threads.first { $0.id == "t-subagent" }?.mood, .working)
         XCTAssertEqual(model.threads.first { $0.id == "t-side-chat" }?.mood, .needsYou)
         try resolve("t-side-chat")
-        try await until { !shownIds(model).contains("t-side-chat") }
+        await until(model) { !shownIds(model).contains("t-side-chat") }
         XCTAssertTrue(shownIds(model).contains("t-subagent"))
         model.stop()
     }

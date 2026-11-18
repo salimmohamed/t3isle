@@ -93,11 +93,12 @@ public final class T3IsleModel: ObservableObject {
     public private(set) var motionIsAction = false
 
     private let source: T3Source
+    private let clock: any T3Clock
     private let opener: (URL) -> Void
     @Published private var preferences = T3Preferences()
+    @Published private var details: [String: AgentDetail] = [:]
     private var shells: [String: ThreadShell] = [:]
     private var projects: [String: ProjectShell] = [:]
-    private var details: [String: AgentDetail] = [:]
     private var detailPrompts: [String: [PendingPrompt]] = [:]
     private var lastFetch: [String: Date] = [:]
     private var fetching: Set<String> = []
@@ -118,9 +119,11 @@ public final class T3IsleModel: ObservableObject {
     private var reconnectDelay: TimeInterval = 1
     private var session = 0
 
-    public init(source: T3Source, isDemo: Bool = false, opener: @escaping (URL) -> Void) {
+    public init(source: T3Source, isDemo: Bool = false, clock: any T3Clock = LiveClock(),
+                opener: @escaping (URL) -> Void) {
         self.source = source
         self.isDemo = isDemo
+        self.clock = clock
         self.opener = opener
     }
 
@@ -150,7 +153,7 @@ public final class T3IsleModel: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.tick()
-                try? await Task.sleep(nanoseconds: UInt64(self.tickInterval * 1_000_000_000))
+                try? await self.clock.sleep(until: self.clock.now + self.tickInterval)
             }
         }
         let session = session
@@ -234,7 +237,7 @@ public final class T3IsleModel: ObservableObject {
                 if case .disconnected = update { break }
             }
             if Task.isCancelled { return }
-            try? await Task.sleep(nanoseconds: UInt64(reconnectDelay * 1_000_000_000))
+            try? await clock.sleep(until: clock.now + reconnectDelay)
             reconnectDelay = min(reconnectDelay * 2, 30)
         }
     }
@@ -255,8 +258,7 @@ public final class T3IsleModel: ObservableObject {
             }
         case .threadRemoved(let id):
             shells[id] = nil
-            details[id] = nil
-            detailPrompts[id] = nil
+            forgetDetail(id)
         case .projectUpdated(let project):
             projects[project.id] = project
         case .projectRemoved(let id):
@@ -290,7 +292,7 @@ public final class T3IsleModel: ObservableObject {
 
     private func tick() async {
         refreshProviders()
-        let now = Date()
+        let now = clock.now
         answered = answered.filter { key, at in
             now.timeIntervalSince(at) < 45 || draftAnswers.keys.contains { key.hasPrefix("\($0)#") }
         }
@@ -305,13 +307,12 @@ public final class T3IsleModel: ObservableObject {
 
     private func requestDetail(_ threadId: String, urgent: Bool) {
         let interval: TimeInterval = urgent ? 0.25 : (expanded || !prompts.isEmpty ? 0.75 : 2)
-        let elapsed = Date().timeIntervalSince(lastFetch[threadId] ?? .distantPast)
-        if elapsed >= interval {
+        let due = (lastFetch[threadId] ?? .distantPast) + interval
+        if clock.now >= due {
             fetchDetail(threadId)
         } else if scheduledFetch[threadId] == nil {
-            let wait = interval - elapsed
-            scheduledFetch[threadId] = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            scheduledFetch[threadId] = Task { [weak self, clock] in
+                try? await clock.sleep(until: due)
                 guard !Task.isCancelled else { return }
                 self?.scheduledFetch[threadId] = nil
                 self?.fetchDetail(threadId)
@@ -322,7 +323,7 @@ public final class T3IsleModel: ObservableObject {
     private func fetchDetail(_ threadId: String) {
         guard !fetching.contains(threadId) else { return }
         fetching.insert(threadId)
-        lastFetch[threadId] = Date()
+        lastFetch[threadId] = clock.now
         let session = session
         Task { [weak self, source] in
             let projection = try? await source.detail(threadId: threadId)
@@ -336,8 +337,7 @@ public final class T3IsleModel: ObservableObject {
     private func absorb(_ projection: ThreadProjection) {
         let id = projection.thread.id
         guard let shell = shells[id], isShown(shell) else {
-            details[id] = nil
-            detailPrompts[id] = nil
+            forgetDetail(id)
             return
         }
         let detail = DetailBuilder.detail(projection)
@@ -349,25 +349,31 @@ public final class T3IsleModel: ObservableObject {
             let done = Set(plan.steps.filter { $0.status == "completed" }.map(\.id))
             if completedSteps[id] != done { completedSteps[id] = done }
         }
-        details[id] = detail
+        if details[id] != detail { details[id] = detail }
         let project = shell.projectId.flatMap { projects[$0]?.title } ?? ""
         detailPrompts[id] = DetailBuilder.prompts(projection, title: shell.title, project: project)
         publish()
+    }
+
+    private func forgetDetail(_ threadId: String) {
+        if details[threadId] != nil { details[threadId] = nil }
+        detailPrompts[threadId] = nil
     }
 
     private func showBanner(threadId: String, steps: Int) {
         let title = shells[threadId]?.title ?? "Plan"
         let banner = PlanBanner(threadId: threadId, threadTitle: title, stepCount: steps)
         self.banner = banner
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
+        let hideAt = clock.now + 4
+        Task { [weak self, clock] in
+            try? await clock.sleep(until: hideAt)
             if self?.banner?.id == banner.id { self?.banner = nil }
         }
     }
 
     private func publish(prune: Bool = false) {
         let names = Dictionary(providers.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-        let now = Date()
+        let now = clock.now
         var built = InboxBuilder(providerNames: names).threads(from: Array(visibleShells.values), projects: projects, now: now)
         for index in built.indices {
             let id = built[index].id
@@ -391,8 +397,9 @@ public final class T3IsleModel: ObservableObject {
     private func publishThreads(prune: Bool) {
         let byId = Dictionary(rawThreads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         if prune && !isDemo {
+            let now = clock.now
             changes = changes.filter { id, entry in
-                guard Date().timeIntervalSince(entry.done ?? entry.at) < (entry.done == nil ? 60 : 20) else { return false }
+                guard now.timeIntervalSince(entry.done ?? entry.at) < (entry.done == nil ? 60 : 20) else { return false }
                 guard entry.done != nil else { return true }
                 return !Self.shows(entry.change, byId[id])
             }
@@ -568,7 +575,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     public func interrupt(_ threadId: String) {
-        stopping[threadId] = Date()
+        stopping[threadId] = clock.now
         publish()
         send(.stop(threadId: threadId), failure: { [weak self] in
             self?.stopping[threadId] = nil
@@ -581,7 +588,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     public func snooze(_ thread: T3Thread, until: Date) {
-        perform(thread, .snoozed(until: until), notice: "Snoozed until \(Format.clock(until, now: Date()))")
+        perform(thread, .snoozed(until: until), notice: "Snoozed until \(Format.clock(until, now: clock.now))")
     }
 
     public func wake(_ thread: T3Thread) {
@@ -594,7 +601,7 @@ public final class T3IsleModel: ObservableObject {
         switch undo.change {
         case .settled: reverse = .unsettled(undo.thread, index: undo.index)
         case .snoozed: reverse = .woke
-        case .woke: reverse = .snoozed(until: undo.thread.snoozedUntil ?? Date().addingTimeInterval(3600))
+        case .woke: reverse = .snoozed(until: undo.thread.snoozedUntil ?? clock.now.addingTimeInterval(3600))
         case .unsettled: reverse = .settled
         }
         perform(undo.thread, reverse, notice: "Undone", undoable: false)
@@ -614,7 +621,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func markAnswered(_ ids: [String]) {
-        let now = Date()
+        let now = clock.now
         for id in ids { answered[id] = now }
         publishPrompts()
     }
@@ -644,7 +651,7 @@ public final class T3IsleModel: ObservableObject {
             show(ActionNotice(text: T3Failure.actionsOff.localizedDescription, isError: true))
             return
         }
-        changes[thread.id] = (change, Date(), nil)
+        changes[thread.id] = (change, clock.now, nil)
         motionIsAction = true
         publishThreads(prune: false)
         let notice = ActionNotice(text: text, undo: undoable ? .init(thread: thread, change: change, index: index) : nil)
@@ -656,10 +663,10 @@ public final class T3IsleModel: ObservableObject {
         case .snoozed(let until): command = .snooze(threadId: thread.id, until: until)
         case .woke: command = .unsnooze(threadId: thread.id)
         }
-        Task { [weak self, source] in
+        Task { [weak self, source, clock] in
             do {
                 try await source.send(command)
-                if self?.changes[thread.id]?.change == change { self?.changes[thread.id]?.done = Date() }
+                if self?.changes[thread.id]?.change == change { self?.changes[thread.id]?.done = clock.now }
             } catch {
                 guard let self else { return }
                 if self.changes[thread.id]?.change == change { self.changes[thread.id] = nil }
@@ -672,8 +679,9 @@ public final class T3IsleModel: ObservableObject {
 
     private func show(_ notice: ActionNotice) {
         self.notice = notice
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: notice.isError ? 8_000_000_000 : 6_000_000_000)
+        let hideAt = clock.now + (notice.isError ? 8 : 6)
+        Task { [weak self, clock] in
+            try? await clock.sleep(until: hideAt)
             if self?.notice?.id == notice.id { self?.notice = nil }
         }
     }

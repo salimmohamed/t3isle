@@ -74,27 +74,33 @@ final class LiveActivitiesTests: XCTestCase {
 
     @MainActor
     func testPopupHidesItselfAfterItsDuration() async throws {
-        let popup = HeadphonesPopup(showFor: .milliseconds(100))
+        let clock = TestClock()
+        let popup = HeadphonesPopup(showFor: 4, clock: clock)
         popup.show(pods)
         XCTAssertEqual(popup.current, pods)
         popup.update(battery: HeadphonesBattery(left: 70, right: 72), for: pods.id)
         XCTAssertEqual(popup.current?.battery.level, 70)
-        try await Task.sleep(for: .milliseconds(400))
-        XCTAssertNil(popup.current)
+        await clock.waitForSleepers()
+        XCTAssertEqual(clock.deadlines, [clock.now + 4])
+        clock.advance(by: 4)
+        await until(popup) { popup.current == nil }
     }
 
     @MainActor
     func testNewerConnectKeepsItsOwnFullDuration() async throws {
-        let popup = HeadphonesPopup(showFor: .milliseconds(400))
+        let clock = TestClock()
+        let popup = HeadphonesPopup(showFor: 4, clock: clock)
         popup.show(pods)
-        try await Task.sleep(for: .milliseconds(250))
+        await clock.waitForSleepers()
+        clock.advance(by: 3)
         let headset = HeadphonesConnect(address: "10-20-30-00-00-03", name: "Desk Headset", kind: .headphones)
         popup.show(headset)
         popup.update(battery: HeadphonesBattery(left: 1), for: pods.id)
-        try await Task.sleep(for: .milliseconds(250))
         XCTAssertEqual(popup.current, headset)
-        try await Task.sleep(for: .milliseconds(400))
-        XCTAssertNil(popup.current)
+        await clock.waitForSleepers()
+        XCTAssertEqual(clock.deadlines, [clock.now + 4])
+        clock.advance(by: 4)
+        await until(popup) { popup.current == nil }
     }
 
     private func fixture() throws -> Data {

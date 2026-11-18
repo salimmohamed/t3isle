@@ -27,13 +27,13 @@ final class UsageLimitsTests: XCTestCase {
     }
 
     func testRemainingIsFullAfterReset() {
-        let now = Date()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
         let window = LimitWindow(id: "w", kind: "session", label: "S", usedPercent: 90, resetsAt: now.addingTimeInterval(-1))
         XCTAssertEqual(window.remaining(at: now), 100)
     }
 
     func testTightestPrefersRequestedKind() {
-        let now = Date()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
         let provider = ProviderLimits(id: "c", name: "C", accentHex: nil, checkedAt: nil, windows: [
             LimitWindow(id: "s", kind: "session", label: "S", usedPercent: 10, resetsAt: nil),
             LimitWindow(id: "w", kind: "weekly", label: "W", usedPercent: 80, resetsAt: nil),

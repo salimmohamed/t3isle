@@ -11,7 +11,7 @@ public struct StoredToken: Codable, Equatable, Sendable {
         self.sessionId = sessionId
     }
 
-    public func isUsable(at now: Date = Date()) -> Bool {
+    public func isUsable(at now: Date) -> Bool {
         expiresAt > now.addingTimeInterval(60)
     }
 }

@@ -9,6 +9,7 @@ You can contribute in many ways: writing code, improving documentation, reportin
 ## Table of Contents
 
 - [Working on T3 Isle](#working-on-t3-isle)
+  - [Tests](#tests)
   - [Debug builds](#debug-builds)
   - [Debug commands](#debug-commands)
   - [How it talks to T3 Code](#how-it-talks-to-t3-code)
@@ -36,6 +37,14 @@ swift test --package-path T3IsleCore
 ```
 
 To work on the views without live agents, launch the app with `--demo`. Demo mode plays the recorded `showcase` scenario (see [Replay a scenario](#replay-a-scenario)) and never contacts T3.
+
+### Tests
+
+Tests wait on events, not time. When code in `T3IsleCore` needs the time or a delay, give it a `T3Clock` and have it sleep until a deadline it computed up front. The app gets `LiveClock` by default. Tests pass a `TestClock`, which stands still until the test calls `advance(by:)`. To wait for a result, await the change itself. `until(model) { ... }` checks again each time the model publishes a change, and an `AsyncStream` hands you the next event. A test whose event never comes hangs, and CI's step timeout stops it.
+
+Replays use the clock too. `ReplaySource(scenario:clock:)` and `DebugSource(base:clock:)` move a scenario's recorded dates so it starts at the clock's `now`, and each `afterMs` step waits until the test advances the clock past it.
+
+SwiftLint fails any test that calls `Task.sleep` or `sleep`, reads `Date()`, `Date.now` or `timeIntervalSinceNow`, uses a `timeout:` label anywhere, or calls `Task.yield`. The rules are `no_real_time_wait_in_tests`, `no_wall_clock_in_tests`, `no_timeout_wait_in_tests` and `no_yield_polling_in_tests` in `.swiftlint.yml`. Fixed dates such as `Date(timeIntervalSince1970:)` are fine.
 
 ### Debug builds
 
