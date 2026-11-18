@@ -39,7 +39,7 @@ To work on the views without live agents, launch the app with `--demo`. Demo mod
 
 ### Debug builds
 
-The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`) and its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`), so a dev build never touches the installed app. Debug builds never launch at login. Release builds keep `dev.t3isle.app`.
+The Debug configuration is its own app: bundle id `dev.t3isle.app.debug`, shown as "T3 Isle Debug". It keeps its own settings (`defaults read dev.t3isle.app.debug`), its own T3 session (`~/Library/Application Support/T3 Isle Debug/session.json`, issued under the label "T3 Isle Debug") and its own shelf (`~/Library/Application Support/T3 Isle Debug/Shelf`), so a dev build never touches the installed app. Debug builds never launch at login. Release builds keep `dev.t3isle.app`.
 
 A fresh Debug identity starts with onboarding. To skip it:
 
@@ -81,7 +81,7 @@ open -a "$APP" --args --debug open-settings appearance --debug replay question
 | `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `airpods-disconnect` | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
 | `airpods-disconnect` | Hides the headphones activity | `airpods-connect` | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
 
-In a URL, arguments are path segments, so encode spaces as `%20`. The command ignores a query or fragment, so a script can add `?n=4` to tell its commands apart. The event log keeps the full URL.
+In a URL, arguments are path segments, so encode spaces as `%20`. The command ignores a query or fragment, so a script can add `?n=4` to tell its commands apart. The event log keeps the full URL. From a script, send commands with [`scripts/debug.sh`](#scripts), which does the encoding and waits for the result.
 
 To tear down, run the reverse of each command you ran, last first. A reverse with nothing to undo does nothing and still succeeds: `replay off` without a replay, or `demo off` outside demo mode. Each `command.ran` event names its reverse.
 
@@ -111,7 +111,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 
 #### Read the state
 
-`state` writes `~/Library/Logs/T3 Isle Debug/state.json`. It writes a temporary file and renames it, so a reader never sees half a file. The file has no timestamps, so the same scenario gives the same bytes every run. Every key is always present, with `null` for nothing. After `replay question`, it reads (arrays folded onto one line here):
+`state` writes `state.json` in the log folder: `~/Library/Logs/T3 Isle Debug/`, or `logs/` in the [state folder](#a-state-folder-per-copy) of a copy launched with `--state-dir`. It writes a temporary file and renames it, so a reader never sees half a file. The file has no timestamps, so the same scenario gives the same bytes every run. Every key is always present, with `null` for nothing. After `replay question`, it reads (arrays folded onto one line here):
 
 ```json
 {
@@ -139,19 +139,15 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 
 Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
 
-To read the state from a script, remove the old file, ask for a new one, and wait for it:
+To read the state from a script, run `scripts/debug.sh state`. It waits for the first `state.written` event after its own request and prints the file:
 
 ```sh
-STATE="$HOME/Library/Logs/T3 Isle Debug/state.json"
-rm -f "$STATE"
-open -g -a "$APP" "t3isle-debug://state"
-for _ in $(seq 350); do [ -f "$STATE" ] && break; sleep 0.1; done
-jq . "$STATE"
+scripts/debug.sh state | jq .t3.prompts
 ```
 
 #### Read the event log
 
-Debug builds append one JSON object per line to `~/Library/Logs/T3 Isle Debug/events.ndjson`:
+Debug builds append one JSON object per line to `events.ndjson` in the log folder:
 
 ```json
 {"time":"2026-11-16T10:00:00.123Z","event":"command.ran","attributes":{"command":"replay question","input":"t3isle-debug://replay/question?n=4","reverse":"replay off"}}
@@ -179,13 +175,11 @@ When the log is over 5 MB at launch, the app moves it to `events.1.ndjson` and s
 scripts/debug-log.sh
 ```
 
-It takes the number of minutes and the log file as optional arguments, needs only `jq`, and exits with 2 when the log file is missing.
+It takes the number of minutes and the log file as optional arguments, needs only `jq`, and exits with 2 when the log file is missing. For a copy with a state folder, pass its log:
 
-#### Script the Debug app safely
-
-- Kill only the PID you launched. `app.launched` names it. Never `killall "T3 Isle"`, which also quits the installed app.
-- Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/`).
-- Never reinstall the T3 service.
+```sh
+scripts/debug-log.sh 10 .build/debug-state/logs/events.ndjson
+```
 
 #### Add a command
 
@@ -197,6 +191,107 @@ The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugComma
 4. Add a row to the table in this section.
 
 The compiler flags a case with no tokens, reverse or handler, and `swift test` flags a spec with no row here.
+
+#### A state folder per copy
+
+Launch a Debug build with `--state-dir <path>` and it keeps all of its state in that folder, so two copies running side by side share nothing:
+
+| In the state folder | Holds | Without `--state-dir` |
+| --- | --- | --- |
+| `defaults.plist` | Settings | `defaults read dev.t3isle.app.debug` |
+| `session.json` | T3 session (file `0600`, folder `0700`) | `~/Library/Application Support/T3 Isle Debug/session.json` |
+| `Shelf/` | Shelf items | `~/Library/Application Support/T3 Isle Debug/Shelf` |
+| `logs/` | `events.ndjson` and `state.json` | `~/Library/Logs/T3 Isle Debug/` |
+
+```sh
+open -n -a "$APP" --args --state-dir "$PWD/.build/debug-state" --demo
+defaults read "$PWD/.build/debug-state/defaults"
+defaults write "$PWD/.build/debug-state/defaults" nonNotchHeightMode -string "Custom height"
+```
+
+Pass an absolute path, since `open` starts the app from `/`. `demo on|off` keeps the folder when it relaunches, but Restart T3 Isle in the menu does not, so quit and launch again instead. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
+
+#### Scripts
+
+These scripts build, launch, drive, screenshot and stop a Debug copy with its own state folder. They print results on stdout and progress on stderr. Each one takes `--state-dir <path>` and defaults to `.build/debug-state`, so pass the same folder to all of them.
+
+The whole loop, from build to teardown:
+
+```sh
+pid=$(scripts/run-debug.sh | jq -r .pid)
+scripts/debug.sh close-notch
+scripts/debug.sh replay question
+scripts/debug.sh state | jq .t3.prompts
+scripts/capture.sh question
+scripts/debug.sh replay off
+scripts/stop-debug.sh "$pid"
+```
+
+`scripts/run-debug.sh` builds the Debug app into `.build/DerivedData` with the CI flags (log in `.build/run-debug-build.log`), launches it with `--state-dir .build/debug-state` plus any arguments you pass, waits for its first window, records the launch in `run.json` in the state folder, and prints the same JSON line:
+
+```sh
+scripts/run-debug.sh --demo
+scripts/run-debug.sh --no-build --state-dir "$PWD/.build/debug-b" --debug tab t3
+```
+
+```json
+{"app":"…/.build/DerivedData/Build/Products/Debug/T3 Isle.app","pid":4242,"log":"…/.build/debug-state/logs/events.ndjson","state":"…/.build/debug-state/logs/state.json","stateDir":"…/.build/debug-state"}
+```
+
+On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
+
+To keep macOS permissions across builds, set a signing identity (a certificate's SHA-1 or name) in your shell, never in the repo. Without one, the app keeps its build signature.
+
+```sh
+export T3ISLE_SIGN_IDENTITY=<certificate SHA-1 or name>
+export T3ISLE_SIGN_KEYCHAIN=<path to the keychain that holds it>
+```
+
+`scripts/debug.sh <command> [args...]` sends one [debug command](#debug-commands) to the copy in `run.json` and waits up to 40 seconds for its result. It adds a unique `?n=` to the URL and reads only the log lines written after it sent, so it never mistakes an older line for its answer. It percent-encodes each argument.
+
+```sh
+scripts/debug.sh open-notch
+scripts/debug.sh airpods-connect "AirPods Max" 64
+scripts/debug.sh --state-dir "$PWD/.build/debug-b" replay plan-done
+```
+
+After `command.ran`, `replay <scenario>` also waits for that scenario's `replay.finished`, `state` waits for its `state.written` and prints the state file, and `demo on|off` waits for the relaunched copy and writes its PID to `run.json`. Every other command prints its `command.ran` event. The exit code is:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | The command ran |
+| 1 | The command failed, with the app's message on stderr |
+| 2 | No `run.json`, no app or log where it points, its PID is not running, or two copies of that build are running |
+| 3 | No answer within 40 seconds, or `state` wrote the file before the app settled (the file is still printed) |
+
+`scripts/capture.sh <label>` saves the windows of the last launched copy to `captures/<NN>-<label>.png` in the state folder, counting `NN` up from `01`, and prints the path. `--pid` and `--out` pick another copy or folder. A copy with one window is captured on its own, so other apps don't show up in the image.
+
+```sh
+scripts/debug.sh open-notch
+scripts/capture.sh notch-open
+```
+
+`scripts/stop-debug.sh [pid]` quits the last launched copy, or the PID you give, with SIGTERM, waits for it to exit, and refuses any process that isn't a T3 Isle build outside `/Applications`.
+
+```sh
+scripts/stop-debug.sh
+scripts/stop-debug.sh --state-dir "$PWD/.build/debug-b"
+```
+
+`scripts/check-changed.sh [base-ref]` lints the Swift files changed since the merge base with `origin/main` (or the ref you give), untracked files included, and runs the `T3IsleCore` test classes for them: `Foo.swift` runs the test file that declares `FooTests`, a changed test file runs itself, a changed fixture runs the tests that name it, and a `Package.swift` change runs the whole suite. It ends with a pass/FAIL summary and exits non-zero on a failure. CI still runs everything.
+
+```sh
+scripts/check-changed.sh
+```
+
+#### Hazards
+
+- Quit only the PID you launched. `run-debug.sh` and `app.launched` name it. Other checkouts may be running their own copies, and `killall "T3 Isle"` also quits the installed app.
+- Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/session.json`).
+- Never reinstall the T3 service (`t3 service install` or `uninstall`).
+- A `t3isle-debug://` URL reaches only one of two running copies of the same app bundle, so run one copy per checkout. `debug.sh` refuses to send while two copies of its build run.
+- Each new state folder that runs live signs in to T3 again and leaves a 30-day "T3 Isle Debug" session on the T3 server. Reuse one folder per checkout, or launch throwaway folders with `--demo`.
+- `open -a "$APP" "t3isle-debug://…"` launches the app when no copy of it runs, without `--state-dir`, so it writes to the standard Debug settings and log folder. `debug.sh` sends only while the copy in `run.json` runs.
 
 ### How it talks to T3 Code
 

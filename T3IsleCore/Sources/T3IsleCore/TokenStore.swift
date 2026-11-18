@@ -25,15 +25,8 @@ public protocol TokenStore: Sendable {
 public struct FileTokenStore: TokenStore {
     private let file: URL
 
-    public init(file: URL = FileTokenStore.defaultFile()) {
+    public init(file: URL = StateFolders.current.session) {
         self.file = file
-    }
-
-    public static func defaultFile(bundle: Bundle = .main) -> URL {
-        let folder = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "T3 Isle"
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(folder, isDirectory: true)
-            .appendingPathComponent("session.json")
     }
 
     public func load() -> StoredToken? {

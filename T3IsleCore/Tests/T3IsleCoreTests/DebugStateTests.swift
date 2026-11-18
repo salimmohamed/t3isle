@@ -58,31 +58,24 @@ final class DebugEventLogTests: XCTestCase {
     }
 
     func testAppendsAndRotatesALargeLogOnOpen() throws {
-        let paths = DebugPaths(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent("debug-event-log-\(UUID().uuidString)", isDirectory: true))
-        defer { try? FileManager.default.removeItem(at: paths.directory) }
-        try paths.create()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("debug-event-log-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folders = StateFolders.isolated(in: root)
+        try folders.createLogs()
         let old = Data(String(repeating: "x", count: 64).utf8)
-        try old.write(to: paths.events)
+        try old.write(to: folders.eventLog)
 
-        let rotating = DebugEventLog(paths: paths, rotateAtBytes: 32)
+        let rotating = DebugEventLog(folders: folders, rotateAtBytes: 32)
         rotating.record("first")
         rotating.flush()
-        XCTAssertEqual(try Data(contentsOf: paths.rotatedEvents), old)
+        XCTAssertEqual(try Data(contentsOf: folders.rotatedEventLog), old)
 
-        let appending = DebugEventLog(paths: paths, rotateAtBytes: 5_000_000)
+        let appending = DebugEventLog(folders: folders, rotateAtBytes: 5_000_000)
         appending.record("second", ["n": "2"])
         appending.flush()
-        let lines = try String(contentsOf: paths.events, encoding: .utf8).split(separator: "\n")
+        let lines = try String(contentsOf: folders.eventLog, encoding: .utf8).split(separator: "\n")
         let events = try lines.map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])["event"] as? String }
         XCTAssertEqual(events, ["first", "second"])
-    }
-
-    func testPathsLiveUnderTheAppsLogFolder() {
-        let paths = DebugPaths(appName: "T3 Isle Debug")
-        XCTAssertTrue(paths.directory.path.hasSuffix("/Library/Logs/T3 Isle Debug"))
-        XCTAssertEqual(paths.events.lastPathComponent, "events.ndjson")
-        XCTAssertEqual(paths.state.lastPathComponent, "state.json")
-        XCTAssertEqual(paths.state.deletingLastPathComponent(), paths.directory)
     }
 }
