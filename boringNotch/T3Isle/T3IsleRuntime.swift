@@ -28,7 +28,7 @@ final class T3IsleRuntime: ObservableObject {
     }
 
     private init() {
-        let base: T3Source = Self.isDemo ? DemoSource() : LiveSource()
+        let base: T3Source = Self.isDemo ? ReplaySource(scenario: try? Scenario.named("showcase")) : LiveSource()
         #if DEBUG
         debugSource = DebugSource(base: base)
         let source: T3Source = debugSource
@@ -83,6 +83,40 @@ final class T3IsleRuntime: ObservableObject {
     func hideHeadphones() {
         headphonesPopup.dismiss()
     }
+
+    func play(_ scenario: Scenario) {
+        debugSource.play(scenario)
+        model.restart()
+    }
+
+    func stopReplay() {
+        guard debugSource.isReplaying else { return }
+        debugSource.stopReplay()
+        model.restart()
+    }
+
+    var sourceKind: DebugState.T3.Source {
+        debugSource.isReplaying ? .replay : Self.isDemo ? .demo : .live
+    }
+
+    var replaySources: [ReplaySource] {
+        [debugSource.replay] + [debugSource.base as? ReplaySource].compactMap { $0 }
+    }
+
+    private var activeReplay: ReplaySource? {
+        debugSource.isReplaying ? debugSource.replay : debugSource.base as? ReplaySource
+    }
+
+    private var replayStatus: ReplayStatus? { activeReplay?.current }
+
+    var isSettled: Bool {
+        guard Defaults[.t3Enabled], let replay = activeReplay else { return !model.isFetchingDetails }
+        return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
+    }
+
+    var debugState: DebugState.T3 {
+        model.debugState(enabled: Defaults[.t3Enabled], source: sourceKind, replay: replayStatus)
+    }
     #endif
 }
 
@@ -118,10 +152,12 @@ enum T3Tabs {
     }
 
     @MainActor
-    static func closedActivity(nowPlaying: Bool) -> ClosedActivity {
+    static func closedActivity() -> ClosedActivity {
         let runtime = T3IsleRuntime.shared
+        let music = MusicManager.shared
         return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
                                       headphones: Defaults[.t3HeadphonesActivity] ? runtime.headphones : nil,
-                                      nowPlaying: nowPlaying)
+                                      nowPlaying: (music.isPlaying || !music.isPlayerIdle)
+                                          && BoringViewCoordinator.shared.musicLiveActivityEnabled)
     }
 }

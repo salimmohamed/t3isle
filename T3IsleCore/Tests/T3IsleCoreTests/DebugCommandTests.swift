@@ -2,35 +2,63 @@ import XCTest
 @testable import T3IsleCore
 
 final class DebugCommandTests: XCTestCase {
+    private let everyCommand: [([String], DebugCommand)] = [
+        (["open-settings"], .openSettings(pane: nil)),
+        (["open-settings", "t3"], .openSettings(pane: "t3")),
+        (["close-settings"], .closeSettings),
+        (["open-notch"], .openNotch),
+        (["close-notch"], .closeNotch),
+        (["tab", "Shelf"], .tab(.shelf)),
+        (["demo", "on"], .demo(true)),
+        (["demo", "off"], .demo(false)),
+        (["replay", "question"], .replay("question")),
+        (["replay", "Plan-Done"], .replay("plan-done")),
+        (["replay", "off"], .replayOff),
+        (["state"], .state),
+        (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil)),
+        (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil)),
+        (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64)),
+        (["airpods-disconnect"], .airpodsDisconnect),
+    ]
+
     func testParsesEveryCommandFromTokens() throws {
-        let cases: [([String], DebugCommand)] = [
-            (["open-settings"], .openSettings(pane: nil)),
-            (["open-settings", "t3"], .openSettings(pane: "t3")),
-            (["open-notch"], .openNotch),
-            (["close-notch"], .closeNotch),
-            (["tab", "Shelf"], .tab(.shelf)),
-            (["demo", "on"], .demo(true)),
-            (["demo", "off"], .demo(false)),
-            (["question"], .question),
-            (["plan-done"], .planDone),
-            (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil)),
-            (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil)),
-            (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64)),
-            (["airpods-disconnect"], .airpodsDisconnect),
-        ]
-        for (tokens, expected) in cases {
+        for (tokens, expected) in everyCommand {
             XCTAssertEqual(try DebugCommand.parse(tokens), expected, "\(tokens)")
         }
-        XCTAssertEqual(Set(cases.map { $0.0[0] }), Set(DebugCommand.specs.map(\.name)))
+        XCTAssertEqual(Set(everyCommand.map { $0.0[0] }), Set(DebugCommand.specs.map(\.name)))
+    }
+
+    func testEveryCommandButStateHasAReverseThatParses() throws {
+        let readOnly: Set<String> = ["state"]
+        for (tokens, command) in everyCommand {
+            guard !readOnly.contains(tokens[0]) else {
+                XCTAssertNil(command.reverse, "\(tokens) is read-only")
+                continue
+            }
+            let reverse = try XCTUnwrap(command.reverse, "\(tokens) has no reverse")
+            XCTAssertEqual(try DebugCommand.parse(reverse.tokens), reverse, "\(tokens)")
+            XCTAssertEqual(try DebugCommand.parse(command.tokens), command, "\(tokens)")
+        }
+        XCTAssertEqual(DebugCommand.demo(true).reverse, .demo(false))
+        XCTAssertEqual(DebugCommand.tab(.t3).reverse, .closeNotch)
+        XCTAssertEqual(DebugCommand.replay("question").reverse, .replayOff)
+        XCTAssertEqual(DebugCommand.openSettings(pane: "t3").reverse, .closeSettings)
+        XCTAssertEqual(DebugCommand.airpodsConnect(name: "AirPods Max", battery: 64).line, "airpods-connect AirPods Max 64")
     }
 
     func testRejectsUnknownCommandsAndBadArguments() {
         XCTAssertThrowsError(try DebugCommand.parse([])) { XCTAssertEqual($0 as? DebugCommandError, .empty) }
         XCTAssertThrowsError(try DebugCommand.parse(["dance"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("dance")) }
+        XCTAssertThrowsError(try DebugCommand.parse(["question"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("question")) }
+        let replayUsage = "replay busy-session|plan-done|question|quota-low|showcase|off"
         let bad: [([String], String)] = [
             (["tab", "calendar"], "tab home|t3|shelf"),
             (["demo"], "demo on|off"),
-            (["question", "now"], "question"),
+            (["close-settings", "now"], "close-settings"),
+            (["state", "now"], "state"),
+            (["replay"], replayUsage),
+            (["replay", "nope"], replayUsage),
+            (["replay", "question", "twice"], replayUsage),
             (["airpods-connect", "AirPods", "120"], "airpods-connect [name] [battery]"),
             (["airpods-connect", "AirPods", "full"], "airpods-connect [name] [battery]"),
         ]
@@ -45,13 +73,22 @@ final class DebugCommandTests: XCTestCase {
             ("t3isle-debug://open-settings/appearance", .openSettings(pane: "appearance")),
             ("t3isle-debug://tab/t3", .tab(.t3)),
             ("t3isle-debug://airpods-connect/AirPods%20Max/42", .airpodsConnect(name: "AirPods Max", battery: 42)),
-            ("T3ISLE-DEBUG://plan-done/", .planDone),
-            ("t3isle-debug:///question", .question),
+            ("T3ISLE-DEBUG://replay/plan-done/", .replay("plan-done")),
+            ("t3isle-debug:///replay/off", .replayOff),
         ]
         for (string, expected) in urls {
             XCTAssertEqual(try DebugCommand.parse(url: try XCTUnwrap(URL(string: string))), expected, string)
         }
-        XCTAssertThrowsError(try DebugCommand.parse(url: try XCTUnwrap(URL(string: "https://question"))))
+        XCTAssertThrowsError(try DebugCommand.parse(url: try XCTUnwrap(URL(string: "https://replay/question"))))
+    }
+
+    func testURLQueryAndFragmentAreIgnored() throws {
+        let plain = try DebugCommand.parse(url: try XCTUnwrap(URL(string: "t3isle-debug://replay/question")))
+        for suffix in ["?n=3", "?n=3&x=y", "#n3", "?n=3#n3"] {
+            let url = try XCTUnwrap(URL(string: "t3isle-debug://replay/question\(suffix)"))
+            XCTAssertEqual(try DebugCommand.parse(url: url), plain, suffix)
+        }
+        XCTAssertEqual(try DebugCommand.parse(url: try XCTUnwrap(URL(string: "t3isle-debug://state?n=9"))), .state)
     }
 
     func testContributingDocumentsEveryCommand() throws {
@@ -65,8 +102,8 @@ final class DebugCommandTests: XCTestCase {
 
     func testCollectsLaunchArgumentCommands() throws {
         let arguments = ["/Applications/T3 Isle.app/Contents/MacOS/T3 Isle", "-NSDocumentRevisionsDebugMode", "YES",
-                         "--debug", "open-settings", "t3", "--demo", "--debug", "question", "--debug", "tab", "t3"]
-        XCTAssertEqual(try DebugCommand.launchCommands(arguments), [.openSettings(pane: "t3"), .question, .tab(.t3)])
+                         "--debug", "open-settings", "t3", "--demo", "--debug", "replay", "question", "--debug", "tab", "t3"]
+        XCTAssertEqual(try DebugCommand.launchCommands(arguments), [.openSettings(pane: "t3"), .replay("question"), .tab(.t3)])
         XCTAssertEqual(try DebugCommand.launchCommands(["T3 Isle", "--demo"]), [])
     }
 }
@@ -82,61 +119,131 @@ final class DebugSourceTests: XCTestCase {
     }
 
     private func started() async throws -> (T3IsleModel, DebugSource) {
-        let source = DebugSource(base: EmptySource())
+        let source = DebugSource(base: BaseSource())
         let model = T3IsleModel(source: source, opener: { _ in })
         model.start()
-        try await until { model.connection == .live }
+        try await until { model.threads.map(\.id) == ["base-thread"] }
         return (model, source)
     }
 
-    func testQuestionAsksForAttentionAndAnsweringClearsIt() async throws {
+    private func switchTo(_ model: T3IsleModel, _ change: () -> Void) {
+        change()
+        model.restart()
+    }
+
+    func testReplayReplacesTheBaseWorldAndOffRestoresIt() async throws {
         let (model, source) = try await started()
-        let id = source.raiseQuestion()
+        let question = try Scenario.named("question")
+        switchTo(model) { source.play(question) }
         try await until { model.needsAttention }
-        let prompt = try XCTUnwrap(model.prompts.first)
-        XCTAssertEqual(prompt.threadId, id)
+        XCTAssertTrue(source.isReplaying)
+        XCTAssertEqual(model.threads.map(\.id), ["question-thread"])
         XCTAssertEqual(model.closedPresence, .alert)
         XCTAssertEqual(model.threads.first?.mood, .needsYou)
+
+        switchTo(model) { source.stopReplay() }
+        try await until { model.threads.map(\.id) == ["base-thread"] }
+        XCTAssertFalse(source.isReplaying)
+        XCTAssertNil(source.replay.current)
+        XCTAssertFalse(model.needsAttention)
+        model.stop()
+    }
+
+    func testAnsweringAReplayedQuestionClearsIt() async throws {
+        let (model, source) = try await started()
+        let question = try Scenario.named("question")
+        switchTo(model) { source.play(question) }
+        try await until { model.needsAttention }
+        let prompt = try XCTUnwrap(model.prompts.first)
         model.answer(prompt, with: .choices(["Yes"]))
-        try await until { !model.needsAttention && model.threads.first?.mood != .needsYou }
+        try await until { !model.needsAttention && model.threads.first?.mood == .working }
+        XCTAssertEqual(model.threads.map(\.id), ["question-thread"])
         model.stop()
     }
 
     func testPlanDoneShowsTheBanner() async throws {
         let (model, source) = try await started()
-        let id = source.finishPlan(after: .milliseconds(600))
+        let planDone = try Scenario.named("plan-done")
+        switchTo(model) { source.play(planDone) }
         try await until { model.banner != nil }
-        XCTAssertEqual(model.banner?.threadId, id)
+        XCTAssertEqual(model.banner?.threadId, "plan-thread")
         XCTAssertEqual(model.banner?.stepCount, 3)
+        XCTAssertEqual(source.replay.current, ReplayStatus(scenario: "plan-done", finished: true))
         model.stop()
     }
 
-    func testFakeThreadsSurviveAReconnectSnapshot() async throws {
-        let base = EmptySource()
-        let source = DebugSource(base: base)
+    func testReplayingPlanDoneAgainShowsANewBanner() async throws {
+        let (model, source) = try await started()
+        let planDone = try Scenario.named("plan-done")
+        switchTo(model) { source.play(planDone) }
+        try await until { model.banner != nil }
+        let first = try XCTUnwrap(model.banner)
+        switchTo(model) { source.play(planDone) }
+        XCTAssertNil(model.banner)
+        try await until { model.banner.map { $0.id != first.id } == true }
+        XCTAssertEqual(model.banner?.threadId, "plan-thread")
+        model.stop()
+    }
+
+    func testModelIsCaughtUpOnlyOnceItHasTakenInTheReplay() async throws {
+        let source = ReplaySource(scenario: try Scenario.named("quota-low"))
+        try await until { source.current?.finished == true }
+        let model = T3IsleModel(source: source, opener: { _ in })
+        XCTAssertFalse(model.isCaughtUp(threads: source.threads, providers: source.providers()))
+        model.start()
+        try await until { model.isCaughtUp(threads: source.threads, providers: source.providers()) }
+        XCTAssertEqual(model.threads.count, 2)
+        XCTAssertEqual(model.providers.map(\.id), ["claudeAgent", "codex"])
+        model.stop()
+    }
+
+    func testQuestionScenarioStateMatchesTheFixture() async throws {
+        let source = ReplaySource(scenario: try Scenario.named("question"))
         let model = T3IsleModel(source: source, opener: { _ in })
         model.start()
-        try await until { model.connection == .live }
-        let id = source.raiseQuestion()
-        try await until { model.needsAttention }
-        base.push(.snapshot(ShellSnapshot(threads: [], projects: [])))
-        try await Task.sleep(nanoseconds: 300_000_000)
-        XCTAssertEqual(model.prompts.first?.threadId, id)
+        try await until { model.prompts.count == 1 && source.current?.finished == true }
+        let expected = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
+        XCTAssertEqual(model.debugState(enabled: true, source: .replay, replay: source.current), expected)
         model.stop()
+    }
+
+    func testReplayReportsProgressAndStreamsTheCurrentWorldFirst() async throws {
+        let progress = ProgressLog()
+        let source = ReplaySource(scenario: nil)
+        source.onProgress { progress.append($0) }
+        source.play(try Scenario.named("question"))
+        try await until { progress.events.count == 2 }
+        XCTAssertEqual(progress.events, [.started("question", steps: 2), .finished("question")])
+        XCTAssertEqual(source.current, ReplayStatus(scenario: "question", finished: true))
+
+        var updates = await source.updates().makeAsyncIterator()
+        guard case .snapshot(let snapshot)? = await updates.next() else { return XCTFail("expected a snapshot first") }
+        XCTAssertEqual(snapshot.threads.map(\.id), ["question-thread"])
+        let projection = try await source.detail(threadId: "question-thread")
+        XCTAssertEqual(projection.runtimeRequests.map(\.id), ["question-request"])
+        let environment = await source.environmentId()
+        XCTAssertEqual(environment, "replay")
     }
 }
 
-private final class EmptySource: T3Source, @unchecked Sendable {
-    private var continuation: AsyncStream<ShellUpdate>.Continuation?
+private final class ProgressLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [ReplayProgress] = []
+
+    func append(_ progress: ReplayProgress) { lock.withLock { recorded.append(progress) } }
+    var events: [ReplayProgress] { lock.withLock { recorded } }
+}
+
+private final class BaseSource: T3Source, @unchecked Sendable {
+    private let shell = ThreadShell(id: "base-thread", projectId: "base", title: "Base thread", status: "completed",
+                                    latestRunCompletedAt: Date(), updatedAt: Date())
 
     func updates() async -> AsyncStream<ShellUpdate> {
         let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()
-        self.continuation = continuation
-        continuation.yield(.snapshot(ShellSnapshot(threads: [], projects: [])))
+        continuation.yield(.snapshot(ShellSnapshot(threads: [shell], projects: [ProjectShell(id: "base", title: "base")])))
         return stream
     }
 
-    func push(_ update: ShellUpdate) { continuation?.yield(update) }
     func detail(threadId: String) async throws -> ThreadProjection { throw T3Failure.http(404, "Thread not found") }
     func send(_ command: T3Command) async throws {}
     func environmentId() async -> String? { nil }

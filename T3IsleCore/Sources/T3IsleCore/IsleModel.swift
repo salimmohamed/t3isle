@@ -116,6 +116,7 @@ public final class T3IsleModel: ObservableObject {
     private var environmentId: String?
     private var heldBy: String?
     private var reconnectDelay: TimeInterval = 1
+    private var session = 0
 
     public init(source: T3Source, isDemo: Bool = false, opener: @escaping (URL) -> Void) {
         self.source = source
@@ -152,7 +153,11 @@ public final class T3IsleModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(self.tickInterval * 1_000_000_000))
             }
         }
-        Task { environmentId = await source.environmentId() }
+        let session = session
+        Task {
+            let environment = await source.environmentId()
+            if self.session == session { environmentId = environment }
+        }
     }
 
     public func stop() {
@@ -163,6 +168,48 @@ public final class T3IsleModel: ObservableObject {
         scheduledFetch.values.forEach { $0.cancel() }
         scheduledFetch.removeAll()
     }
+
+    #if DEBUG
+    public var isFetchingDetails: Bool { !fetching.isEmpty || !scheduledFetch.isEmpty }
+
+    public func isCaughtUp(threads: [ThreadShell], providers: [ProviderLimits]) -> Bool {
+        shells == Dictionary(threads.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new }) && self.providers == providers
+            && !isFetchingDetails
+    }
+
+    public func restart() {
+        stop()
+        session += 1
+        threads = []
+        providers = []
+        prompts = []
+        agentGroups = []
+        selectedAgentId = nil
+        banner = nil
+        notice = nil
+        completedSteps = [:]
+        shells = [:]
+        projects = [:]
+        details = [:]
+        detailPrompts = [:]
+        lastFetch = [:]
+        fetching = []
+        rawThreads = []
+        changes = [:]
+        answered = [:]
+        draftAnswers = [:]
+        stopping = [:]
+        finished = [:]
+        dismissed = []
+        wasWorking = []
+        knownPromptIds = []
+        environmentId = nil
+        heldBy = nil
+        reconnectDelay = 1
+        motionIsAction = false
+        start()
+    }
+    #endif
 
     public func apply(_ preferences: T3Preferences) {
         guard preferences != self.preferences else { return }
@@ -199,6 +246,7 @@ public final class T3IsleModel: ObservableObject {
             projects = Dictionary(snapshot.projects.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
             connection = .live
             reconnectDelay = 1
+            refreshProviders()
             for shell in snapshot.threads where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
         case .threadUpdated(let shell, let archived):
             if archived { shells[shell.id] = nil } else { shells[shell.id] = shell }
@@ -235,9 +283,13 @@ public final class T3IsleModel: ObservableObject {
             || finished[shell.id] != nil
     }
 
-    private func tick() async {
+    private func refreshProviders() {
         let fresh = source.providers()
         if fresh != providers { providers = fresh }
+    }
+
+    private func tick() async {
+        refreshProviders()
         let now = Date()
         answered = answered.filter { key, at in
             now.timeIntervalSince(at) < 45 || draftAnswers.keys.contains { key.hasPrefix("\($0)#") }
@@ -271,9 +323,10 @@ public final class T3IsleModel: ObservableObject {
         guard !fetching.contains(threadId) else { return }
         fetching.insert(threadId)
         lastFetch[threadId] = Date()
+        let session = session
         Task { [weak self, source] in
             let projection = try? await source.detail(threadId: threadId)
-            guard let self else { return }
+            guard let self, self.session == session else { return }
             self.fetching.remove(threadId)
             guard let projection else { return }
             self.absorb(projection)
@@ -408,7 +461,8 @@ public final class T3IsleModel: ObservableObject {
             dismissed.remove(id)
         }
         wasWorking = activeIds
-        let doneThreads = finished.keys.compactMap { id in
+        let doneIds = finished.sorted { ($0.value, $0.key) < ($1.value, $1.key) }.map(\.key)
+        let doneThreads = doneIds.compactMap { id in
             threads.first { $0.id == id } ?? visible[id].map {
                 InboxBuilder().thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now)
             }
@@ -474,10 +528,13 @@ public final class T3IsleModel: ObservableObject {
             publish()
         }
         guard !isDemo else { return }
+        let session = session
         Task {
             var environment = environmentId
             if environment == nil { environment = await source.environmentId() }
+            guard self.session == session else { return }
             environmentId = environment
+            guard environment != ReplaySource.environment else { return }
             if let threadId, let environment,
                let url = URL(string: "t3code://threads/\(environment)/\(T3ServerClient.pathComponent(threadId))") {
                 opener(url)

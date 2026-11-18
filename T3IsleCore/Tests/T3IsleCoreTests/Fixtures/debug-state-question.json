@@ -1,0 +1,35 @@
+{
+  "agents" : [
+    {
+      "id" : "question-thread",
+      "state" : "needsYou"
+    }
+  ],
+  "banner" : null,
+  "connection" : "live",
+  "enabled" : true,
+  "presence" : "alert",
+  "prompts" : [
+    {
+      "id" : "question-request#border",
+      "kind" : "question",
+      "threadId" : "question-thread",
+      "title" : "Border"
+    }
+  ],
+  "providers" : [],
+  "replay" : {
+    "finished" : true,
+    "scenario" : "question"
+  },
+  "source" : "replay",
+  "threads" : [
+    {
+      "id" : "question-thread",
+      "mood" : "needsYou",
+      "project" : "web",
+      "snoozed" : false,
+      "title" : "Check the attention border"
+    }
+  ]
+}

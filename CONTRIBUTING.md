@@ -35,7 +35,7 @@ Run the package tests with:
 swift test --package-path T3IsleCore
 ```
 
-To work on the views without live agents, launch the app with `--demo`. Demo mode uses made-up agents, questions, plans and quota, and never contacts T3.
+To work on the views without live agents, launch the app with `--demo`. Demo mode plays the recorded `showcase` scenario (see [Replay a scenario](#replay-a-scenario)) and never contacts T3.
 
 ### Debug builds
 
@@ -65,30 +65,138 @@ open -g -a "$APP" "t3isle-debug://open-settings/t3"
 Or pass commands at launch, each after `--debug`:
 
 ```sh
-open -a "$APP" --args --debug open-settings appearance --debug question
+open -a "$APP" --args --debug open-settings appearance --debug replay question
 ```
 
-| Command | What it does | Example |
-| --- | --- | --- |
-| `open-settings [pane]` | Opens Settings, on a pane if given (`general`, `t3`, `appearance`, `media`, `calendar`, `hud`, `battery`, `shelf`, `shortcuts`, `advanced`, `about`) | `open -g -a "$APP" "t3isle-debug://open-settings/t3"` |
-| `open-notch` | Opens the notch | `open -g -a "$APP" "t3isle-debug://open-notch"` |
-| `close-notch` | Closes the notch | `open -g -a "$APP" "t3isle-debug://close-notch"` |
-| `tab home\|t3\|shelf` | Opens the notch on a tab | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
-| `demo on\|off` | Relaunches with or without demo data | `open -g -a "$APP" "t3isle-debug://demo/on"` |
-| `question` | Adds a fake T3 thread that asks a question, which shows the attention border and the question carousel | `open -g -a "$APP" "t3isle-debug://question"` |
-| `plan-done` | Adds a fake T3 thread that finishes its plan two seconds later, which shows the "Plan complete" banner | `open -g -a "$APP" "t3isle-debug://plan-done"` |
-| `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
-| `airpods-disconnect` | Hides the headphones activity | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
+| Command | What it does | Reverse | Example |
+| --- | --- | --- | --- |
+| `open-settings [pane]` | Opens Settings, on a pane if given (`general`, `t3`, `appearance`, `media`, `calendar`, `hud`, `battery`, `shelf`, `shortcuts`, `advanced`, `about`) | `close-settings` | `open -g -a "$APP" "t3isle-debug://open-settings/t3"` |
+| `close-settings` | Closes Settings | `open-settings` | `open -g -a "$APP" "t3isle-debug://close-settings"` |
+| `open-notch` | Opens the notch | `close-notch` | `open -g -a "$APP" "t3isle-debug://open-notch"` |
+| `close-notch` | Closes the notch | `open-notch` | `open -g -a "$APP" "t3isle-debug://close-notch"` |
+| `tab home\|t3\|shelf` | Opens the notch on a tab | `close-notch` | `open -g -a "$APP" "t3isle-debug://tab/t3"` |
+| `demo on\|off` | Relaunches with or without demo data | `demo off`, `demo on` | `open -g -a "$APP" "t3isle-debug://demo/on"` |
+| `replay <scenario>\|off` | Replays a recorded T3 scenario in place of the real T3 data, or goes back to it with `off` | `replay off` | `open -g -a "$APP" "t3isle-debug://replay/question"` |
+| `state` | Writes what the app shows as JSON to the state file | None, it changes nothing | `open -g -a "$APP" "t3isle-debug://state"` |
+| `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `airpods-disconnect` | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
+| `airpods-disconnect` | Hides the headphones activity | `airpods-connect` | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
 
-Fake threads live in a project called `debug` next to your real threads, and answering a fake question works like a real one. `question` and `plan-done` need T3 to be connected, or demo mode on. In a URL, arguments are path segments, so encode spaces as `%20`.
+In a URL, arguments are path segments, so encode spaces as `%20`. The command ignores a query or fragment, so a script can add `?n=4` to tell its commands apart. The event log keeps the full URL.
 
-Every command logs its result. Watch them with:
+To tear down, run the reverse of each command you ran, last first. A reverse with nothing to undo does nothing and still succeeds: `replay off` without a replay, or `demo off` outside demo mode. Each `command.ran` event names its reverse.
+
+#### Replay a scenario
+
+`replay <scenario>` swaps the T3 data for a recording, which the app reads through the same decoders as the live connection. Answering a replayed question or approving a replayed request works like the real thing. `replay` needs the T3 integration turned on in Settings, but not T3 Code itself. `replay off` goes back to the real T3 data, or to `showcase` in demo mode.
+
+| Scenario | What it shows |
+| --- | --- |
+| `showcase` | Six threads in three projects: two approvals, a two-question request, a snoozed thread, a failed thread and two providers. Over 12 seconds a plan finishes. Demo mode plays it too. |
+| `busy-session` | Four threads working in two projects, with no questions or approvals |
+| `question` | One thread asks one question, which shows the attention border |
+| `plan-done` | One thread finishes its three-step plan after 1.5 seconds, which shows the "Plan complete" banner |
+| `quota-low` | Two threads, with both providers at 95 and 92 percent of their session window |
+
+Recordings live in `T3IsleCore/Sources/T3IsleCore/Scenarios/<name>.ndjson`. Line 1 names the scenario: `{"scenario":"question","summary":"One thread asks one question"}`. Every other line is one step: `afterMs`, the delay since the previous step (default 0), and exactly one payload in T3's own wire JSON:
+
+- `shell`: one `orchestration.subscribeShell` item, such as `{"kind":"thread.updated","thread":{...}}`.
+- `detail`: a `/api/orchestration/threads/<id>/bounded` response body, `{"projection":{...}}`.
+- `provider`: `{"id":"claudeAgent","file":{...}}`, where `file` is the content of `~/.t3/caches/claudeAgent.json`.
+
+```json
+{"afterMs":1500,"shell":{"kind":"thread.updated","thread":{"id":"plan-thread","title":"Finish the three-step plan","status":"completed","updatedAt":"2026-01-01T00:00:01.500Z"}}}
+```
+
+Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the replay starts, so "running for 5m" labels come out the same every run. The app fetches a thread's details when the thread changes, so put a `detail` step before the `shell` step that announces or updates its thread. `swift test --package-path T3IsleCore` fails on any recording line that does not decode, and names the file and line.
+
+#### Read the state
+
+`state` writes `~/Library/Logs/T3 Isle Debug/state.json`. It writes a temporary file and renames it, so a reader never sees half a file. The file has no timestamps, so the same scenario gives the same bytes every run. Every key is always present, with `null` for nothing. After `replay question`, it reads (arrays folded onto one line here):
+
+```json
+{
+  "closedActivity" : "t3",
+  "headphones" : null,
+  "notch" : "open",
+  "settingsOpen" : false,
+  "t3" : {
+    "agents" : [ { "id" : "question-thread", "state" : "needsYou" } ],
+    "banner" : null,
+    "connection" : "live",
+    "enabled" : true,
+    "presence" : "alert",
+    "prompts" : [ { "id" : "question-request#border", "kind" : "question", "threadId" : "question-thread", "title" : "Border" } ],
+    "providers" : [ ],
+    "replay" : { "finished" : true, "scenario" : "question" },
+    "source" : "replay",
+    "threads" : [ { "id" : "question-thread", "mood" : "needsYou", "project" : "web", "snoozed" : false, "title" : "Check the attention border" } ]
+  },
+  "tab" : "t3"
+}
+```
+
+`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until any replay has finished, the app has taken in every update the replay sent, and it has fetched the thread details it was waiting for, up to 30 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
+
+Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
+
+To read the state from a script, remove the old file, ask for a new one, and wait for it:
 
 ```sh
-log stream --predicate 'subsystem == "dev.t3isle.app.debug" AND category == "debug-command"'
+STATE="$HOME/Library/Logs/T3 Isle Debug/state.json"
+rm -f "$STATE"
+open -g -a "$APP" "t3isle-debug://state"
+for _ in $(seq 350); do [ -f "$STATE" ] && break; sleep 0.1; done
+jq . "$STATE"
 ```
 
-The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugCommand.swift`. To add one, add an entry to `DebugCommand.specs`, handle it in `boringNotch/T3Isle/T3DebugCommands.swift`, and add a row here.
+#### Read the event log
+
+Debug builds append one JSON object per line to `~/Library/Logs/T3 Isle Debug/events.ndjson`:
+
+```json
+{"time":"2026-11-16T10:00:00.123Z","event":"command.ran","attributes":{"command":"replay question","input":"t3isle-debug://replay/question?n=4","reverse":"replay off"}}
+```
+
+| Event | Attributes |
+| --- | --- |
+| `app.launched` | `pid`, `version`, `source` (`live` or `demo`) |
+| `command.ran` | `input`, `command`, `reverse` (missing for `state`) |
+| `command.failed` | `input`, `message` |
+| `replay.started` | `scenario`, `steps` |
+| `replay.finished` | `scenario` |
+| `connection.changed` | `state` |
+| `notch.opened`, `notch.closed` | None |
+| `tab.changed` | `tab` |
+| `activity.changed` | `closedActivity` |
+| `prompts.changed` | `count` |
+| `banner.shown` | `threadId` |
+| `state.written` | `path`, `settled` |
+| `state.failed` | `message` |
+
+When the log is over 5 MB at launch, the app moves it to `events.1.ndjson` and starts a new one. To summarize the last 10 minutes (counts per event, failed commands, and the last 20 events), run:
+
+```sh
+scripts/debug-log.sh
+```
+
+It takes the number of minutes and the log file as optional arguments, needs only `jq`, and exits with 2 when the log file is missing.
+
+#### Script the Debug app safely
+
+- Kill only the PID you launched. `app.launched` names it. Never `killall "T3 Isle"`, which also quits the installed app.
+- Never touch the installed app's settings (`dev.t3isle.app`) or session (`~/Library/Application Support/T3 Isle/`).
+- Never reinstall the T3 service.
+
+#### Add a command
+
+The commands and their parsing live in `T3IsleCore/Sources/T3IsleCore/DebugCommand.swift`. To add one:
+
+1. Add a case to `DebugCommand`, with its `tokens` and its `reverse`. Only a command that changes nothing has no reverse.
+2. Add an entry to `DebugCommand.specs`.
+3. Handle the case in `boringNotch/T3Isle/T3DebugCommands.swift`.
+4. Add a row to the table in this section.
+
+The compiler flags a case with no tokens, reverse or handler, and `swift test` flags a spec with no row here.
 
 ### How it talks to T3 Code
 

@@ -447,6 +447,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         previousScreens = NSScreen.screens
         T3LoginItem.refreshAtLaunch()
         #if DEBUG
+        T3DebugMonitor.shared.start(notch: debugNotch)
         T3DebugCommands.run(launchArguments: CommandLine.arguments) { [unowned self] in self.debugNotch }
         #endif
     }
