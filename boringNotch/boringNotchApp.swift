@@ -288,6 +288,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         quitOnTerminationSignal()
+        T3Tabs.notches = { [weak self] in
+            guard let self else { return [] }
+            return Defaults[.showOnAllDisplays] ? Array(self.viewModels.values) : [self.vm]
+        }
 
         NotificationCenter.default.addObserver(
             self,
