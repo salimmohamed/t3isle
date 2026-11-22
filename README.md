@@ -40,7 +40,7 @@ Install with [Homebrew](https://brew.sh):
 brew install --cask salimmohamed/tap/t3-isle
 ```
 
-Homebrew clears the download flag for you, so T3 Isle opens on the first try. Update it with `brew upgrade --cask t3-isle`.
+The Homebrew cask clears the download flag for you, so T3 Isle opens on the first try. Update it with `brew upgrade --cask t3-isle`.
 
 Or grab `T3-Isle.dmg` from the [latest release](https://github.com/salimmohamed/t3isle/releases/latest), open it, and drag **T3 Isle** onto **Applications**. It isn't notarized, so macOS blocks the first launch. Click **Done**, then open **System Settings → Privacy & Security** and click **Open Anyway** next to T3 Isle. Or clear the download flag in Terminal instead:
 
