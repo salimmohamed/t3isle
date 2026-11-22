@@ -190,6 +190,14 @@ jobs:
           cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
           **Install**
 
+          Install with Homebrew. It clears the download flag, so T3 Isle opens on the first try:
+
+          ```sh
+          brew install --cask salimmohamed/tap/t3-isle
+          ```
+
+          Or install the DMG by hand:
+
           1. Download `T3-Isle.dmg`, open it, and drag **T3 Isle** onto **Applications**.
           2. Open T3 Isle. This build is not notarized, so macOS says “T3 Isle.app” Not Opened. Click **Done**.
           3. Open **System Settings → Privacy & Security**, scroll to Security, and click **Open Anyway** next to “T3 Isle.app” was blocked to protect your Mac. Confirm with your password.
@@ -202,3 +210,51 @@ jobs:
             --title "T3 Isle $VERSION" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --generate-notes
+
+  tap:
+    name: Update Homebrew tap
+    needs: [build, release]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Check tap token
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [[ -z "$TAP_TOKEN" ]]; then
+            echo "::error::The HOMEBREW_TAP_TOKEN secret is missing, so the Homebrew tap was not updated"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: ${{ env.DMG_NAME }}
+          path: dist
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: salimmohamed/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Bump cask
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          SHA256="$(sha256sum "dist/$DMG_NAME" | cut -d' ' -f1)"
+          CASK=tap/Casks/t3-isle.rb
+          sed -i -E "s/^  version \".*\"$/  version \"$VERSION\"/; s/^  sha256 \".*\"$/  sha256 \"$SHA256\"/" "$CASK"
+          grep -qxF "  version \"$VERSION\"" "$CASK"
+          grep -qxF "  sha256 \"$SHA256\"" "$CASK"
+          cd tap
+          if git diff --quiet; then
+            echo "::notice::The tap already has t3-isle $VERSION"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "t3-isle $VERSION"
+          git push
