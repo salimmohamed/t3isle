@@ -83,6 +83,7 @@ enum T3DebugCommands {
         case .state:
             monitor.writeStateWhenSettled(notch: notch)
         case .airpodsConnect(let name, let battery):
+            guard Defaults[.t3HeadphonesActivity] else { throw Failure("The headphones pop-up is turned off in Settings") }
             runtime.showHeadphones(name: name, battery: battery)
         case .airpodsDisconnect:
             runtime.hideHeadphones()

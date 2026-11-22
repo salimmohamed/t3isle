@@ -162,7 +162,7 @@ enum T3Tabs {
         let runtime = T3IsleRuntime.shared
         let music = MusicManager.shared
         return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
-                                      headphones: Defaults[.t3HeadphonesActivity] ? runtime.headphones : nil,
+                                      headphones: runtime.headphones,
                                       nowPlaying: (music.isPlaying || !music.isPlayerIdle)
                                           && BoringViewCoordinator.shared.musicLiveActivityEnabled)
     }
