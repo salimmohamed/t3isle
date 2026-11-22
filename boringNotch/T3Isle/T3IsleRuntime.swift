@@ -122,6 +122,13 @@ final class T3IsleRuntime: ObservableObject {
 
 enum T3Tabs {
     static let openSize = CGSize(width: 640, height: 480)
+    @MainActor static var notches: () -> [BoringViewModel] = { [] }
+
+    @MainActor
+    static func resolvesTab(on notch: BoringViewModel) -> Bool {
+        NotchTab.resolvedOnDisplay(notchOpen: notch.notchState == .open,
+                                   anyNotchOpen: notches().contains { $0.notchState == .open })
+    }
 
     @MainActor
     static func visible(_ tabs: [TabModel]) -> [TabModel] {
