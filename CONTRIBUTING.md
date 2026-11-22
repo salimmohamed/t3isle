@@ -89,6 +89,7 @@ open -a "$APP" --args --debug open-settings appearance --debug replay question
 | `state` | Writes what the app shows as JSON to the state file | None, it changes nothing | `open -g -a "$APP" "t3isle-debug://state"` |
 | `airpods-connect [name] [battery] [headphones\|speaker\|car]` | Shows the headphones activity as if a device just connected (default `AirPods Pro`, battery 0 to 100). The last argument sets the Bluetooth class of device, so `speaker` shows the speaker glyph and `car` the car kit glyph. Without it, or with `headphones`, the glyph comes from the name | `airpods-disconnect` | `open -g -a "$APP" "t3isle-debug://airpods-connect/Kitchen%20Speaker/speaker"` |
 | `airpods-disconnect` | Hides the headphones activity | `airpods-connect` | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
+| `bluetooth-access not-determined\|restricted\|denied\|allowed\|system` | Feeds the headphones monitor a Bluetooth access change through the same path as a real change in System Settings, so `denied` then `allowed` shows the monitor start without clicking. `system` goes back to the real access. `allowed` fails unless the app really has Bluetooth access, so it never calls Bluetooth without it. A real access change, or turning Bluetooth on or off, replaces the access you fed. It never raises the system prompt unless the real access is not determined | `bluetooth-access system` | `open -g -a "$APP" "t3isle-debug://bluetooth-access/allowed"` |
 
 In a URL, arguments are path segments, so encode spaces as `%20`. The command ignores a query or fragment, so a script can add `?n=4` to tell its commands apart. The event log keeps the full URL. From a script, send commands with [`scripts/debug.sh`](#scripts), which does the encoding and waits for the result.
 
@@ -126,6 +127,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 {
   "closedActivity" : "t3",
   "headphones" : null,
+  "headphonesMonitor" : { "bluetooth" : "allowed", "status" : "watching" },
   "notch" : "open",
   "notchViewModels" : 1,
   "settingsOpen" : false,
@@ -145,7 +147,7 @@ Dates count from `2026-01-01T00:00:00.000Z`, which stands for the moment the rep
 }
 ```
 
-`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `notchViewModels` counts the notch view models still in memory: one, plus one per display while "Show on all displays" is on. A number that still grows a few seconds after a screen lock or a display change means a dropped view model leaked. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until any replay has finished, the app has taken in every update the replay sent, and it has fetched the thread details it was waiting for, up to 30 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
+`notch` is `open` or `closed`. `tab` is `home`, `shelf` or `t3`. `notchViewModels` counts the notch view models still in memory: one, plus one per display while "Show on all displays" is on. A number that still grows a few seconds after a screen lock or a display change means a dropped view model leaked. `closedActivity` is `none`, `t3`, `nowPlaying` or `headphones`. `headphonesMonitor.bluetooth` is `not-determined`, `restricted`, `denied` or `allowed`, and `headphonesMonitor.status` is `off` (the setting is off), `listening` (waiting for Bluetooth access) or `watching` (connect notifications are registered). `t3.source` is `live`, `demo` or `replay`, and `t3.connection` is `connecting`, `live` or `offline`. Each entry in `t3.providers` reads `{"id":"claudeAgent","windows":[{"kind":"session","usedPercent":95}]}`. `state` waits until a headphones monitor that is starting to watch has registered for connect notifications, any replay has finished, the app has taken in every update the replay sent, and it has fetched the thread details it was waiting for, up to 30 seconds, then writes the file, so `replay plan-done` followed by `state` gives the same file every run. Its `state.written` event says `settled` `true`, or `false` when it gave up waiting.
 
 Things outside the replay carry over between scenarios: whether the notch is open, the tab, Settings, and the headphones activity. Start from a known place by sending `close-notch` (and the reverse of anything else you ran) before `replay`. A question or a finished plan may open the notch on its own, the same way live T3 does.
 

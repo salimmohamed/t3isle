@@ -6,10 +6,12 @@ import T3IsleCore
 @MainActor
 final class T3HeadphonesMonitor: NSObject {
     private let popup: HeadphonesPopup
-    private var enabled = false
-    private var accessRequest: CBCentralManager?
+    private var state = HeadphonesAccess(access: BluetoothAccess(CBManager.authorization))
+    private var accessListener: CBCentralManager?
+    private let accessQueue = DispatchQueue(label: "dev.t3isle.bluetooth-access")
     private var watchTask: Task<Void, Never>?
     private var connectNotification: IOBluetoothUserNotification?
+    private var watchStarted = false
     private let startup = StartupHeadphones()
     private var demoTask: Task<Void, Never>?
 
@@ -18,30 +20,38 @@ final class T3HeadphonesMonitor: NSObject {
     }
 
     func setEnabled(_ enabled: Bool) {
-        self.enabled = enabled
+        state.setEnabled(enabled)
+        reconcile()
+    }
+
+    func accessChanged(to access: BluetoothAccess) {
+        state.accessChanged(to: access)
         reconcile()
     }
 
     private func reconcile() {
         if T3IsleRuntime.isHeadphonesDemo {
-            enabled ? startDemo() : stop()
+            state.enabled ? startDemo() : stop()
             return
         }
-        switch HeadphonesWatch(enabled: enabled, authorization: CBManager.authorization) {
+        switch state.watch {
         case .off: stop()
-        case .askForAccess: askForAccess()
-        case .watch: watch()
+        case .listenForAccess:
+            stopWatching()
+            listenForAccess()
+        case .watch:
+            listenForAccess()
+            watch()
         }
     }
 
-    private func askForAccess() {
-        guard accessRequest == nil else { return }
-        accessRequest = CBCentralManager(delegate: self, queue: .main,
-                                         options: [CBCentralManagerOptionShowPowerAlertKey: false])
+    private func listenForAccess() {
+        guard accessListener == nil else { return }
+        accessListener = CBCentralManager(delegate: self, queue: accessQueue,
+                                          options: [CBCentralManagerOptionShowPowerAlertKey: false])
     }
 
     private func watch() {
-        accessRequest = nil
         guard watchTask == nil else { return }
         watchTask = Task { [weak self] in
             let connected = await Self.connectedAddresses()
@@ -49,6 +59,7 @@ final class T3HeadphonesMonitor: NSObject {
             startup.begin(alreadyConnected: connected)
             connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
                                                              selector: #selector(deviceConnected(_:device:)))
+            watchStarted = true
         }
     }
 
@@ -58,14 +69,19 @@ final class T3HeadphonesMonitor: NSObject {
     }
 
     private func stop() {
-        accessRequest = nil
+        stopWatching()
+        accessListener = nil
+        demoTask?.cancel()
+        demoTask = nil
+    }
+
+    private func stopWatching() {
         watchTask?.cancel()
         watchTask = nil
         startup.end()
         connectNotification?.unregister()
         connectNotification = nil
-        demoTask?.cancel()
-        demoTask = nil
+        watchStarted = false
         popup.dismiss()
     }
 
@@ -84,7 +100,7 @@ final class T3HeadphonesMonitor: NSObject {
                                         kind: HeadphonesKind(appleProductID: first?.appleProductID,
                                                              classOfDevice: classOfDevice, name: name),
                                         battery: first?.battery ?? HeadphonesBattery())
-        guard enabled else { return }
+        guard state.watch == .watch else { return }
         popup.show(connect)
         try? await Task.sleep(for: .milliseconds(1500))
         if let fresh = await Self.report(address: address) {
@@ -143,6 +159,24 @@ final class T3HeadphonesMonitor: NSObject {
 
 extension T3HeadphonesMonitor: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        Task { @MainActor [weak self] in self?.reconcile() }
+        Task { @MainActor [weak self] in self?.accessChanged(to: BluetoothAccess(CBManager.authorization)) }
     }
 }
+
+#if DEBUG
+extension T3HeadphonesMonitor {
+    var debugState: DebugState.HeadphonesMonitor {
+        let status: DebugState.HeadphonesMonitor.Status = watchStarted ? .watching
+            : accessListener != nil ? .listening : .off
+        return DebugState.HeadphonesMonitor(bluetooth: state.access, status: status)
+    }
+
+    var isSettled: Bool {
+        watchTask == nil || watchStarted
+    }
+
+    var systemAccess: BluetoothAccess {
+        BluetoothAccess(CBManager.authorization)
+    }
+}
+#endif

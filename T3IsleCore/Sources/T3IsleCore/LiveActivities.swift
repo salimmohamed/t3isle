@@ -157,21 +157,50 @@ public struct HeadphonesConnect: Identifiable, Equatable, Sendable {
     }
 }
 
+public enum BluetoothAccess: String, CaseIterable, Codable, Sendable {
+    case notDetermined = "not-determined"
+    case restricted, denied, allowed
+
+    public init(_ authorization: CBManagerAuthorization) {
+        switch authorization {
+        case .allowedAlways: self = .allowed
+        case .notDetermined: self = .notDetermined
+        case .restricted: self = .restricted
+        default: self = .denied
+        }
+    }
+}
+
 public enum HeadphonesWatch: Equatable, Sendable {
     case off
-    case askForAccess
+    case listenForAccess
     case watch
 
-    public init(enabled: Bool, authorization: CBManagerAuthorization) {
+    public init(enabled: Bool, access: BluetoothAccess) {
         guard enabled else {
             self = .off
             return
         }
-        switch authorization {
-        case .allowedAlways: self = .watch
-        case .notDetermined: self = .askForAccess
-        default: self = .off
-        }
+        self = access == .allowed ? .watch : .listenForAccess
+    }
+}
+
+public struct HeadphonesAccess: Equatable, Sendable {
+    public private(set) var enabled = false
+    public private(set) var access: BluetoothAccess
+
+    public init(access: BluetoothAccess) {
+        self.access = access
+    }
+
+    public var watch: HeadphonesWatch { HeadphonesWatch(enabled: enabled, access: access) }
+
+    public mutating func setEnabled(_ enabled: Bool) {
+        self.enabled = enabled
+    }
+
+    public mutating func accessChanged(to access: BluetoothAccess) {
+        self.access = access
     }
 }
 

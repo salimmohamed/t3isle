@@ -22,6 +22,18 @@ public struct DebugState: Codable, Equatable, Sendable {
         public let kind: String
     }
 
+    public struct HeadphonesMonitor: Codable, Equatable, Sendable {
+        public enum Status: String, Codable, Sendable { case off, listening, watching }
+
+        public let bluetooth: BluetoothAccess
+        public let status: Status
+
+        public init(bluetooth: BluetoothAccess, status: Status) {
+            self.bluetooth = bluetooth
+            self.status = status
+        }
+    }
+
     public struct T3: Codable, Equatable, Sendable {
         public enum Source: String, Codable, Sendable { case live, demo, replay }
         public enum Connection: String, Codable, Sendable {
@@ -124,16 +136,18 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let closedActivity: Activity
     public let headphones: Headphones?
     public let notchViewModels: Int
+    public let headphonesMonitor: HeadphonesMonitor
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
-                headphones: HeadphonesConnect?, notchViewModels: Int, t3: T3) {
+                headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen
         self.closedActivity = Activity(closedActivity)
         self.headphones = headphones.map { Headphones(name: $0.name, kind: "\($0.kind)") }
         self.notchViewModels = notchViewModels
+        self.headphonesMonitor = headphonesMonitor
         self.t3 = t3
     }
 
@@ -145,6 +159,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         try container.encode(closedActivity, forKey: .closedActivity)
         try container.encode(headphones, forKey: .headphones)
         try container.encode(notchViewModels, forKey: .notchViewModels)
+        try container.encode(headphonesMonitor, forKey: .headphonesMonitor)
         try container.encode(t3, forKey: .t3)
     }
 
