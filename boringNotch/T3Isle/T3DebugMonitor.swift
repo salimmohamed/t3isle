@@ -19,6 +19,11 @@ final class T3DebugMonitor {
         let runtime = T3IsleRuntime.shared
         let coordinator = BoringViewCoordinator.shared
         let log = log
+        do {
+            try folders.recordRunPid(ProcessInfo.processInfo.processIdentifier)
+        } catch {
+            record("run.failed", ["message": error.localizedDescription])
+        }
         record("app.launched", ["pid": String(ProcessInfo.processInfo.processIdentifier), "version": appVersion,
                                 "source": runtime.sourceKind.rawValue])
         for replay in runtime.replaySources {

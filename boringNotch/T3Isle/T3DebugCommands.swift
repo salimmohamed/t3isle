@@ -72,7 +72,7 @@ enum T3DebugCommands {
             notch.open()
         case .demo(let on):
             if on != T3IsleRuntime.isDemo {
-                ApplicationRelauncher.restart(adding: on ? ["--demo"] : []) { failed("relaunch", $0) }
+                ApplicationRelauncher.restart(demo: on) { failed("relaunch", $0) }
             }
         case .replay(let name):
             try requireT3()

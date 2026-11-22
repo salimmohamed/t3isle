@@ -37,7 +37,7 @@ struct DynamicNotchApp: App {
             .keyboardShortcut(KeyEquivalent(","), modifiers: .command)
             Divider()
             Button("Restart T3 Isle") {
-                ApplicationRelauncher.restart()
+                ApplicationRelauncher.restart(demo: T3IsleRuntime.isDemo)
             }
             Button("Quit", role: .destructive) {
                 NSApplication.shared.terminate(self)
