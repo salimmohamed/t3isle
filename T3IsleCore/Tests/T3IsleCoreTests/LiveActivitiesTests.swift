@@ -122,6 +122,17 @@ final class LiveActivitiesTests: XCTestCase {
     }
 
     @MainActor
+    func testStartupListClearsWhenItsWindowEnds() async {
+        let clock = TestClock()
+        let startup = StartupHeadphones(window: 2, clock: clock)
+        startup.begin(alreadyConnected: [pods.address])
+        await clock.waitForSleepers()
+        clock.advance(by: 2)
+        await startup.clearTask?.value
+        XCTAssertTrue(startup.isNewConnect(pods.address))
+    }
+
+    @MainActor
     func testTurningOffForgetsTheStartupList() async {
         let startup = StartupHeadphones(window: 2, clock: TestClock())
         startup.begin(alreadyConnected: [pods.address])

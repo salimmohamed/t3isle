@@ -82,6 +82,7 @@ final class T3HeadphonesMonitor: NSObject {
         let connect = HeadphonesConnect(address: address, name: name,
                                         kind: HeadphonesKind(productID: first?.productID, name: name),
                                         battery: first?.battery ?? HeadphonesBattery())
+        guard enabled else { return }
         popup.show(connect)
         try? await Task.sleep(for: .milliseconds(1500))
         if let fresh = await Self.report(address: address) {
