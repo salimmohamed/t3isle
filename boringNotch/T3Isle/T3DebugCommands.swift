@@ -87,6 +87,12 @@ enum T3DebugCommands {
             runtime.showHeadphones(name: name, battery: battery, device: device)
         case .airpodsDisconnect:
             runtime.hideHeadphones()
+        case .bluetoothAccess(let access):
+            let system = runtime.systemBluetoothAccess
+            guard access != .allowed || system == .allowed else {
+                throw Failure("Bluetooth access for this app is \(system.rawValue), so allowed would call Bluetooth without access")
+            }
+            runtime.feedBluetoothAccess(access)
         }
     }
 

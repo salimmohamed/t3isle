@@ -21,6 +21,10 @@ final class DebugCommandTests: XCTestCase {
         (["airpods-connect", "Pill", "SPEAKER"], .airpodsConnect(name: "Pill", battery: nil, device: .speaker)),
         (["airpods-connect", "My Car", "80", "car"], .airpodsConnect(name: "My Car", battery: 80, device: .car)),
         (["airpods-disconnect"], .airpodsDisconnect),
+        (["bluetooth-access", "Denied"], .bluetoothAccess(.denied)),
+        (["bluetooth-access", "not-determined"], .bluetoothAccess(.notDetermined)),
+        (["bluetooth-access", "allowed"], .bluetoothAccess(.allowed)),
+        (["bluetooth-access", "system"], .bluetoothAccess(nil)),
     ]
 
     func testParsesEveryCommandFromTokens() throws {
@@ -45,6 +49,7 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertEqual(DebugCommand.tab(.t3).reverse, .closeNotch)
         XCTAssertEqual(DebugCommand.replay("question").reverse, .replayOff)
         XCTAssertEqual(DebugCommand.openSettings(pane: "t3").reverse, .closeSettings)
+        XCTAssertEqual(DebugCommand.bluetoothAccess(.allowed).reverse, .bluetoothAccess(nil))
         XCTAssertEqual(DebugCommand.airpodsConnect(name: "AirPods Max", battery: 64, device: nil).line, "airpods-connect AirPods Max 64")
         XCTAssertEqual(DebugCommand.airpodsConnect(name: "Pill", battery: nil, device: .speaker).line, "airpods-connect Pill speaker")
     }
@@ -67,6 +72,8 @@ final class DebugCommandTests: XCTestCase {
             (["airpods-connect", "AirPods", "full"], airpodsUsage),
             (["airpods-connect", "AirPods", "car", "50"], airpodsUsage),
             (["airpods-connect", "AirPods", "50", "car", "car"], airpodsUsage),
+            (["bluetooth-access"], "bluetooth-access not-determined|restricted|denied|allowed|system"),
+            (["bluetooth-access", "granted"], "bluetooth-access not-determined|restricted|denied|allowed|system"),
         ]
         for (tokens, usage) in bad {
             XCTAssertThrowsError(try DebugCommand.parse(tokens)) { XCTAssertEqual($0 as? DebugCommandError, .usage(usage)) }

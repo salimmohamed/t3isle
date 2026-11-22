@@ -93,6 +93,7 @@ final class T3DebugMonitor {
                                closedActivity: T3Tabs.closedActivity(),
                                headphones: runtime.headphones,
                                notchViewModels: Self.notches.allObjects.count,
+                               headphonesMonitor: runtime.headphonesMonitorState,
                                t3: runtime.debugState)
         try folders.createLogs()
         try DebugState.encoded(state).write(to: folders.stateFile, options: .atomic)

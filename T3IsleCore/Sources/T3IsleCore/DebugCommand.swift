@@ -13,6 +13,7 @@ public enum DebugCommand: Equatable, Sendable {
     case state
     case airpodsConnect(name: String, battery: Int?, device: BluetoothAudioClass?)
     case airpodsDisconnect
+    case bluetoothAccess(BluetoothAccess?)
 
     public static let scheme = "t3isle-debug"
     public static let launchFlag = "--debug"
@@ -49,6 +50,8 @@ public enum DebugCommand: Equatable, Sendable {
         Spec(name: "airpods-connect", arguments: "[name] [battery] [\(BluetoothAudioClass.allCases.map(\.rawValue).joined(separator: "|"))]",
              summary: "Show the headphones activity as if a device of that Bluetooth class just connected", build: airpodsConnect),
         Spec(name: "airpods-disconnect", arguments: "", summary: "Hide the headphones activity") { $0.isEmpty ? .airpodsDisconnect : nil },
+        Spec(name: "bluetooth-access", arguments: (BluetoothAccess.allCases.map(\.rawValue) + ["system"]).joined(separator: "|"),
+             summary: "Feed the headphones monitor a Bluetooth access change, or the real access again with system", build: bluetoothAccess),
     ]
 
     public var tokens: [String] {
@@ -65,6 +68,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .airpodsConnect(let name, let battery, let device):
             ["airpods-connect", name] + (battery.map { [String($0)] } ?? []) + (device.map { [$0.rawValue] } ?? [])
         case .airpodsDisconnect: ["airpods-disconnect"]
+        case .bluetoothAccess(let access): ["bluetooth-access", access?.rawValue ?? "system"]
         }
     }
 
@@ -81,6 +85,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .state: nil
         case .airpodsConnect: .airpodsDisconnect
         case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)
+        case .bluetoothAccess: .bluetoothAccess(nil)
         }
     }
 
@@ -89,6 +94,13 @@ public enum DebugCommand: Equatable, Sendable {
         let name = arguments[0].lowercased()
         if name == "off" { return .replayOff }
         return Scenario.names.contains(name) ? .replay(name) : nil
+    }
+
+    private static func bluetoothAccess(_ arguments: [String]) -> DebugCommand? {
+        guard arguments.count == 1 else { return nil }
+        let name = arguments[0].lowercased()
+        if name == "system" { return .bluetoothAccess(nil) }
+        return BluetoothAccess(rawValue: name).map(DebugCommand.bluetoothAccess)
     }
 
     private static func airpodsConnect(_ arguments: [String]) -> DebugCommand? {

@@ -24,24 +24,63 @@ final class LiveActivitiesTests: XCTestCase {
         XCTAssertEqual(ClosedActivity.resolve(t3: .none, headphones: nil, nowPlaying: false), .none)
     }
 
-    func testUnansweredBluetoothAccessAsksBeforeWatching() {
-        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .notDetermined), .askForAccess)
+    func testBluetoothAccessReadsEachAuthorization() {
+        let authorizations: [CBManagerAuthorization] = [.notDetermined, .restricted, .denied, .allowedAlways]
+        XCTAssertEqual(authorizations.map(BluetoothAccess.init), [.notDetermined, .restricted, .denied, .allowed])
     }
 
-    func testDeniedBluetoothAccessKeepsHeadphonesOff() {
-        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .denied), .off)
-        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .restricted), .off)
+    func testEnabledWithoutAccessListensForAGrant() {
+        for access in [BluetoothAccess.notDetermined, .restricted, .denied] {
+            XCTAssertEqual(HeadphonesWatch(enabled: true, access: access), .listenForAccess)
+        }
     }
 
-    func testAllowedBluetoothAccessWatchesOnlyWhenEnabled() {
-        XCTAssertEqual(HeadphonesWatch(enabled: true, authorization: .allowedAlways), .watch)
-        XCTAssertEqual(HeadphonesWatch(enabled: false, authorization: .allowedAlways), .off)
-        XCTAssertEqual(HeadphonesWatch(enabled: false, authorization: .notDetermined), .off)
+    func testWatchesOnlyWhenEnabledAndAllowed() {
+        XCTAssertEqual(HeadphonesWatch(enabled: true, access: .allowed), .watch)
+        for access in BluetoothAccess.allCases {
+            XCTAssertEqual(HeadphonesWatch(enabled: false, access: access), .off)
+        }
     }
 
-    func testAnsweringAllowStartsWatching() {
-        let answered: [CBManagerAuthorization] = [.notDetermined, .allowedAlways]
-        XCTAssertEqual(answered.map { HeadphonesWatch(enabled: true, authorization: $0) }, [.askForAccess, .watch])
+    func testStartsOffUntilTheSettingIsOn() {
+        var state = HeadphonesAccess(access: .allowed)
+        XCTAssertEqual(state.watch, .off)
+        state.setEnabled(true)
+        XCTAssertEqual(state.watch, .watch)
+    }
+
+    func testGrantAfterDenialStartsWatching() {
+        var state = HeadphonesAccess(access: .denied)
+        state.setEnabled(true)
+        XCTAssertEqual(state.watch, .listenForAccess)
+        state.accessChanged(to: .allowed)
+        XCTAssertEqual(state.watch, .watch)
+    }
+
+    func testGrantFromThePromptStartsWatching() {
+        var state = HeadphonesAccess(access: .notDetermined)
+        state.setEnabled(true)
+        XCTAssertEqual(state.watch, .listenForAccess)
+        state.accessChanged(to: .allowed)
+        XCTAssertEqual(state.watch, .watch)
+    }
+
+    func testRevokingAccessStopsWatchingAndKeepsListening() {
+        var state = HeadphonesAccess(access: .allowed)
+        state.setEnabled(true)
+        state.accessChanged(to: .denied)
+        XCTAssertEqual(state.watch, .listenForAccess)
+        state.accessChanged(to: .allowed)
+        XCTAssertEqual(state.watch, .watch)
+    }
+
+    func testTurningTheSettingOffStopsEverything() {
+        var state = HeadphonesAccess(access: .allowed)
+        state.setEnabled(true)
+        state.setEnabled(false)
+        XCTAssertEqual(state.watch, .off)
+        state.accessChanged(to: .denied)
+        XCTAssertEqual(state.watch, .off)
     }
 
     func testReportReadsTheLowerBudLevelByAddress() throws {

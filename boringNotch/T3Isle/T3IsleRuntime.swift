@@ -84,6 +84,18 @@ final class T3IsleRuntime: ObservableObject {
         headphonesPopup.dismiss()
     }
 
+    var systemBluetoothAccess: BluetoothAccess {
+        headphonesMonitor.systemAccess
+    }
+
+    func feedBluetoothAccess(_ access: BluetoothAccess?) {
+        headphonesMonitor.accessChanged(to: access ?? systemBluetoothAccess)
+    }
+
+    var headphonesMonitorState: DebugState.HeadphonesMonitor {
+        headphonesMonitor.debugState
+    }
+
     func play(_ scenario: Scenario) {
         debugSource.play(scenario)
         model.restart()
@@ -110,6 +122,7 @@ final class T3IsleRuntime: ObservableObject {
     private var replayStatus: ReplayStatus? { activeReplay?.current }
 
     var isSettled: Bool {
+        guard headphonesMonitor.isSettled else { return false }
         guard Defaults[.t3Enabled], let replay = activeReplay else { return !model.isFetchingDetails }
         return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
     }
