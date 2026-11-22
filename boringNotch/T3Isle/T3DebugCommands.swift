@@ -71,7 +71,9 @@ enum T3DebugCommands {
             BoringViewCoordinator.shared.currentView = tab
             notch.open()
         case .demo(let on):
-            if on != T3IsleRuntime.isDemo { relaunch(arguments: StateFolders.current.launchArguments + (on ? ["--demo"] : [])) }
+            if on != T3IsleRuntime.isDemo {
+                ApplicationRelauncher.restart(adding: on ? ["--demo"] : []) { failed("relaunch", $0) }
+            }
         case .replay(let name):
             try requireT3()
             runtime.play(try Scenario.named(name))
@@ -89,18 +91,6 @@ enum T3DebugCommands {
 
     private static func requireT3() throws {
         guard Defaults[.t3Enabled] else { throw Failure("T3 is turned off in Settings") }
-    }
-
-    private static func relaunch(arguments: [String]) {
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.createsNewApplicationInstance = true
-        configuration.arguments = arguments
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
-            Task { @MainActor in
-                if let error { return failed("relaunch", error) }
-                NSApp.terminate(nil)
-            }
-        }
     }
 
     private static func failed(_ input: String, _ error: Error) {

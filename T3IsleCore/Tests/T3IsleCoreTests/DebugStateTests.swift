@@ -78,4 +78,23 @@ final class DebugEventLogTests: XCTestCase {
         let events = try lines.map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])["event"] as? String }
         XCTAssertEqual(events, ["first", "second"])
     }
+
+    func testALateWriteFromAnEarlierProcessKeepsTheNewProcessLine() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("debug-event-log-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let folders = StateFolders.isolated(in: root)
+
+        let quitting = DebugEventLog(folders: folders)
+        quitting.flush()
+        let launched = DebugEventLog(folders: folders)
+        launched.record("app.launched", at: Date(timeIntervalSince1970: 0))
+        launched.flush()
+        quitting.record("app.terminating", at: Date(timeIntervalSince1970: 0))
+        quitting.flush()
+
+        let lines = try String(contentsOf: folders.eventLog, encoding: .utf8).split(separator: "\n")
+        let events = try lines.map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])["event"] as? String }
+        XCTAssertEqual(events, ["app.launched", "app.terminating"])
+    }
 }
