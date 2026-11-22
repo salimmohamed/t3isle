@@ -131,13 +131,19 @@ enum T3Tabs {
     }
 
     @MainActor
-    static var isAvailable: Bool { Defaults[.t3Enabled] }
+    static var barShown: Bool {
+        NotchTab.barShown(t3Enabled: Defaults[.t3Enabled],
+                          shelfEnabled: Defaults[.boringShelf],
+                          shelfEmpty: ShelfStateViewModel.shared.isEmpty,
+                          alwaysShowTabs: BoringViewCoordinator.shared.alwaysShowTabs)
+    }
 
     @MainActor
     static func openingView(current: NotchViews) -> NotchViews {
         Defaults[.openingTab].tab(current: current,
                                   t3Ready: Defaults[.t3Enabled] && T3IsleRuntime.shared.model.hasAgents,
-                                  shelfFirst: !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault])
+                                  shelfFirst: !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault],
+                                  barShown: barShown)
     }
 
     static func migrateRememberLastTab() {

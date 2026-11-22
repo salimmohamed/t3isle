@@ -145,7 +145,10 @@ struct T3Integration: ViewModifier {
     @ObservedObject var vm: BoringViewModel
     @ObservedObject var model = T3IsleRuntime.shared.model
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @ObservedObject private var shelf = ShelfStateViewModel.shared
     @Default(.openingTab) private var openingTab
+    @Default(.t3Enabled) private var t3Enabled
+    @Default(.boringShelf) private var shelfEnabled
     @State private var openedByT3 = false
     @State private var closeTask: Task<Void, Never>?
 
@@ -169,10 +172,8 @@ struct T3Integration: ViewModifier {
                 guard vm.notchState == .open else { return }
                 vm.notchSize = T3Tabs.openSize(for: view, base: openNotchSize)
             }
-            .onChange(of: openingTab) { _, _ in
-                guard vm.notchState == .closed else { return }
-                coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
-            }
+            .onChange(of: openingTab) { _, _ in resolveOpeningTabWhileClosed() }
+            .onChange(of: [t3Enabled, shelfEnabled, shelf.isEmpty]) { _, _ in resolveOpeningTabWhileClosed() }
             .onChange(of: vm.notchState) { _, state in
                 if state == .closed {
                     openedByT3 = false
@@ -181,6 +182,11 @@ struct T3Integration: ViewModifier {
                     coordinator.currentView = T3Tabs.openingView(current: .home)
                 }
             }
+    }
+
+    private func resolveOpeningTabWhileClosed() {
+        guard vm.notchState == .closed else { return }
+        coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
     }
 
     private func show(holdFor seconds: TimeInterval?) {

@@ -2,6 +2,10 @@ import Foundation
 
 public enum NotchTab: String, CaseIterable, Codable, Sendable {
     case home, t3, shelf
+
+    public static func barShown(t3Enabled: Bool, shelfEnabled: Bool, shelfEmpty: Bool, alwaysShowTabs: Bool) -> Bool {
+        t3Enabled || shelfEnabled && (alwaysShowTabs || !shelfEmpty)
+    }
 }
 
 public enum OpeningTab: String, CaseIterable, Sendable {
@@ -16,7 +20,8 @@ public enum OpeningTab: String, CaseIterable, Sendable {
         }
     }
 
-    public func tab(current: NotchTab, t3Ready: Bool, shelfFirst: Bool) -> NotchTab {
+    public func tab(current: NotchTab, t3Ready: Bool, shelfFirst: Bool, barShown: Bool) -> NotchTab {
+        guard barShown else { return .home }
         if shelfFirst { return .shelf }
         let wanted: NotchTab = switch self {
         case .home: .home
