@@ -28,18 +28,25 @@ while [ $index -lt ${#proof_kinds[@]} ]; do
   index=$((index + 1))
 done
 
-launched=$("$scripts/run-debug.sh" --no-build --state-dir "$state" ${launch_arguments[@]+"${launch_arguments[@]}"}) || {
-  echo "prove: the $side app did not start" >&2
-  exit 2
-}
-pid=$(jq -r '.pid // empty' <<< "$launched")
-[[ "$pid" =~ ^[0-9]+$ ]] || { echo "prove: the $side app printed no pid" >&2; exit 2; }
-
+pid=""
 stop() {
-  "$scripts/stop-debug.sh" --state-dir "$state" "$pid" >&2
+  local found=$pid
+  [ -n "$found" ] || found=$(ps -axww -o pid=,args= | awk -v flag=" --state-dir $state" 'index($0, "/Contents/MacOS/T3 Isle ") && index($0, flag) { print $1 }')
+  for found_pid in $found; do
+    "$scripts/stop-debug.sh" --state-dir "$state" "$found_pid" >&2
+  done
 }
 trap stop EXIT
 trap 'exit 3' INT TERM
+
+launched=$("$scripts/run-debug.sh" --no-build --state-dir "$state" ${launch_arguments[@]+"${launch_arguments[@]}"})
+launch_status=$?
+pid=$(jq -r '.pid // empty' <<< "$launched" 2>/dev/null)
+[[ "$pid" =~ ^[0-9]+$ ]] || pid=""
+if [ "$launch_status" -ne 0 ] || [ -z "$pid" ]; then
+  echo "prove: the $side app did not start" >&2
+  exit 2
+fi
 
 failed=0
 index=0

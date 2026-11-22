@@ -20,7 +20,8 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 for argument in "$@"; do
   [ "$argument" != --build-only ] || { [ ! -f "$root/build-fails" ] || exit 1; exit 0; }
 done
-[ ! -f "$root/no-start" ] || exit 3
+echo "$*" >> "$PROVE_TEST_LOG"
+[ ! -f "$root/no-start" ] || { echo '{"pid":4243,"error":"stub"}'; exit 3; }
 echo '{"pid":4242,"app":"stub"}'
 """,
     "debug.sh": """#!/bin/bash
@@ -49,7 +50,7 @@ file="$out/$(printf '%02d' $((count + 1)))-$label$suffix.png"
 echo png > "$file"
 echo "$file"
 """,
-    "stop-debug.sh": "#!/bin/bash\nexit 0\n",
+    "stop-debug.sh": "#!/bin/bash\necho \"stop $*\" >> \"$PROVE_TEST_LOG\"\n",
 }
 
 PROOF = """# the tab opens on home
@@ -76,6 +77,14 @@ class ProveTests(unittest.TestCase):
             (scripts / name).write_text(body)
         for script in scripts.rglob("*.sh"):
             script.chmod(0o755)
+        self.log = self.dir / "calls.log"
+        self.log.write_text("")
+        bin_dir = self.dir / "bin"
+        bin_dir.mkdir()
+        fake_defaults = bin_dir / "defaults"
+        fake_defaults.write_text('#!/bin/bash\necho "defaults $*" >> "$PROVE_TEST_LOG"\n')
+        fake_defaults.chmod(0o755)
+        self.bin_dir = bin_dir
         self.git("init", "-q", "-b", "main")
         self.proof = self.dir / "tab.proof"
         self.proof.write_text(PROOF)
@@ -98,8 +107,11 @@ class ProveTests(unittest.TestCase):
         self.git("commit", "-q", "-m", name)
         return self.git("rev-parse", "HEAD")
 
-    def prove(self, *args: str) -> subprocess.CompletedProcess[str]:
+    def prove(self, *args: str, **extra_env: str) -> subprocess.CompletedProcess[str]:
         env = {k: v for k, v in os.environ.items() if not k.startswith("T3ISLE_")}
+        env["PROVE_TEST_LOG"] = str(self.log)
+        env["PATH"] = f"{self.bin_dir}:{env['PATH']}"
+        env.update(extra_env)
         return subprocess.run(
             [str(self.repo / "scripts" / "prove.sh"), "--out", str(self.dir / "out"), *args],
             cwd=self.repo, capture_output=True, text=True, env=env,
@@ -211,6 +223,46 @@ class ProveTests(unittest.TestCase):
         self.assertEqual(self.git("worktree", "list").count("\n"), 0)
         self.assertEqual(list((self.repo / ".build").glob("prove.*")), [])
 
+    def calls(self) -> list[str]:
+        return self.log.read_text().splitlines()
+
+    def test_stops_each_app_it_launched(self) -> None:
+        broken, fixed = self.fixed_and_broken()
+        self.prove("--base", broken, "--head", fixed, str(self.proof))
+        stops = [c for c in self.calls() if c.startswith("stop ")]
+        self.assertEqual(len(stops), 2)
+        self.assertTrue(all(c.endswith(" 4242") for c in stops))
+
+    def test_stops_an_app_that_started_but_never_became_ready(self) -> None:
+        broken, _ = self.fixed_and_broken()
+        stuck = self.commit("does not start", no_start="")
+        result = self.prove("--base", broken, "--head", stuck, str(self.proof))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertTrue(any(c.startswith("stop ") and c.endswith(" 4243") for c in self.calls()))
+
+    def test_passes_settings_and_launch_arguments_to_the_app(self) -> None:
+        broken, fixed = self.fixed_and_broken()
+        self.proof.write_text("set t3Enabled bool false\nset openingTab string last\nlaunch --demo\n" + PROOF)
+        result = self.prove("--base", broken, "--head", fixed, str(self.proof))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        self.assertEqual(sum(c.startswith("defaults write ") and c.endswith("/defaults t3Enabled -bool false") for c in calls), 2)
+        self.assertEqual(sum(c.endswith("/defaults openingTab -string last") for c in calls), 2)
+        self.assertEqual(sum(c.startswith("--no-build --state-dir ") and c.endswith(" --demo") for c in calls), 2)
+
+    def test_exits_3_when_a_wrapper_ends_a_session_without_running_its_checks(self) -> None:
+        _, fixed = self.fixed_and_broken()
+        result = self.prove("--base", fixed, "--head", fixed, str(self.proof), T3ISLE_PROVE_SCREEN_WRAP="false")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertIn("recorded 0 of 1 checks", result.stderr)
+
+    def test_removes_its_worktrees_after_a_failed_run(self) -> None:
+        broken, _ = self.fixed_and_broken()
+        stuck = self.commit("does not start", no_start="")
+        self.prove("--base", broken, "--head", stuck, str(self.proof))
+        self.assertEqual(self.git("worktree", "list").count("\n"), 0)
+        self.assertEqual(list((self.repo / ".build").glob("prove.*")), [])
+
     def test_rejects_bad_arguments_with_64(self) -> None:
         broken, fixed = self.fixed_and_broken()
         bad_proofs = {
@@ -219,6 +271,7 @@ class ProveTests(unittest.TestCase):
             "repeated label": PROOF + "shot opened\n",
             "bad label": PROOF + "shot no/slash\n",
             "bad set": PROOF + "set key flag value\n",
+            "bare launch": PROOF + "launch\n",
             "bad filter": PROOF + "check .tab ==\n",
         }
         for name, content in bad_proofs.items():

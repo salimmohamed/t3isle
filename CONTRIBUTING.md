@@ -324,9 +324,9 @@ shot notch-open
 check .tab == "home"
 ```
 
-A check is a `jq -e` assertion on `scripts/debug.sh state`, so it is as stable as the state file. A side passes when every check passes. The script runs every step even after a check fails, so the screenshots are complete, and a filter that errors on the state breaks the proof instead of failing it.
+A check is a `jq -e` assertion on `scripts/debug.sh state`, so it is as stable as the state file. A side passes when every check passes. The script runs every step even after a check fails, so the screenshots are complete. A filter that errors on the state, or that prints nothing, breaks the proof instead of failing it. Each side starts a fresh state folder, so a live proof leaves one 30-day "T3 Isle Debug" T3 session per side per run. Start the proof with `launch --demo` or `set t3Enabled bool false` to avoid that.
 
-The script pairs the screenshots by label: `base/captures/<NN>-<label>.png` and `head/captures/<NN>-<label>.png` under the output folder. It writes `report.json` there, prints the same JSON on stdout, and says on stderr which side is wrong when the proof fails. A label that only one side captured is listed with `null` for the other. The exit code is:
+The script pairs the screenshots by label: `base/captures/<NN>-<label>.png` and `head/captures/<NN>-<label>.png` under the output folder. On exit 0 or 1 it writes `report.json` there and prints the same JSON on stdout, and says on stderr which side is wrong when the proof fails. A label that only one side captured is listed with `null` for the other. The exit code is:
 
 | Code | Meaning |
 | --- | --- |

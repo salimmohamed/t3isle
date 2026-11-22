@@ -54,6 +54,11 @@ rm -rf "$out/base" "$out/head" "$out/report.json"
 mkdir -p "$root/.build/SourcePackages"
 work=$(mktemp -d "$root/.build/prove.XXXXXX") || die "cannot create a work folder under $root/.build" 3
 
+expected_checks=0
+for kind in "${proof_kinds[@]}"; do
+  [ "$kind" != check ] || expected_checks=$((expected_checks + 1))
+done
+
 build_wrap=(${T3ISLE_PROVE_BUILD_WRAP-})
 screen_wrap=(${T3ISLE_PROVE_SCREEN_WRAP-})
 
@@ -90,7 +95,10 @@ run_side() {
     64) exit 3 ;;
     *) exit "$status" ;;
   esac
-  return "$status"
+  recorded=$(wc -l < "$out/$side/checks.ndjson" 2>/dev/null | tr -d ' ')
+  [ "${recorded:-0}" -eq "$expected_checks" ] || die "the $side session recorded ${recorded:-0} of $expected_checks checks" 3
+  jq -e -s 'all(.[]; .passed)' "$out/$side/checks.ndjson" >/dev/null && return 0
+  return 1
 }
 
 run_side base "$base_sha"; base_status=$?

@@ -29,7 +29,9 @@ proof_load() {
         [ -n "$value" ] || { proof_error="line $number: set needs a key, a type (string, bool, int or float) and a value"; return 1; }
         [[ "$key" =~ ^[A-Za-z0-9._-]+$ ]] || { proof_error="line $number: bad defaults key $key"; return 1; }
         ;;
-      launch) ;;
+      launch)
+        [ -n "$rest" ] || { proof_error="line $number: launch needs arguments"; return 1; }
+        ;;
       run)
         [ -n "$rest" ] || { proof_error="line $number: run needs a debug command"; return 1; }
         ;;
