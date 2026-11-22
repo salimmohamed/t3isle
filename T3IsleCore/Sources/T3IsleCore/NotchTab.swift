@@ -6,6 +6,10 @@ public enum NotchTab: String, CaseIterable, Codable, Sendable {
     public static func barShown(t3Enabled: Bool, shelfEnabled: Bool, shelfEmpty: Bool, alwaysShowTabs: Bool) -> Bool {
         t3Enabled || shelfEnabled && (alwaysShowTabs || !shelfEmpty)
     }
+
+    public func whileOpen(barShown: Bool) -> NotchTab {
+        barShown ? self : .home
+    }
 }
 
 public enum OpeningTab: String, CaseIterable, Sendable {
