@@ -6,6 +6,7 @@ import T3IsleCore
 @MainActor
 final class T3DebugMonitor {
     static let shared = T3DebugMonitor()
+    static let notches = NSHashTable<BoringViewModel>.weakObjects()
 
     private let folders = StateFolders.current
     private let log = DebugEventLog(folders: .current)
@@ -91,6 +92,7 @@ final class T3DebugMonitor {
                                settingsOpen: SettingsWindowController.shared.window?.isVisible == true,
                                closedActivity: T3Tabs.closedActivity(),
                                headphones: runtime.headphones,
+                               notchViewModels: Self.notches.allObjects.count,
                                t3: runtime.debugState)
         try folders.createLogs()
         try DebugState.encoded(state).write(to: folders.stateFile, options: .atomic)

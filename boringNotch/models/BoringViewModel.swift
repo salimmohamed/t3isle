@@ -63,10 +63,13 @@ class BoringViewModel: NSObject, ObservableObject {
             .map { shelf, drag, general in
                 shelf || drag || general
             }
-            .assign(to: \.anyDropZoneTargeting, on: self)
+            .sink { [weak self] in self?.anyDropZoneTargeting = $0 }
             .store(in: &cancellables)
         
         setupDetectorObserver()
+        #if DEBUG
+        T3DebugMonitor.notches.add(self)
+        #endif
     }
     
     private func setupDetectorObserver() {

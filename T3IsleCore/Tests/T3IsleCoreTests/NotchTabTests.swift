@@ -79,12 +79,12 @@ final class NotchTabTests: XCTestCase {
     }
 
     func testOnlyAnOpenDisplayResolvesTheTabWhileAnyDisplayIsOpen() {
-        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: true, anyNotchOpen: true))
-        XCTAssertFalse(NotchTab.resolvedOnDisplay(notchOpen: false, anyNotchOpen: true))
+        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: true, otherNotchOpen: true))
+        XCTAssertFalse(NotchTab.resolvedOnDisplay(notchOpen: false, otherNotchOpen: true))
     }
 
     func testEveryClosedDisplayResolvesTheTabWhenNoneIsOpen() {
-        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: false, anyNotchOpen: false))
+        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: false, otherNotchOpen: false))
     }
 
     func testEmptyShelfWithoutTabBarOpensHomeInsteadOfShelf() {

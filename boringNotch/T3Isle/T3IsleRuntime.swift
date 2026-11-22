@@ -125,9 +125,9 @@ enum T3Tabs {
     @MainActor static var notches: () -> [BoringViewModel] = { [] }
 
     @MainActor
-    static func resolvesTab(on notch: BoringViewModel) -> Bool {
-        NotchTab.resolvedOnDisplay(notchOpen: notch.notchState == .open,
-                                   anyNotchOpen: notches().contains { $0.notchState == .open })
+    static func resolvesTab(on notch: BoringViewModel, notchOpen: Bool? = nil) -> Bool {
+        NotchTab.resolvedOnDisplay(notchOpen: notchOpen ?? (notch.notchState == .open),
+                                   otherNotchOpen: notches().contains { $0 !== notch && $0.notchState == .open })
     }
 
     @MainActor

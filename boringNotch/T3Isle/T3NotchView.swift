@@ -178,7 +178,7 @@ struct T3Integration: ViewModifier {
                 if state == .closed {
                     openedByT3 = false
                     closeTask?.cancel()
-                } else if coordinator.currentView == .home {
+                } else if coordinator.currentView == .home, T3Tabs.resolvesTab(on: vm, notchOpen: false) {
                     coordinator.currentView = T3Tabs.openingView(current: .home)
                 }
             }
