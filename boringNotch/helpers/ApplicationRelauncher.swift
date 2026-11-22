@@ -6,21 +6,27 @@
 //
 
 import AppKit
+import T3IsleCore
 
 enum ApplicationRelauncher {
-    static func restart() {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
-
-        let workspace = NSWorkspace.shared
-
-        guard let appURL = workspace.urlForApplication(withBundleIdentifier: bundleIdentifier)
-        else { return }
-
+    static func restart(adding extraArguments: [String] = [], onFailure: @escaping @MainActor (Error) -> Void = { _ in }) {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        configuration.arguments = launchArguments + extraArguments
 
-        workspace.openApplication(at: appURL, configuration: configuration, completionHandler: nil)
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+            Task { @MainActor in
+                if let error { return onFailure(error) }
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
 
-        NSApplication.shared.terminate(nil)
+    private static var launchArguments: [String] {
+        #if DEBUG
+        StateFolders.current.launchArguments
+        #else
+        []
+        #endif
     }
 }

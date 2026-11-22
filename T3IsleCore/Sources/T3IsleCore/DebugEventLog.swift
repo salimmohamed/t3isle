@@ -48,12 +48,8 @@ public final class DebugEventLog: @unchecked Sendable {
             try? files.removeItem(at: folders.rotatedEventLog)
             try? files.moveItem(at: folders.eventLog, to: folders.rotatedEventLog)
         }
-        if !files.fileExists(atPath: folders.eventLog.path) {
-            files.createFile(atPath: folders.eventLog.path, contents: nil)
-        }
-        let handle = try? FileHandle(forWritingTo: folders.eventLog)
-        _ = try? handle?.seekToEnd()
-        return handle
+        let descriptor = Darwin.open(folders.eventLog.path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        return descriptor < 0 ? nil : FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     }
 }
 #endif
