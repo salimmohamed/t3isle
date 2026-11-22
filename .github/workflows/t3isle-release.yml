@@ -113,7 +113,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security import "$CERT" -k "$KEYCHAIN" -f pkcs12 -P "$RELEASE_CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security list-keychains -d user | tr -d '"' | xargs security list-keychains -d user -s "$KEYCHAIN"
           IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | awk '$1 == "1)" { print $2; exit }')"
           if [[ ! "$IDENTITY" =~ ^[0-9A-F]{40}$ ]]; then
             echo "::error::No code signing identity found in the release certificate"
@@ -246,8 +246,17 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
-          SHA256="$(sha256sum "dist/$DMG_NAME" | cut -d' ' -f1)"
           CASK=tap/Casks/t3-isle.rb
+          CURRENT="$(sed -nE 's/^  version "(.*)"$/\1/p' "$CASK")"
+          if [[ -z "$CURRENT" ]]; then
+            echo "::error::Could not read the current version from $CASK"
+            exit 1
+          fi
+          if [[ "$CURRENT" != "$VERSION" && "$(printf '%s\n%s\n' "$CURRENT" "$VERSION" | sort -V | head -n 1)" == "$VERSION" ]]; then
+            echo "::notice::Skipping the tap update because $VERSION is older than the tap's $CURRENT"
+            exit 0
+          fi
+          SHA256="$(sha256sum "dist/$DMG_NAME" | cut -d' ' -f1)"
           sed -i -E "s/^  version \".*\"$/  version \"$VERSION\"/; s/^  sha256 \".*\"$/  sha256 \"$SHA256\"/" "$CASK"
           grep -qxF "  version \"$VERSION\"" "$CASK"
           grep -qxF "  sha256 \"$SHA256\"" "$CASK"
