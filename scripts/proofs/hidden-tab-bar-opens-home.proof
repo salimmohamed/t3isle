@@ -1,0 +1,7 @@
+set t3Enabled bool false
+set alwaysShowTabs bool false
+set openingTab string shelf
+run close-notch
+run open-notch
+shot notch-open
+check .tab == "home"

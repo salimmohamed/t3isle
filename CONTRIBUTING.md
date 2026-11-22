@@ -247,7 +247,7 @@ scripts/run-debug.sh --no-build --state-dir "$PWD/.build/debug-b" --debug tab t3
 {"app":"…/.build/DerivedData/Build/Products/Debug/T3 Isle.app","pid":4242,"log":"…/.build/debug-state/logs/events.ndjson","state":"…/.build/debug-state/logs/state.json","stateDir":"…/.build/debug-state"}
 ```
 
-On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
+`--build-only` stops after the build and signing without launching. On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
 
 To keep macOS permissions across builds, set a signing identity (a certificate's SHA-1 or name) in your shell, never in the repo. Without one, the app keeps its build signature.
 
@@ -292,6 +292,51 @@ scripts/stop-debug.sh --state-dir "$PWD/.build/debug-b"
 ```sh
 scripts/check-changed.sh
 ```
+
+#### Prove a fix
+
+`scripts/prove.sh <proof>` shows that a change fixes what it says it fixes. It checks out a base commit and a head commit into separate worktrees under `.build/`, builds and launches each with its own [state folder](#a-state-folder-per-copy), plays the proof on both, and passes only when the base fails the proof's checks and the head passes them. It removes the worktrees and state folders when it exits.
+
+```sh
+scripts/prove.sh --base 8cc6480~1 --head 8cc6480 hidden-tab-bar-opens-home
+scripts/prove.sh --base origin/main --head HEAD path/to/my.proof
+```
+
+`--base` defaults to `origin/main`, `--head` to `HEAD`, and `--out` to `.build/prove-out`. The argument is a proof file, or the name of one in `scripts/proofs/`. The harness (the proof parser, `run-debug.sh`, `debug.sh`, `capture.sh` and `stop-debug.sh`) always comes from the checkout that runs `prove.sh`, so a base that predates those scripts still runs. The proof itself must work on both commits: a replay scenario the fix adds is not on the base.
+
+A proof is a text file with one directive per line. Blank lines and lines starting with `#` are ignored.
+
+| Directive | What it does |
+| --- | --- |
+| `set <key> <string\|bool\|int\|float> <value>` | Writes a setting to the state folder's defaults before launch |
+| `launch <args...>` | Adds arguments to the app launch, such as `--demo` |
+| `run <command> [args...]` | Sends a [debug command](#debug-commands) with `scripts/debug.sh`, split on spaces |
+| `shot <label>` | Captures the window with `scripts/capture.sh`. A label is used once per proof |
+| `check <jq filter>` | Reads the [state](#read-the-state) and passes when the filter's last output is neither `false` nor `null` |
+
+```
+set t3Enabled bool false
+set alwaysShowTabs bool false
+set openingTab string shelf
+run close-notch
+run open-notch
+shot notch-open
+check .tab == "home"
+```
+
+A check is a `jq -e` assertion on `scripts/debug.sh state`, so it is as stable as the state file. A side passes when every check passes. The script runs every step even after a check fails, so the screenshots are complete. A filter that errors on the state, or that prints nothing, breaks the proof instead of failing it. Each side starts a fresh state folder, so a live proof leaves one 30-day "T3 Isle Debug" T3 session per side per run. Start the proof with `launch --demo` or `set t3Enabled bool false` to avoid that.
+
+The script pairs the screenshots by label: `base/captures/<NN>-<label>.png` and `head/captures/<NN>-<label>.png` under the output folder. On exit 0 or 1 it writes `report.json` there and prints the same JSON on stdout, and says on stderr which side is wrong when the proof fails. A label that only one side captured is listed with `null` for the other. The exit code is:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Proven: the base fails a check and the head passes them all |
+| 1 | Not proven: the base passes every check, or the head fails one |
+| 2 | A build failed, or the app did not start |
+| 3 | The proof broke: a step failed, the state could not be read, a filter errored, or the screenshot failed |
+| 64 | Bad arguments, an unknown ref, or an invalid proof file |
+
+Two environment variables put a prefix in front of each build (`T3ISLE_PROVE_BUILD_WRAP`) and each app session (`T3ISLE_PROVE_SCREEN_WRAP`), for a machine where builders share one build slot and one screen. Both are empty by default. `.github/scripts/tests/test_prove.py` runs in the "Script tests" CI job and covers the arguments, exit codes and pairing with stand-ins for the app scripts.
 
 #### Hazards
 
