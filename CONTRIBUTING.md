@@ -218,7 +218,7 @@ defaults read "$PWD/.build/debug-state/defaults"
 defaults write "$PWD/.build/debug-state/defaults" nonNotchHeightMode -string "Custom height"
 ```
 
-Pass an absolute path, since `open` starts the app from `/`. `demo on|off` and Restart T3 Isle in the menu keep the folder when they relaunch. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
+Pass an absolute path, since `open` starts the app from `/`. `demo on|off` and Restart T3 Isle in the menu keep the folder when they relaunch, but only `demo on|off` updates the PID in `run.json`, so the scripts lose the copy after a menu Restart. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
 
 #### Scripts
 
