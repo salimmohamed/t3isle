@@ -72,11 +72,11 @@ final class T3IsleRuntime: ObservableObject {
     }
 
     #if DEBUG
-    func showHeadphones(name: String, battery: Int?) {
-        let kind = HeadphonesKind(productID: nil, name: name)
-        let level = kind == .airpodsMax || kind == .headphones
-            ? HeadphonesBattery(single: battery)
-            : HeadphonesBattery(left: battery, right: battery)
+    func showHeadphones(name: String, battery: Int?, device: BluetoothAudioClass?) {
+        let kind = HeadphonesKind(appleProductID: nil, classOfDevice: device?.classOfDevice, name: name)
+        let level = kind.hasTwoBuds
+            ? HeadphonesBattery(left: battery, right: battery)
+            : HeadphonesBattery(single: battery)
         headphonesPopup.show(HeadphonesConnect(address: "debug", name: name, kind: kind, battery: level))
     }
 

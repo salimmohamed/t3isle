@@ -71,16 +71,18 @@ final class T3HeadphonesMonitor: NSObject {
 
     @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         guard let address = device.addressString else { return }
-        guard startup.isNewConnect(address), Self.isAudio(device) else { return }
+        guard startup.isNewConnect(forgetting: address), Self.isAudio(device) else { return }
         let name = device.name ?? "Headphones"
-        Task { await announce(address: address, fallbackName: name) }
+        let classOfDevice = device.classOfDevice
+        Task { await announce(address: address, classOfDevice: classOfDevice, fallbackName: name) }
     }
 
-    private func announce(address: String, fallbackName: String) async {
+    private func announce(address: String, classOfDevice: UInt32, fallbackName: String) async {
         let first = await Self.report(address: address)
         let name = first?.name ?? fallbackName
         let connect = HeadphonesConnect(address: address, name: name,
-                                        kind: HeadphonesKind(productID: first?.productID, name: name),
+                                        kind: HeadphonesKind(appleProductID: first?.appleProductID,
+                                                             classOfDevice: classOfDevice, name: name),
                                         battery: first?.battery ?? HeadphonesBattery())
         guard enabled else { return }
         popup.show(connect)
@@ -113,8 +115,7 @@ final class T3HeadphonesMonitor: NSObject {
         if audioServices.contains(where: { device.getServiceRecord(for: IOBluetoothSDPUUID(uuid16: $0)) != nil }) {
             return true
         }
-        let audioVideoMajorClass: UInt32 = 0x04
-        return (device.classOfDevice >> 8) & 0x1F == audioVideoMajorClass
+        return BluetoothAudioClass.isAudioVideo(classOfDevice: device.classOfDevice)
     }
 
     private nonisolated static func connectedAddresses() async -> Set<String> {

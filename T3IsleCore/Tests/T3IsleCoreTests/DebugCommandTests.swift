@@ -15,9 +15,11 @@ final class DebugCommandTests: XCTestCase {
         (["replay", "Plan-Done"], .replay("plan-done")),
         (["replay", "off"], .replayOff),
         (["state"], .state),
-        (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil)),
-        (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil)),
-        (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64)),
+        (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)),
+        (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil, device: nil)),
+        (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64, device: nil)),
+        (["airpods-connect", "Pill", "SPEAKER"], .airpodsConnect(name: "Pill", battery: nil, device: .speaker)),
+        (["airpods-connect", "My Car", "80", "car"], .airpodsConnect(name: "My Car", battery: 80, device: .car)),
         (["airpods-disconnect"], .airpodsDisconnect),
     ]
 
@@ -43,7 +45,8 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertEqual(DebugCommand.tab(.t3).reverse, .closeNotch)
         XCTAssertEqual(DebugCommand.replay("question").reverse, .replayOff)
         XCTAssertEqual(DebugCommand.openSettings(pane: "t3").reverse, .closeSettings)
-        XCTAssertEqual(DebugCommand.airpodsConnect(name: "AirPods Max", battery: 64).line, "airpods-connect AirPods Max 64")
+        XCTAssertEqual(DebugCommand.airpodsConnect(name: "AirPods Max", battery: 64, device: nil).line, "airpods-connect AirPods Max 64")
+        XCTAssertEqual(DebugCommand.airpodsConnect(name: "Pill", battery: nil, device: .speaker).line, "airpods-connect Pill speaker")
     }
 
     func testRejectsUnknownCommandsAndBadArguments() {
@@ -51,6 +54,7 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertThrowsError(try DebugCommand.parse(["dance"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("dance")) }
         XCTAssertThrowsError(try DebugCommand.parse(["question"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("question")) }
         let replayUsage = "replay busy-session|plan-done|question|quota-low|showcase|off"
+        let airpodsUsage = "airpods-connect [name] [battery] [headphones|speaker|car]"
         let bad: [([String], String)] = [
             (["tab", "calendar"], "tab home|t3|shelf"),
             (["demo"], "demo on|off"),
@@ -59,8 +63,10 @@ final class DebugCommandTests: XCTestCase {
             (["replay"], replayUsage),
             (["replay", "nope"], replayUsage),
             (["replay", "question", "twice"], replayUsage),
-            (["airpods-connect", "AirPods", "120"], "airpods-connect [name] [battery]"),
-            (["airpods-connect", "AirPods", "full"], "airpods-connect [name] [battery]"),
+            (["airpods-connect", "AirPods", "120"], airpodsUsage),
+            (["airpods-connect", "AirPods", "full"], airpodsUsage),
+            (["airpods-connect", "AirPods", "car", "50"], airpodsUsage),
+            (["airpods-connect", "AirPods", "50", "car", "car"], airpodsUsage),
         ]
         for (tokens, usage) in bad {
             XCTAssertThrowsError(try DebugCommand.parse(tokens)) { XCTAssertEqual($0 as? DebugCommandError, .usage(usage)) }
@@ -72,7 +78,8 @@ final class DebugCommandTests: XCTestCase {
             ("t3isle-debug://open-settings", .openSettings(pane: nil)),
             ("t3isle-debug://open-settings/appearance", .openSettings(pane: "appearance")),
             ("t3isle-debug://tab/t3", .tab(.t3)),
-            ("t3isle-debug://airpods-connect/AirPods%20Max/42", .airpodsConnect(name: "AirPods Max", battery: 42)),
+            ("t3isle-debug://airpods-connect/AirPods%20Max/42", .airpodsConnect(name: "AirPods Max", battery: 42, device: nil)),
+            ("t3isle-debug://airpods-connect/Dash/car", .airpodsConnect(name: "Dash", battery: nil, device: .car)),
             ("T3ISLE-DEBUG://replay/plan-done/", .replay("plan-done")),
             ("t3isle-debug:///replay/off", .replayOff),
         ]
