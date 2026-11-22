@@ -87,7 +87,7 @@ open -a "$APP" --args --debug open-settings appearance --debug replay question
 | `demo on\|off` | Relaunches with or without demo data | `demo off`, `demo on` | `open -g -a "$APP" "t3isle-debug://demo/on"` |
 | `replay <scenario>\|off` | Replays a recorded T3 scenario in place of the real T3 data, or goes back to it with `off` | `replay off` | `open -g -a "$APP" "t3isle-debug://replay/question"` |
 | `state` | Writes what the app shows as JSON to the state file | None, it changes nothing | `open -g -a "$APP" "t3isle-debug://state"` |
-| `airpods-connect [name] [battery]` | Shows the headphones activity as if they just connected (default `AirPods Pro`, battery 0 to 100) | `airpods-disconnect` | `open -g -a "$APP" "t3isle-debug://airpods-connect/AirPods%20Max/64"` |
+| `airpods-connect [name] [battery] [headphones\|speaker\|car]` | Shows the headphones activity as if a device just connected (default `AirPods Pro`, battery 0 to 100). The last argument sets the Bluetooth class of device, so `speaker` shows the speaker glyph and `car` the car kit glyph. Without it, the glyph comes from the name | `airpods-disconnect` | `open -g -a "$APP" "t3isle-debug://airpods-connect/Kitchen%20Speaker/speaker"` |
 | `airpods-disconnect` | Hides the headphones activity | `airpods-connect` | `open -g -a "$APP" "t3isle-debug://airpods-disconnect"` |
 
 In a URL, arguments are path segments, so encode spaces as `%20`. The command ignores a query or fragment, so a script can add `?n=4` to tell its commands apart. The event log keeps the full URL. From a script, send commands with [`scripts/debug.sh`](#scripts), which does the encoding and waits for the result.

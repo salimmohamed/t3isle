@@ -11,7 +11,7 @@ public enum DebugCommand: Equatable, Sendable {
     case replay(String)
     case replayOff
     case state
-    case airpodsConnect(name: String, battery: Int?)
+    case airpodsConnect(name: String, battery: Int?, device: BluetoothAudioClass?)
     case airpodsDisconnect
 
     public static let scheme = "t3isle-debug"
@@ -46,8 +46,8 @@ public enum DebugCommand: Equatable, Sendable {
         Spec(name: "replay", arguments: (Scenario.names + ["off"]).joined(separator: "|"),
              summary: "Replay a recorded T3 scenario in place of the real one, or go back to it with off", build: replay),
         Spec(name: "state", arguments: "", summary: "Write what the app shows as JSON to the state file") { $0.isEmpty ? .state : nil },
-        Spec(name: "airpods-connect", arguments: "[name] [battery]", summary: "Show the headphones activity as if they just connected",
-             build: airpodsConnect),
+        Spec(name: "airpods-connect", arguments: "[name] [battery] [\(BluetoothAudioClass.allCases.map(\.rawValue).joined(separator: "|"))]",
+             summary: "Show the headphones activity as if a device of that Bluetooth class just connected", build: airpodsConnect),
         Spec(name: "airpods-disconnect", arguments: "", summary: "Hide the headphones activity") { $0.isEmpty ? .airpodsDisconnect : nil },
     ]
 
@@ -62,7 +62,8 @@ public enum DebugCommand: Equatable, Sendable {
         case .replay(let scenario): ["replay", scenario]
         case .replayOff: ["replay", "off"]
         case .state: ["state"]
-        case .airpodsConnect(let name, let battery): ["airpods-connect", name] + (battery.map { [String($0)] } ?? [])
+        case .airpodsConnect(let name, let battery, let device):
+            ["airpods-connect", name] + (battery.map { [String($0)] } ?? []) + (device.map { [$0.rawValue] } ?? [])
         case .airpodsDisconnect: ["airpods-disconnect"]
         }
     }
@@ -79,7 +80,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .replay, .replayOff: .replayOff
         case .state: nil
         case .airpodsConnect: .airpodsDisconnect
-        case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil)
+        case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)
         }
     }
 
@@ -91,14 +92,21 @@ public enum DebugCommand: Equatable, Sendable {
     }
 
     private static func airpodsConnect(_ arguments: [String]) -> DebugCommand? {
-        switch arguments.count {
-        case 0: return .airpodsConnect(name: "AirPods Pro", battery: nil)
-        case 1: return .airpodsConnect(name: arguments[0], battery: nil)
-        case 2:
-            guard let battery = Int(arguments[1]), (0...100).contains(battery) else { return nil }
-            return .airpodsConnect(name: arguments[0], battery: battery)
-        default: return nil
+        guard let name = arguments.first else { return .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil) }
+        var rest = arguments.dropFirst()
+        var battery: Int?
+        if let first = rest.first, let level = Int(first) {
+            guard (0...100).contains(level) else { return nil }
+            battery = level
+            rest = rest.dropFirst()
         }
+        var device: BluetoothAudioClass?
+        if let first = rest.first {
+            guard let named = BluetoothAudioClass(rawValue: first.lowercased()) else { return nil }
+            device = named
+            rest = rest.dropFirst()
+        }
+        return rest.isEmpty ? .airpodsConnect(name: name, battery: battery, device: device) : nil
     }
 
     public static func parse(_ tokens: [String]) throws -> DebugCommand {

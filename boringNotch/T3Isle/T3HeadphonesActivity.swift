@@ -72,15 +72,3 @@ struct BatteryBar: View {
         }
     }
 }
-
-private extension HeadphonesKind {
-    var symbol: String {
-        switch self {
-        case .airpods: "airpods"
-        case .airpodsPro: "airpodspro"
-        case .airpodsMax: "airpodsmax"
-        case .beats: "beats.headphones"
-        case .headphones: "headphones"
-        }
-    }
-}
