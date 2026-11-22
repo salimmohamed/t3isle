@@ -16,7 +16,7 @@ struct BoringHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             HStack {
-                if T3Tabs.barShown {
+                if T3Tabs.barShown(shelfEmpty: tvm.isEmpty) {
                     TabSelectionView()
                 } else if vm.notchState == .open {
                     EmptyView()
