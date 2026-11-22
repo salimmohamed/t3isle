@@ -7,8 +7,12 @@ public enum NotchTab: String, CaseIterable, Codable, Sendable {
         t3Enabled || shelfEnabled && (alwaysShowTabs || !shelfEmpty)
     }
 
-    public func whileOpen(barShown: Bool) -> NotchTab {
-        barShown ? self : .home
+    public static func resolvedOnDisplay(notchOpen: Bool, anyNotchOpen: Bool) -> Bool {
+        notchOpen || !anyNotchOpen
+    }
+
+    public func whileOpen(barShown: Bool, t3Enabled: Bool) -> NotchTab {
+        barShown && (self != .t3 || t3Enabled) ? self : .home
     }
 }
 

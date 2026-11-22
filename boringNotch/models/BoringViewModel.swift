@@ -17,7 +17,9 @@ class BoringViewModel: NSObject, ObservableObject {
     let animation: Animation?
 
     @Published var contentType: ContentType = .normal
-    @Published private(set) var notchState: NotchState = .closed
+    @Published private(set) var notchState: NotchState = .closed {
+        didSet { T3Tabs.track(self) }
+    }
 
     @Published var dragDetectorTargeting: Bool = false
     @Published var generalDropTargeting: Bool = false
@@ -209,6 +211,7 @@ class BoringViewModel: NSObject, ObservableObject {
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
 
+        guard T3Tabs.resolvesTab(on: self) else { return }
         coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
     }
 

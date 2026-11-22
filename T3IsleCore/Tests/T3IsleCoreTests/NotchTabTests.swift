@@ -46,16 +46,45 @@ final class NotchTabTests: XCTestCase {
 
     func testOpenNotchLeavesAnyTabForHomeWhenTheBarHides() {
         for tab in NotchTab.allCases {
-            XCTAssertEqual(tab.whileOpen(barShown: false), .home)
-            XCTAssertEqual(tab.whileOpen(barShown: true), tab)
+            XCTAssertEqual(tab.whileOpen(barShown: false, t3Enabled: true), .home)
+            XCTAssertEqual(tab.whileOpen(barShown: true, t3Enabled: true), tab)
         }
     }
 
     func testRemovingTheLastShelfItemHidesTheBarAndLeavesShelf() {
         let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false)
         let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
-        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: before), .shelf)
-        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: after), .home)
+        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: before, t3Enabled: false), .shelf)
+        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: after, t3Enabled: false), .home)
+    }
+
+    func testTurningT3OffWithShelfItemsLeavesTheT3TabForHome() {
+        let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false)
+        XCTAssertTrue(barShown)
+        XCTAssertEqual(NotchTab.t3.whileOpen(barShown: barShown, t3Enabled: false), .home)
+        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: barShown, t3Enabled: false), .shelf)
+        XCTAssertEqual(NotchTab.home.whileOpen(barShown: barShown, t3Enabled: false), .home)
+    }
+
+    func testTurningAlwaysShowTabsOffOnAnEmptiedShelfLeavesForHome() {
+        let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: true)
+        let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: before, t3Enabled: false), .shelf)
+        XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: after, t3Enabled: false), .home)
+    }
+
+    func testTurningAlwaysShowTabsOffKeepsTheT3TabWhileT3IsOn() {
+        let barShown = NotchTab.barShown(t3Enabled: true, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        XCTAssertEqual(NotchTab.t3.whileOpen(barShown: barShown, t3Enabled: true), .t3)
+    }
+
+    func testOnlyAnOpenDisplayResolvesTheTabWhileAnyDisplayIsOpen() {
+        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: true, anyNotchOpen: true))
+        XCTAssertFalse(NotchTab.resolvedOnDisplay(notchOpen: false, anyNotchOpen: true))
+    }
+
+    func testEveryClosedDisplayResolvesTheTabWhenNoneIsOpen() {
+        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: false, anyNotchOpen: false))
     }
 
     func testEmptyShelfWithoutTabBarOpensHomeInsteadOfShelf() {
