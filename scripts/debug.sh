@@ -112,7 +112,6 @@ case "$command" in
         [ "$SECONDS" -lt "$deadline" ] || timed_out "pid $pid did not quit after the relaunch"
         sleep 0.1
       done
-      jq -c --argjson pid "$relaunched" '.pid = $pid' "$run" > "$run.tmp" && mv "$run.tmp" "$run"
       echo "debug: relaunched as pid $relaunched" >&2
     fi
     ;;

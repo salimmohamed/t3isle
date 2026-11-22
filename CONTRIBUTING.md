@@ -218,7 +218,7 @@ defaults read "$PWD/.build/debug-state/defaults"
 defaults write "$PWD/.build/debug-state/defaults" nonNotchHeightMode -string "Custom height"
 ```
 
-Pass an absolute path, since `open` starts the app from `/`. `demo on|off` and Restart T3 Isle in the menu keep the folder when they relaunch, but only `demo on|off` updates the PID in `run.json`, so the scripts lose the copy after a menu Restart. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
+Pass an absolute path, since `open` starts the app from `/`. `demo on|off` and Restart T3 Isle in the menu keep the folder when they relaunch, and the relaunched copy writes its own PID to `run.json`. Restart also keeps `--demo`. Release builds ignore the flag. The folders are resolved in `T3IsleCore/Sources/T3IsleCore/StateFolders.swift`.
 
 #### Scripts
 
@@ -264,7 +264,7 @@ scripts/debug.sh airpods-connect "AirPods Max" 64
 scripts/debug.sh --state-dir "$PWD/.build/debug-b" replay plan-done
 ```
 
-After `command.ran`, `replay <scenario>` also waits for that scenario's `replay.finished`, `state` waits for its `state.written` and prints the state file, and `demo on|off` waits for the relaunched copy and writes its PID to `run.json`. Every other command prints its `command.ran` event. The exit code is:
+After `command.ran`, `replay <scenario>` also waits for that scenario's `replay.finished`, `state` waits for its `state.written` and prints the state file, and `demo on|off` waits for the relaunched copy to log `app.launched`. Every other command prints its `command.ran` event. The exit code is:
 
 | Code | Meaning |
 | --- | --- |

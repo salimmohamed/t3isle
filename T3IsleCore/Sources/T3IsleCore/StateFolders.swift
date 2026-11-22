@@ -13,6 +13,10 @@ public struct StateFolders: Equatable, Sendable {
     public let logs: URL
     public var missingPath = false
 
+    public static let flag = "--state-dir"
+
+    public var launchArguments: [String] { root.map { [Self.flag, $0.path] } ?? [] }
+
     public static let current = resolve(
         arguments: CommandLine.arguments,
         currentDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
@@ -61,13 +65,11 @@ extension StateFolders {
         case defaultsNotRedirected(String)
     }
 
-    public static let flag = "--state-dir"
-
     public var defaults: URL? { root?.appendingPathComponent("defaults.plist") }
     public var eventLog: URL { logs.appendingPathComponent("events.ndjson") }
     public var rotatedEventLog: URL { logs.appendingPathComponent("events.1.ndjson") }
     public var stateFile: URL { logs.appendingPathComponent("state.json") }
-    public var launchArguments: [String] { root.map { [Self.flag, $0.path] } ?? [] }
+    public var runFile: URL? { root?.appendingPathComponent("run.json") }
 
     public static func isolated(in root: URL) -> StateFolders {
         StateFolders(
@@ -89,6 +91,15 @@ extension StateFolders {
         guard arguments.indices.contains(index + 1), !arguments[index + 1].isEmpty else { return .missingPath }
         return .isolated(URL(fileURLWithPath: arguments[index + 1], isDirectory: true, relativeTo: currentDirectory)
             .absoluteURL.standardized)
+    }
+
+    public func recordRunPid(_ pid: Int32) throws {
+        guard let runFile, let data = try? Data(contentsOf: runFile),
+              var run = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+        run["pid"] = Int(pid)
+        try JSONSerialization.data(withJSONObject: run, options: [.sortedKeys, .withoutEscapingSlashes])
+            .write(to: runFile, options: .atomic)
     }
 
     public func createLogs() throws {

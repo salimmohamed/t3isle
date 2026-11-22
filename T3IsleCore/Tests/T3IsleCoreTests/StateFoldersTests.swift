@@ -80,6 +80,29 @@ final class StateFoldersTests: XCTestCase {
         XCTAssertEqual(StateFolders.standard(appName: "T3 Isle Debug", library: library).launchArguments, [])
     }
 
+    func testRecordRunPidReplacesOnlyThePidInAnExistingRunFile() throws {
+        let folders = StateFolders.isolated(in: scratch)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let runFile = try XCTUnwrap(folders.runFile)
+        try Data(#"{"app":"/work/T3 Isle.app","pid":1,"stateDir":"/work/state"}"#.utf8).write(to: runFile)
+
+        try folders.recordRunPid(4242)
+
+        let run = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: runFile)) as? [String: Any])
+        XCTAssertEqual(run["pid"] as? Int, 4242)
+        XCTAssertEqual(run["app"] as? String, "/work/T3 Isle.app")
+        XCTAssertEqual(run["stateDir"] as? String, "/work/state")
+    }
+
+    func testRecordRunPidWritesNothingWithoutARunFile() throws {
+        let folders = StateFolders.isolated(in: scratch)
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+
+        try folders.recordRunPid(4242)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(folders.runFile).path))
+    }
+
     func testAppNameComesFromTheBundleDisplayName() throws {
         XCTAssertEqual(StateFolders.appName(bundle: try bundle(info: ["CFBundleDisplayName": "T3 Isle Debug"])),
                        "T3 Isle Debug")
