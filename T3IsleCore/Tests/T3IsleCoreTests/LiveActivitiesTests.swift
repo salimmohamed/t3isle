@@ -103,6 +103,32 @@ final class LiveActivitiesTests: XCTestCase {
         await until(popup) { popup.current == nil }
     }
 
+    @MainActor
+    func testQuickToggleKeepsTheNewStartupListForItsWholeWindow() async {
+        let clock = TestClock()
+        let startup = StartupHeadphones(window: 2, clock: clock)
+        startup.begin(alreadyConnected: [pods.address])
+        let firstWindow = startup.clearTask
+        await clock.waitForSleepers()
+        clock.advance(by: 1)
+        startup.end()
+        startup.begin(alreadyConnected: [pods.address])
+        await firstWindow?.value
+        await clock.waitForSleepers()
+        XCTAssertEqual(clock.deadlines, [clock.now + 2])
+        clock.advance(by: 1.5)
+        XCTAssertFalse(startup.isNewConnect(pods.address))
+        XCTAssertTrue(startup.isNewConnect(pods.address))
+    }
+
+    @MainActor
+    func testTurningOffForgetsTheStartupList() async {
+        let startup = StartupHeadphones(window: 2, clock: TestClock())
+        startup.begin(alreadyConnected: [pods.address])
+        startup.end()
+        XCTAssertTrue(startup.isNewConnect(pods.address))
+    }
+
     private func fixture() throws -> Data {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "bluetooth-profiler", withExtension: "json",
                                                   subdirectory: "Fixtures"))

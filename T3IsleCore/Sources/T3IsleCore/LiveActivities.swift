@@ -192,3 +192,37 @@ public final class HeadphonesPopup: ObservableObject {
         current = nil
     }
 }
+
+@MainActor
+public final class StartupHeadphones {
+    public let window: TimeInterval
+    private let clock: any T3Clock
+    private var addresses: Set<String> = []
+    private(set) var clearTask: Task<Void, Never>?
+
+    public init(window: TimeInterval = 2, clock: any T3Clock = LiveClock()) {
+        self.window = window
+        self.clock = clock
+    }
+
+    public func begin(alreadyConnected: Set<String>) {
+        end()
+        addresses = alreadyConnected
+        let clearAt = clock.now + window
+        clearTask = Task { [weak self, clock] in
+            try? await clock.sleep(until: clearAt)
+            guard !Task.isCancelled else { return }
+            self?.addresses = []
+        }
+    }
+
+    public func end() {
+        clearTask?.cancel()
+        clearTask = nil
+        addresses = []
+    }
+
+    public func isNewConnect(_ address: String) -> Bool {
+        addresses.remove(address) == nil
+    }
+}

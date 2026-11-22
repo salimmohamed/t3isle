@@ -10,7 +10,7 @@ final class T3HeadphonesMonitor: NSObject {
     private var accessRequest: CBCentralManager?
     private var watchTask: Task<Void, Never>?
     private var connectNotification: IOBluetoothUserNotification?
-    private var alreadyConnected: Set<String> = []
+    private let startup = StartupHeadphones()
     private var demoTask: Task<Void, Never>?
 
     init(popup: HeadphonesPopup) {
@@ -46,11 +46,9 @@ final class T3HeadphonesMonitor: NSObject {
         watchTask = Task { [weak self] in
             let connected = await Self.connectedAddresses()
             guard !Task.isCancelled, let self else { return }
-            alreadyConnected = connected
+            startup.begin(alreadyConnected: connected)
             connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
                                                              selector: #selector(deviceConnected(_:device:)))
-            try? await Task.sleep(for: .seconds(2))
-            alreadyConnected = []
         }
     }
 
@@ -63,6 +61,7 @@ final class T3HeadphonesMonitor: NSObject {
         accessRequest = nil
         watchTask?.cancel()
         watchTask = nil
+        startup.end()
         connectNotification?.unregister()
         connectNotification = nil
         demoTask?.cancel()
@@ -72,8 +71,7 @@ final class T3HeadphonesMonitor: NSObject {
 
     @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         guard let address = device.addressString else { return }
-        if alreadyConnected.remove(address) != nil { return }
-        guard Self.isAudio(device) else { return }
+        guard startup.isNewConnect(address), Self.isAudio(device) else { return }
         let name = device.name ?? "Headphones"
         Task { await announce(address: address, fallbackName: name) }
     }
