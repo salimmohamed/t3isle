@@ -7,6 +7,7 @@ executable="$app/Contents/MacOS/T3 Isle"
 build_log="$root/.build/run-debug-build.log"
 state="$root/.build/debug-state"
 build=1
+build_only=0
 app_arguments=()
 
 json_string() {
@@ -51,6 +52,7 @@ has_window() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-build) build=0 ;;
+    --build-only) build_only=1 ;;
     --state-dir)
       [ $# -ge 2 ] || fail 3 "--state-dir needs a path"
       state=$2
@@ -102,6 +104,8 @@ if [ -n "${T3ISLE_SIGN_IDENTITY:-}" ]; then
 else
   echo "run-debug: T3ISLE_SIGN_IDENTITY is not set, so the app keeps its build signature and macOS may ask for permissions again" >&2
 fi
+
+[ "$build_only" = 0 ] || exit 0
 
 rm -f "$state/run.json"
 
