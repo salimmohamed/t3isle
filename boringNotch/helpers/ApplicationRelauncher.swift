@@ -14,8 +14,12 @@ enum ApplicationRelauncher {
     private static let log = Logger(subsystem: bundleIdentifier, category: "relaunch")
     private static var isRelaunching = false
 
+    private struct AlreadyRelaunching: LocalizedError {
+        var errorDescription: String? { "a relaunch is already in progress" }
+    }
+
     static func restart(demo: Bool, onFailure: @escaping @MainActor (Error) -> Void = { _ in }) {
-        guard !isRelaunching else { return }
+        guard !isRelaunching else { return onFailure(AlreadyRelaunching()) }
         isRelaunching = true
 
         let configuration = NSWorkspace.OpenConfiguration()

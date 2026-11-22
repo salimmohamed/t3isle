@@ -103,6 +103,8 @@ else
   echo "run-debug: T3ISLE_SIGN_IDENTITY is not set, so the app keeps its build signature and macOS may ask for permissions again" >&2
 fi
 
+rm -f "$state/run.json"
+
 defaults read "$state/defaults" firstLaunch >/dev/null 2>&1 || defaults write "$state/defaults" firstLaunch -bool false
 
 open -n -g -a "$app" --args --state-dir "$state" ${app_arguments[@]+"${app_arguments[@]}"} >&2 \
