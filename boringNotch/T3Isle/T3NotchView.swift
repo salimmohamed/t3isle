@@ -185,11 +185,14 @@ struct T3Integration: ViewModifier {
     }
 
     private func resolveTab() {
-        if vm.notchState == .closed {
+        guard T3Tabs.resolvesTab(on: vm) else { return }
+        guard vm.notchState == .open else {
             coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
-        } else {
-            coordinator.currentView = coordinator.currentView.whileOpen(barShown: T3Tabs.barShown(shelfEmpty: shelf.isEmpty))
+            return
         }
+        let tab = coordinator.currentView.whileOpen(barShown: T3Tabs.barShown(shelfEmpty: shelf.isEmpty), t3Enabled: t3Enabled)
+        guard tab != coordinator.currentView else { return }
+        withAnimation(.smooth) { coordinator.currentView = tab }
     }
 
     private func show(holdFor seconds: TimeInterval?) {

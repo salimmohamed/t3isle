@@ -209,6 +209,7 @@ class BoringViewModel: NSObject, ObservableObject {
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
 
+        guard T3Tabs.resolvesTab(on: self) else { return }
         coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
     }
 
