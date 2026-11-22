@@ -18,7 +18,7 @@ final class DebugCommandTests: XCTestCase {
         (["airpods-connect"], .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)),
         (["airpods-connect", "AirPods Max"], .airpodsConnect(name: "AirPods Max", battery: nil, device: nil)),
         (["airpods-connect", "AirPods Max", "64"], .airpodsConnect(name: "AirPods Max", battery: 64, device: nil)),
-        (["airpods-connect", "Kitchen", "Speaker"], .airpodsConnect(name: "Kitchen", battery: nil, device: .speaker)),
+        (["airpods-connect", "Pill", "SPEAKER"], .airpodsConnect(name: "Pill", battery: nil, device: .speaker)),
         (["airpods-connect", "My Car", "80", "car"], .airpodsConnect(name: "My Car", battery: 80, device: .car)),
         (["airpods-disconnect"], .airpodsDisconnect),
     ]

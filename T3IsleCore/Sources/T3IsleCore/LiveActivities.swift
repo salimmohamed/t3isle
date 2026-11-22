@@ -25,12 +25,16 @@ public enum BluetoothAudioClass: String, CaseIterable, Sendable {
 
     static let audioVideoMajor: UInt32 = 0x04
 
+    public static func isAudioVideo(classOfDevice: UInt32) -> Bool {
+        (classOfDevice >> 8) & 0x1F == audioVideoMajor
+    }
+
     public init?(classOfDevice: UInt32) {
-        guard (classOfDevice >> 8) & 0x1F == Self.audioVideoMajor else { return nil }
+        guard Self.isAudioVideo(classOfDevice: classOfDevice) else { return nil }
         switch (classOfDevice >> 2) & 0x3F {
         case 0x01, 0x06: self = .headphones
         case 0x05, 0x07, 0x0A: self = .speaker
-        case 0x02, 0x08: self = .car
+        case 0x08: self = .car
         default: return nil
         }
     }
@@ -56,10 +60,11 @@ public enum HeadphonesKind: Equatable, Sendable {
         0x200E: .airpodsPro, 0x2014: .airpodsPro, 0x2024: .airpodsPro, 0x2027: .airpodsPro,
         0x200A: .airpodsMax, 0x201F: .airpodsMax,
         0x2006: .beatsHeadphones, 0x2009: .beatsHeadphones, 0x200C: .beatsHeadphones, 0x2017: .beatsHeadphones,
+        0x2025: .beatsHeadphones,
         0x2005: .beatsEarphones, 0x2010: .beatsEarphones,
         0x2003: .powerbeats, 0x200D: .powerbeats,
-        0x200B: .powerbeatsPro,
-        0x2011: .beatsStudioBuds, 0x2016: .beatsStudioBuds,
+        0x200B: .powerbeatsPro, 0x201D: .powerbeatsPro,
+        0x2011: .beatsStudioBuds, 0x2016: .beatsStudioBuds, 0x2026: .beatsStudioBuds,
         0x2012: .beatsFitPro,
     ]
 

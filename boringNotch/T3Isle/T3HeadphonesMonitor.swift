@@ -115,8 +115,7 @@ final class T3HeadphonesMonitor: NSObject {
         if audioServices.contains(where: { device.getServiceRecord(for: IOBluetoothSDPUUID(uuid16: $0)) != nil }) {
             return true
         }
-        let audioVideoMajorClass: UInt32 = 0x04
-        return (device.classOfDevice >> 8) & 0x1F == audioVideoMajorClass
+        return BluetoothAudioClass.isAudioVideo(classOfDevice: device.classOfDevice)
     }
 
     private nonisolated static func connectedAddresses() async -> Set<String> {
