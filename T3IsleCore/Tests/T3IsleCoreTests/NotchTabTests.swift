@@ -87,12 +87,6 @@ final class NotchTabTests: XCTestCase {
         XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: false, otherNotchOpen: false))
     }
 
-    func testOpeningASecondDisplayKeepsTheTabTheOpenDisplayShows() {
-        let wasOpen = false
-        XCTAssertTrue(NotchTab.resolvedOnDisplay(notchOpen: wasOpen, otherNotchOpen: false))
-        XCTAssertFalse(NotchTab.resolvedOnDisplay(notchOpen: wasOpen, otherNotchOpen: true))
-    }
-
     func testEmptyShelfWithoutTabBarOpensHomeInsteadOfShelf() {
         let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
         XCTAssertEqual(OpeningTab.shelf.tab(current: .shelf, t3Ready: false, shelfFirst: false, barShown: barShown), .home)

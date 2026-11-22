@@ -174,11 +174,11 @@ struct T3Integration: ViewModifier {
             }
             .onChange(of: openingTab) { _, _ in resolveTab() }
             .onChange(of: [t3Enabled, shelfEnabled, shelf.isEmpty, coordinator.alwaysShowTabs]) { _, _ in resolveTab() }
-            .onChange(of: vm.notchState) { previous, state in
+            .onChange(of: vm.notchState) { _, state in
                 if state == .closed {
                     openedByT3 = false
                     closeTask?.cancel()
-                } else if coordinator.currentView == .home, T3Tabs.resolvesTab(on: vm, notchOpen: previous == .open) {
+                } else if coordinator.currentView == .home, T3Tabs.resolvesTab(on: vm, notchOpen: false) {
                     coordinator.currentView = T3Tabs.openingView(current: .home)
                 }
             }
