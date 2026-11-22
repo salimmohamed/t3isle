@@ -123,15 +123,17 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let settingsOpen: Bool
     public let closedActivity: Activity
     public let headphones: Headphones?
+    public let notchViewModels: Int
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
-                headphones: HeadphonesConnect?, t3: T3) {
+                headphones: HeadphonesConnect?, notchViewModels: Int, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen
         self.closedActivity = Activity(closedActivity)
         self.headphones = headphones.map { Headphones(name: $0.name, kind: "\($0.kind)") }
+        self.notchViewModels = notchViewModels
         self.t3 = t3
     }
 
@@ -142,6 +144,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         try container.encode(settingsOpen, forKey: .settingsOpen)
         try container.encode(closedActivity, forKey: .closedActivity)
         try container.encode(headphones, forKey: .headphones)
+        try container.encode(notchViewModels, forKey: .notchViewModels)
         try container.encode(t3, forKey: .t3)
     }
 
