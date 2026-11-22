@@ -113,7 +113,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security import "$CERT" -k "$KEYCHAIN" -f pkcs12 -P "$RELEASE_CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-          security list-keychains -d user | tr -d '"' | xargs security list-keychains -d user -s "$KEYCHAIN"
+          { printf '%s\n' "$KEYCHAIN"; security list-keychains -d user | tr -d '"'; } | xargs security list-keychains -d user -s
           IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | awk '$1 == "1)" { print $2; exit }')"
           if [[ ! "$IDENTITY" =~ ^[0-9A-F]{40}$ ]]; then
             echo "::error::No code signing identity found in the release certificate"
