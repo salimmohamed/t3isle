@@ -94,6 +94,7 @@ final class T3DebugMonitor {
                                headphones: runtime.headphones,
                                notchViewModels: Self.notches.allObjects.count,
                                headphonesMonitor: runtime.headphonesMonitorState,
+                               hudAccessibility: HUDAccessibility.shared.trust.guidance,
                                t3: runtime.debugState)
         try folders.createLogs()
         try DebugState.encoded(state).write(to: folders.stateFile, options: .atomic)

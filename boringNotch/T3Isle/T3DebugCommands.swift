@@ -93,6 +93,14 @@ enum T3DebugCommands {
                 throw Failure("Bluetooth access for this app is \(system.rawValue), so allowed would call Bluetooth without access")
             }
             runtime.feedBluetoothAccess(access)
+        case .accessibilityTrust(let trusted):
+            XPCHelperClient.shared.overrideTrust(trusted)
+            HUDAccessibility.shared.appBecameActive()
+        case .accessibilityRequest:
+            guard XPCHelperClient.shared.isTrustOverridden else {
+                throw Failure("Run accessibility-trust first, so the request never raises the system prompt")
+            }
+            HUDAccessibility.shared.request()
         }
     }
 

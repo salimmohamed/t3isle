@@ -14,6 +14,8 @@ public enum DebugCommand: Equatable, Sendable {
     case airpodsConnect(name: String, battery: Int?, device: BluetoothAudioClass?)
     case airpodsDisconnect
     case bluetoothAccess(BluetoothAccess?)
+    case accessibilityTrust(Bool?)
+    case accessibilityRequest
 
     public static let scheme = "t3isle-debug"
     public static let launchFlag = "--debug"
@@ -52,6 +54,13 @@ public enum DebugCommand: Equatable, Sendable {
         Spec(name: "airpods-disconnect", arguments: "", summary: "Hide the headphones activity") { $0.isEmpty ? .airpodsDisconnect : nil },
         Spec(name: "bluetooth-access", arguments: (BluetoothAccess.allCases.map(\.rawValue) + ["system"]).joined(separator: "|"),
              summary: "Feed the headphones monitor a Bluetooth access change, or the real access again with system", build: bluetoothAccess),
+        Spec(name: "accessibility-trust", arguments: "trusted|untrusted|system",
+             summary: "Override the Accessibility trust the app reads and re-check it as if you came back to the app",
+             build: accessibilityTrust),
+        Spec(name: "accessibility-request", arguments: "",
+             summary: "Press Request Accessibility in the HUD settings without the system prompt") {
+            $0.isEmpty ? .accessibilityRequest : nil
+        },
     ]
 
     public var tokens: [String] {
@@ -69,6 +78,8 @@ public enum DebugCommand: Equatable, Sendable {
             ["airpods-connect", name] + (battery.map { [String($0)] } ?? []) + (device.map { [$0.rawValue] } ?? [])
         case .airpodsDisconnect: ["airpods-disconnect"]
         case .bluetoothAccess(let access): ["bluetooth-access", access?.rawValue ?? "system"]
+        case .accessibilityTrust(let trusted): ["accessibility-trust", trusted.map { $0 ? "trusted" : "untrusted" } ?? "system"]
+        case .accessibilityRequest: ["accessibility-request"]
         }
     }
 
@@ -86,6 +97,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .airpodsConnect: .airpodsDisconnect
         case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)
         case .bluetoothAccess: .bluetoothAccess(nil)
+        case .accessibilityTrust, .accessibilityRequest: .accessibilityTrust(nil)
         }
     }
 
@@ -101,6 +113,15 @@ public enum DebugCommand: Equatable, Sendable {
         let name = arguments[0].lowercased()
         if name == "system" { return .bluetoothAccess(nil) }
         return BluetoothAccess(rawValue: name).map(DebugCommand.bluetoothAccess)
+    }
+
+    private static func accessibilityTrust(_ arguments: [String]) -> DebugCommand? {
+        switch arguments.map({ $0.lowercased() }) {
+        case ["trusted"]: .accessibilityTrust(true)
+        case ["untrusted"]: .accessibilityTrust(false)
+        case ["system"]: .accessibilityTrust(nil)
+        default: nil
+        }
     }
 
     private static func airpodsConnect(_ arguments: [String]) -> DebugCommand? {

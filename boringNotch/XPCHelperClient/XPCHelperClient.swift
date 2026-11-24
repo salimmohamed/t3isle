@@ -11,6 +11,9 @@ final class XPCHelperClient: NSObject {
     private var connection: NSXPCConnection?
     private var lastKnownAuthorization: Bool?
     private var monitoringTask: Task<Void, Never>?
+    #if DEBUG
+    private var trustOverride: Bool?
+    #endif
     
     deinit {
         connection?.invalidate()
@@ -97,8 +100,29 @@ final class XPCHelperClient: NSObject {
     
     // MARK: - Accessibility
     
+    #if DEBUG
+    @MainActor
+    var isTrustOverridden: Bool { trustOverride != nil }
+
+    @MainActor
+    func overrideTrust(_ trusted: Bool?) {
+        trustOverride = trusted
+    }
+    #endif
+
+    private nonisolated func overriddenTrust() async -> Bool? {
+        #if DEBUG
+        guard let trusted = await MainActor.run(body: { trustOverride }) else { return nil }
+        await MainActor.run { notifyAuthorizationChange(trusted) }
+        return trusted
+        #else
+        return nil
+        #endif
+    }
+
     nonisolated func requestAccessibilityAuthorization() {
         Task {
+            guard await overriddenTrust() == nil else { return }
             let service = await MainActor.run {
                 ensureRemoteService()
             }
@@ -109,6 +133,7 @@ final class XPCHelperClient: NSObject {
     }
     
     nonisolated func isAccessibilityAuthorized() async -> Bool {
+        if let trusted = await overriddenTrust() { return trusted }
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -128,6 +153,7 @@ final class XPCHelperClient: NSObject {
     }
     
     nonisolated func ensureAccessibilityAuthorization(promptIfNeeded: Bool) async -> Bool {
+        if let trusted = await overriddenTrust() { return trusted }
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
