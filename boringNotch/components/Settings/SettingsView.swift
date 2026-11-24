@@ -473,7 +473,7 @@ struct HUD: View {
     @Default(.optionKeyAction) var optionKeyAction
     @Default(.hudReplacement) var hudReplacement
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @State private var accessibilityAuthorized = false
+    @ObservedObject private var accessibility = HUDAccessibility.shared
     
     var body: some View {
         Form {
@@ -492,23 +492,11 @@ struct HUD: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.large)
-                    .disabled(!accessibilityAuthorized)
+                    .disabled(accessibility.trust.guidance != .trusted)
                 }
                 
-                if !accessibilityAuthorized {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Accessibility access is required to replace the system HUD.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        HStack(spacing: 12) {
-                            Button("Request Accessibility") {
-                                XPCHelperClient.shared.requestAccessibilityAuthorization()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    .padding(.top, 6)
+                if accessibility.trust.guidance != .trusted {
+                    HUDAccessibilityNotice(accessibility: accessibility)
                 }
             }
             
@@ -580,19 +568,12 @@ struct HUD: View {
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("HUDs")
-        .task {
-            accessibilityAuthorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
-        }
         .onAppear {
+            accessibility.paneAppeared()
             XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
         }
         .onDisappear {
             XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)) { notification in
-            if let granted = notification.userInfo?["granted"] as? Bool {
-                accessibilityAuthorized = granted
-            }
         }
     }
 }

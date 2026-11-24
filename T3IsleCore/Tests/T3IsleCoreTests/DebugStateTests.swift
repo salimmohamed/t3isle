@@ -7,7 +7,7 @@ final class DebugStateTests: XCTestCase {
     private func state() throws -> DebugState {
         let t3 = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
         return DebugState(notch: .closed, tab: .t3, settingsOpen: false, closedActivity: .t3, headphones: nil,
-                          notchViewModels: 1, headphonesMonitor: monitor, t3: t3)
+                          notchViewModels: 1, headphonesMonitor: monitor, hudAccessibility: .untrusted, t3: t3)
     }
 
     func testEncodingIsByteStableAndRoundTrips() throws {
@@ -20,7 +20,7 @@ final class DebugStateTests: XCTestCase {
     func testEveryKeyIsPresentEvenWhenEmpty() throws {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(try state())) as? [String: Any])
         XCTAssertEqual(Set(object.keys), ["notch", "tab", "settingsOpen", "closedActivity", "headphones", "notchViewModels",
-                                          "headphonesMonitor", "t3"])
+                                          "headphonesMonitor", "hudAccessibility", "t3"])
         XCTAssertTrue(object["headphones"] is NSNull)
         XCTAssertEqual(object["closedActivity"] as? String, "t3")
         let t3 = try XCTUnwrap(object["t3"] as? [String: Any])
@@ -34,7 +34,7 @@ final class DebugStateTests: XCTestCase {
         let state = DebugState(notch: .open, tab: .shelf, settingsOpen: true, closedActivity: .headphones(headphones),
                                headphones: headphones, notchViewModels: 2,
                                headphonesMonitor: DebugState.HeadphonesMonitor(bluetooth: .notDetermined, status: .watching),
-                               t3: try state().t3)
+                               hudAccessibility: .stale, t3: try state().t3)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(state)) as? [String: Any])
         XCTAssertEqual(object["notch"] as? String, "open")
         XCTAssertEqual(object["tab"] as? String, "shelf")
@@ -43,6 +43,7 @@ final class DebugStateTests: XCTestCase {
         XCTAssertEqual(object["headphones"] as? [String: String], ["name": "AirPods Pro", "kind": "airpodsPro"])
         XCTAssertEqual(object["notchViewModels"] as? Int, 2)
         XCTAssertEqual(object["headphonesMonitor"] as? [String: String], ["bluetooth": "not-determined", "status": "watching"])
+        XCTAssertEqual(object["hudAccessibility"] as? String, "stale")
     }
 }
 
