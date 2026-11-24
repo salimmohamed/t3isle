@@ -39,6 +39,16 @@ final class HUDAccessibility: ObservableObject {
         XPCHelperClient.shared.requestAccessibilityAuthorization()
     }
 
+    #if DEBUG
+    func requestWithoutPrompt() {
+        update { $0.requested() }
+    }
+
+    func forgetRequest() {
+        update { $0.forgetRequest() }
+    }
+    #endif
+
     func openSystemSettings() {
         guard let url = URL(string: AccessibilityTrust.settingsAddress) else { return }
         NSWorkspace.shared.open(url)

@@ -95,12 +95,13 @@ enum T3DebugCommands {
             runtime.feedBluetoothAccess(access)
         case .accessibilityTrust(let trusted):
             XPCHelperClient.shared.overrideTrust(trusted)
+            if trusted == nil { HUDAccessibility.shared.forgetRequest() }
             HUDAccessibility.shared.appBecameActive()
         case .accessibilityRequest:
             guard XPCHelperClient.shared.isTrustOverridden else {
                 throw Failure("Run accessibility-trust first, so the request never raises the system prompt")
             }
-            HUDAccessibility.shared.request()
+            HUDAccessibility.shared.requestWithoutPrompt()
         }
     }
 

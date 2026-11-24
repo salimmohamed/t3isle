@@ -64,4 +64,14 @@ final class AccessibilityTrustTests: XCTestCase {
         trust.appBecameActive(trusted: false)
         XCTAssertEqual(trust.guidance, .stale)
     }
+
+    func testForgettingTheRequestLeavesPlainUntrusted() {
+        var trust = AccessibilityTrust(asked: true)
+        trust.requested()
+        trust.forgetRequest()
+        trust.appBecameActive(trusted: false)
+        XCTAssertEqual(trust.guidance, .untrusted)
+        XCTAssertFalse(trust.asked)
+        XCTAssertFalse(trust.awaitingReturn)
+    }
 }

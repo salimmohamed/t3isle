@@ -112,9 +112,11 @@ final class XPCHelperClient: NSObject {
 
     private nonisolated func overriddenTrust() async -> Bool? {
         #if DEBUG
-        guard let trusted = await MainActor.run(body: { trustOverride }) else { return nil }
-        await MainActor.run { notifyAuthorizationChange(trusted) }
-        return trusted
+        return await MainActor.run { () -> Bool? in
+            guard let trusted = trustOverride else { return nil }
+            notifyAuthorizationChange(trusted)
+            return trusted
+        }
         #else
         return nil
         #endif

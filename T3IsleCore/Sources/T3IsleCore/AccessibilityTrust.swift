@@ -28,11 +28,14 @@ public struct AccessibilityTrust: Equatable, Sendable {
         awaitingReturn = true
     }
 
-    public mutating func checked(trusted: Bool) {
-        self.trusted = trusted
-        guard trusted else { return }
+    public mutating func forgetRequest() {
         asked = false
         awaitingReturn = false
+    }
+
+    public mutating func checked(trusted: Bool) {
+        self.trusted = trusted
+        if trusted { forgetRequest() }
     }
 
     public mutating func appBecameActive(trusted: Bool) {
