@@ -31,6 +31,14 @@ final class AccessibilityTrustTests: XCTestCase {
         XCTAssertTrue(trust.asked)
     }
 
+    func testOnboardingRequestBeforeAnyCheckIsStaleAfterAnUntrustedReturn() {
+        var trust = AccessibilityTrust(asked: false)
+        trust.requested()
+        XCTAssertEqual(trust.guidance, .untrusted)
+        trust.appBecameActive(trusted: false)
+        XCTAssertEqual(trust.guidance, .stale)
+    }
+
     func testLikelyStaleAfterARelaunchThatFollowedARequest() {
         var trust = AccessibilityTrust(asked: true)
         trust.checked(trusted: false)
