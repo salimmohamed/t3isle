@@ -131,12 +131,12 @@ class BoringViewCoordinator: ObservableObject {
                     if change.newValue {
                         self.hudEnableTask = Task { @MainActor in
                             let trusted = await XPCHelperClient.shared.isAccessibilityAuthorized()
+                            if !trusted { HUDAccessibility.shared.request() }
                             if Task.isCancelled { return }
 
                             if trusted {
                                 await MediaKeyInterceptor.shared.start()
                             } else {
-                                HUDAccessibility.shared.request()
                                 Defaults[.hudReplacement] = false
                             }
                         }
