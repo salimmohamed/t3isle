@@ -15,6 +15,8 @@ public struct StateFolders: Equatable, Sendable {
 
     public static let flag = "--state-dir"
 
+    public var linkSession: URL { session.deletingLastPathComponent().appendingPathComponent("link-session.json") }
+
     public var launchArguments: [String] { root.map { [Self.flag, $0.path] } ?? [] }
 
     public static let current = resolve(

@@ -2,8 +2,9 @@ import Foundation
 
 public protocol T3Source: AnyObject, Sendable {
     func updates() async -> AsyncStream<ShellUpdate>
-    func detail(threadId: String) async throws -> ThreadProjection
-    func send(_ command: T3Command) async throws
+    func detail(threadId: String, in environment: String?) async throws -> ThreadProjection
+    func send(_ command: T3Command, in environment: String?) async throws
+    func linked() async -> LinkedRead?
     func environmentId() async -> String?
     func providers() -> [ProviderLimits]
 }
@@ -12,9 +13,14 @@ public final class LiveSource: T3Source {
     private let client: T3ServerClient
     private let limits: UsageLimitsReader
 
-    public init(home: T3Home = T3Home(), tokenStore: TokenStore = FileTokenStore(), clock: any T3Clock = LiveClock()) {
-        let signIn = T3SignIn(home: home, store: tokenStore, runner: ProcessRunner(clock: clock), clock: clock)
-        client = T3ServerClient(home: home, signIn: signIn)
+    public init(home: T3Home = T3Home(), tokenStore: TokenStore = FileTokenStore(),
+                linkTokenStore: TokenStore = FileTokenStore(file: StateFolders.current.linkSession),
+                clock: any T3Clock = LiveClock()) {
+        let runner = ProcessRunner(clock: clock)
+        let signIn = T3SignIn(home: home, store: tokenStore, runner: runner, clock: clock)
+        let linkSignIn = T3SignIn(home: home, store: linkTokenStore, runner: runner,
+                                  label: "\(StateFolders.appName()) links", subject: "mcp-client", clock: clock)
+        client = T3ServerClient(home: home, signIn: signIn, linkSignIn: linkSignIn)
         limits = UsageLimitsReader(home: home)
     }
 
@@ -22,12 +28,16 @@ public final class LiveSource: T3Source {
         await client.shellUpdates()
     }
 
-    public func detail(threadId: String) async throws -> ThreadProjection {
-        try await client.detail(threadId: threadId)
+    public func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
+        try await client.detail(threadId: threadId, in: environment)
     }
 
-    public func send(_ command: T3Command) async throws {
-        try await client.dispatch(command)
+    public func send(_ command: T3Command, in environment: String?) async throws {
+        try await client.dispatch(command, in: environment)
+    }
+
+    public func linked() async -> LinkedRead? {
+        await client.linkedRead()
     }
 
     public func environmentId() async -> String? {

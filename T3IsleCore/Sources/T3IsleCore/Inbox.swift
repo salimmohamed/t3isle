@@ -17,11 +17,12 @@ public struct T3Thread: Identifiable, Equatable, Sendable {
     public var line: String?
     public let pendingRequestId: String?
     public let runStartedAt: Date?
+    public let environment: LinkedEnvironment?
 
     public init(id: String, title: String, projectId: String? = nil, project: String, providerId: String = "",
                 provider: String, model: String? = nil, branch: String? = nil, mood: ThreadMood, since: Date?,
                 updatedAt: Date, snoozedUntil: Date? = nil, waitingOn: String? = nil, line: String? = nil,
-                pendingRequestId: String? = nil, runStartedAt: Date? = nil) {
+                pendingRequestId: String? = nil, runStartedAt: Date? = nil, environment: LinkedEnvironment? = nil) {
         self.id = id
         self.title = title
         self.projectId = projectId
@@ -38,6 +39,7 @@ public struct T3Thread: Identifiable, Equatable, Sendable {
         self.line = line
         self.pendingRequestId = pendingRequestId
         self.runStartedAt = runStartedAt
+        self.environment = environment
     }
 
     public var status: String {
@@ -99,8 +101,16 @@ public struct InboxBuilder {
     }
 
     static func hasPendingRequest(_ shell: ThreadShell) -> Bool {
-        guard let pending = shell.pendingRuntimeRequest else { return false }
+        guard let pending = shell.pendingRuntimeRequest else { return isWaitingOnLink(shell) }
         return !ignoredRequestKinds.contains(pending.kind)
+    }
+
+    static func awaitsAnswer(_ shell: ThreadShell) -> Bool {
+        shell.pendingRuntimeRequest != nil || isWaitingOnLink(shell)
+    }
+
+    static func isWaitingOnLink(_ shell: ThreadShell) -> Bool {
+        shell.linkedEnvironment != nil && runStatus(shell) == "waiting"
     }
 
     public static func mood(_ shell: ThreadShell) -> ThreadMood {
@@ -160,7 +170,8 @@ public struct InboxBuilder {
             waitingOn: mood == .waiting ? Self.waitingOn(shell) : nil,
             line: Self.line(shell, mood: mood),
             pendingRequestId: Self.hasPendingRequest(shell) ? shell.pendingRuntimeRequest?.id : nil,
-            runStartedAt: runStart
+            runStartedAt: runStart,
+            environment: shell.linkedEnvironment
         )
     }
 

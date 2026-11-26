@@ -1,0 +1,13 @@
+{
+ "jsonrpc": "2.0",
+ "id": 4,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\"_tag\": \"OrchestratorMcpFailure\", \"code\": \"orchestration_error\", \"message\": \"Main PC did not answer at https://main-pc.example.ts.net:3773.\"}"
+   }
+  ],
+  "isError": true
+ }
+}

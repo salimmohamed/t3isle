@@ -1,0 +1,50 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\"environmentId\": \"env-local\", \"links\": [{\"environmentId\": \"env-macbook\", \"label\": \"MacBook Pro\", \"status\": \"reachable\", \"access\": \"full-access\", \"expiresAt\": \"2026-12-26T18:10:07.069Z\", \"lastError\": null}, {\"environmentId\": \"env-mainpc\", \"label\": \"Main PC\", \"status\": \"unreachable\", \"access\": \"full-access\", \"expiresAt\": \"2026-12-22T21:54:50.280Z\", \"lastError\": null}, {\"environmentId\": \"env-server\", \"label\": \"Server PC\", \"status\": \"expired\", \"access\": \"full-access\", \"expiresAt\": \"2026-11-20T22:01:04.615Z\", \"lastError\": \"The link expired.\"}, {\"environmentId\": \"env-wsl\", \"label\": \"WSL\", \"status\": \"reachable\", \"access\": \"full-access\", \"expiresAt\": \"2026-12-24T21:26:58.357Z\", \"lastError\": null}], \"notListed\": \"Not listed: not linked yet. Call t3_environment_link with a hint from the user's words.\"}"
+   }
+  ],
+  "structuredContent": {
+   "environmentId": "env-local",
+   "links": [
+    {
+     "environmentId": "env-macbook",
+     "label": "MacBook Pro",
+     "status": "reachable",
+     "access": "full-access",
+     "expiresAt": "2026-12-26T18:10:07.069Z",
+     "lastError": null
+    },
+    {
+     "environmentId": "env-mainpc",
+     "label": "Main PC",
+     "status": "unreachable",
+     "access": "full-access",
+     "expiresAt": "2026-12-22T21:54:50.280Z",
+     "lastError": null
+    },
+    {
+     "environmentId": "env-server",
+     "label": "Server PC",
+     "status": "expired",
+     "access": "full-access",
+     "expiresAt": "2026-11-20T22:01:04.615Z",
+     "lastError": "The link expired."
+    },
+    {
+     "environmentId": "env-wsl",
+     "label": "WSL",
+     "status": "reachable",
+     "access": "full-access",
+     "expiresAt": "2026-12-24T21:26:58.357Z",
+     "lastError": null
+    }
+   ],
+   "notListed": "Not listed: not linked yet. Call t3_environment_link with a hint from the user's words."
+  }
+ }
+}

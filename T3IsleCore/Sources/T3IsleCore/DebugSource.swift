@@ -28,9 +28,13 @@ public final class DebugSource: T3Source, @unchecked Sendable {
 
     public func updates() async -> AsyncStream<ShellUpdate> { await active.updates() }
 
-    public func detail(threadId: String) async throws -> ThreadProjection { try await active.detail(threadId: threadId) }
+    public func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
+        try await active.detail(threadId: threadId, in: environment)
+    }
 
-    public func send(_ command: T3Command) async throws { try await active.send(command) }
+    public func send(_ command: T3Command, in environment: String?) async throws { try await active.send(command, in: environment) }
+
+    public func linked() async -> LinkedRead? { await active.linked() }
 
     public func environmentId() async -> String? { await active.environmentId() }
 

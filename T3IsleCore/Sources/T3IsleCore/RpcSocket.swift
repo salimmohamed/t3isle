@@ -43,18 +43,42 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
 
     @discardableResult
     func request(_ tag: String, payload: [String: Any], handler: @escaping (Event) -> Void) -> String {
+        request(tag, payload: payload) { _, event in handler(event) }
+    }
+
+    @discardableResult
+    private func request(_ tag: String, payload: [String: Any], identified handler: @escaping (String, Event) -> Void) -> String {
         lock.lock()
         guard !closed else {
             lock.unlock()
-            handler(.exit(.failure(.notRunning)))
+            handler("", .exit(.failure(.notRunning)))
             return ""
         }
         let id = String(nextId)
         nextId += 1
-        handlers[id] = handler
+        handlers[id] = { handler(id, $0) }
         lock.unlock()
         send(["_tag": "Request", "id": id, "tag": tag, "payload": payload, "headers": [] as [Any]])
         return id
+    }
+
+    func firstChunk(_ tag: String, payload: [String: Any]) async throws -> [Any] {
+        try await withCheckedThrowingContinuation { continuation in
+            request(tag, payload: payload) { id, event in
+                switch event {
+                case .chunk(let values):
+                    if self.interrupt(id) { continuation.resume(returning: values) }
+                case .exit(let result):
+                    continuation.resume(with: result.map { _ in [] }.mapError { $0 as Error })
+                }
+            }
+        }
+    }
+
+    private func interrupt(_ id: String) -> Bool {
+        guard handler(for: id, remove: true) != nil else { return false }
+        send(["_tag": "Interrupt", "requestId": id])
+        return true
     }
 
     func call(_ tag: String, payload: [String: Any]) async throws -> Any? {
