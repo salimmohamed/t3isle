@@ -118,14 +118,20 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     }
 
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
-        if let environment { detailEnvironments[threadId] = environment }
+        if let environment { lock.withLock { environments[threadId] = environment } }
         guard let projection = projections[threadId] else { throw CancellationError() }
         return projection
     }
 
     var limits: [ProviderLimits] = []
-    var linkedRead: LinkedRead? = LinkedRead()
-    private(set) var detailEnvironments: [String: String] = [:]
+    private var read: LinkedRead? = LinkedRead()
+    var linkedRead: LinkedRead? {
+        get { lock.withLock { read } }
+        set { lock.withLock { read = newValue } }
+    }
+    private let lock = NSLock()
+    private var environments: [String: String] = [:]
+    var detailEnvironments: [String: String] { lock.withLock { environments } }
     let (linkedCalls, linkedCalled) = AsyncStream<Void>.makeStream()
     let (sends, sending) = AsyncStream<String?>.makeStream()
 
