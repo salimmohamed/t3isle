@@ -11,7 +11,6 @@ import Foundation
 @objc protocol BoringNotchXPCHelperProtocol {
     func isAccessibilityAuthorized(with reply: @escaping (Bool) -> Void)
     func requestAccessibilityAuthorization()
-    func ensureAccessibilityAuthorization(_ promptIfNeeded: Bool, with reply: @escaping (Bool) -> Void)
     // Keyboard backlight / CoreBrightness access (performed by the helper)
     func isKeyboardBrightnessAvailable(with reply: @escaping (Bool) -> Void)
     func currentKeyboardBrightness(with reply: @escaping (NSNumber?) -> Void)
