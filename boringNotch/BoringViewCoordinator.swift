@@ -114,7 +114,7 @@ class BoringViewCoordinator: ObservableObject {
         ) { _ in
             Task { @MainActor in
                 if Defaults[.hudReplacement] {
-                    await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
+                    await MediaKeyInterceptor.shared.start()
                 }
             }
         }
@@ -130,10 +130,11 @@ class BoringViewCoordinator: ObservableObject {
 
                     if change.newValue {
                         self.hudEnableTask = Task { @MainActor in
-                            let granted = await XPCHelperClient.shared.ensureAccessibilityAuthorization(promptIfNeeded: true)
+                            let trusted = await XPCHelperClient.shared.isAccessibilityAuthorized()
+                            if !trusted { HUDAccessibility.shared.request() }
                             if Task.isCancelled { return }
 
-                            if granted {
+                            if trusted {
                                 await MediaKeyInterceptor.shared.start()
                             } else {
                                 Defaults[.hudReplacement] = false
@@ -153,7 +154,7 @@ class BoringViewCoordinator: ObservableObject {
                 if !authorized {
                     Defaults[.hudReplacement] = false
                 } else {
-                    await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
+                    await MediaKeyInterceptor.shared.start()
                 }
             }
         }

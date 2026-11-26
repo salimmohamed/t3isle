@@ -154,26 +154,6 @@ final class XPCHelperClient: NSObject {
         }
     }
     
-    nonisolated func ensureAccessibilityAuthorization(promptIfNeeded: Bool) async -> Bool {
-        if let trusted = await overriddenTrust() { return trusted }
-        do {
-            let service = await MainActor.run {
-                ensureRemoteService()
-            }
-            let result: Bool = try await service.withContinuation { service, continuation in
-                service.ensureAccessibilityAuthorization(promptIfNeeded) { authorized in
-                    continuation.resume(returning: authorized)
-                }
-            }
-            await MainActor.run {
-                notifyAuthorizationChange(result)
-            }
-            return result
-        } catch {
-            return false
-        }
-    }
-    
     // MARK: - Keyboard Brightness
     
     nonisolated func isKeyboardBrightnessAvailable() async -> Bool {
