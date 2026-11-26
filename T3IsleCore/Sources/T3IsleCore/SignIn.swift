@@ -48,16 +48,18 @@ public actor T3SignIn {
     private let store: TokenStore
     private let runner: CommandRunner
     private let label: String
+    private let subject: String?
     private let clock: any T3Clock
     private var cached: StoredToken?
     private var issuing: Task<StoredToken, Error>?
 
     public init(home: T3Home, store: TokenStore = FileTokenStore(), runner: CommandRunner = ProcessRunner(),
-                label: String = StateFolders.appName(), clock: any T3Clock = LiveClock()) {
+                label: String = StateFolders.appName(), subject: String? = nil, clock: any T3Clock = LiveClock()) {
         self.home = home
         self.store = store
         self.runner = runner
         self.label = label
+        self.subject = subject
         self.clock = clock
     }
 
@@ -81,6 +83,7 @@ public actor T3SignIn {
         let task = Task { () throws -> StoredToken in
             var arguments = ["auth", "session", "issue", "--ttl", "30d", "--label", label, "--json"]
             for scope in Self.scopes { arguments += ["--scope", scope] }
+            if let subject { arguments += ["--subject", subject] }
             let data = try await runner.run(home.cliTool, arguments)
             return try Self.parseIssued(data, now: clock.now)
         }

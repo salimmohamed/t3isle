@@ -359,8 +359,9 @@ T3 Isle uses T3 Code's local server on this Mac. It finds the server in `~/.t3/u
 
 - Threads, questions and approvals stream live over T3's WebSocket API (`orchestration.subscribeShell`). Thread details (plan, activity, question text) come from `/api/orchestration/threads/<id>/bounded`.
 - Answers, approvals, interrupts, snooze and settle are sent as T3 orchestration commands (`runtime-request.respond`, `thread.stop`, `thread.snooze`, `thread.settle`, …).
+- Threads on machines linked to this T3 server (Settings, Connections) come through the local server too. A second session, issued with `--subject mcp-client` and stored next to the first as `link-session.json`, reads the links and their unsettled threads from the local `/mcp` endpoint (`t3_environment_links`, `t3_thread_list` with an `environmentId`) about every 10 seconds. Unreachable and expired links are skipped until the next read. A linked thread's details come from `peerLinks.subscribeThread` on the same WebSocket. Its answers, interrupts, snooze and settle go through `t3_pending_request`, `t3_thread_interrupt` and `t3_thread_organize` with its `environmentId`. T3 refuses these for threads that run with more access than that session's `approval-required` limit, and it has no way to approve a linked thread's permission request, so those are done in T3 Code.
 - Usage limits come from `~/.t3/caches/<provider>.json`.
-- Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`.
+- Clicking a thread opens `t3code://threads/<environment-id>/<thread-id>`, with the linked machine's environment id for its threads.
 
 Set `T3CODE_HOME` to use a different T3 data directory.
 

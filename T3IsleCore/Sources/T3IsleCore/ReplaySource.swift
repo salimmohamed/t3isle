@@ -89,18 +89,20 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
         return stream
     }
 
-    public func detail(threadId: String) async throws -> ThreadProjection {
+    public func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
         guard let projection = lock.withLock({ world.projections[threadId] }) else {
             throw T3Failure.http(404, "Thread not found")
         }
         return projection
     }
 
-    public func send(_ command: T3Command) async throws {
+    public func send(_ command: T3Command, in environment: String?) async throws {
         try lock.withLock {
             broadcast(try world.respond(to: command, at: clock.now))
         }
     }
+
+    public func linked() async -> ShellSnapshot { ShellSnapshot(threads: [], projects: []) }
 
     public static let environment = "replay"
 

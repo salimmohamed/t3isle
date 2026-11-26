@@ -259,6 +259,13 @@ struct ThreadRow: View {
                                 .font(.system(size: 9.5))
                                 .foregroundStyle(T3Theme.muted)
                                 .lineLimit(1)
+                            if let environment = thread.environment {
+                                Label(environment.label, systemImage: "desktopcomputer")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(T3Theme.muted)
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
                         }
                         LiveLine(text: thread.line, attention: !thread.mood.isBusy && !asleep)
                     }

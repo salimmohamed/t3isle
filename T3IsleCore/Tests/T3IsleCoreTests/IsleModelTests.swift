@@ -117,14 +117,26 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
         return stream
     }
 
-    func detail(threadId: String) async throws -> ThreadProjection {
+    func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
+        if let environment { detailEnvironments[threadId] = environment }
         guard let projection = projections[threadId] else { throw CancellationError() }
         return projection
     }
 
     var limits: [ProviderLimits] = []
+    var linkedSnapshot = ShellSnapshot(threads: [], projects: [])
+    private(set) var detailEnvironments: [String: String] = [:]
+    let (linkedCalls, linkedCalled) = AsyncStream<Void>.makeStream()
+    let (sends, sending) = AsyncStream<String?>.makeStream()
 
-    func send(_ command: T3Command) async throws {}
+    func send(_ command: T3Command, in environment: String?) async throws {
+        sending.yield(environment)
+    }
+
+    func linked() async -> ShellSnapshot {
+        defer { linkedCalled.yield() }
+        return linkedSnapshot
+    }
     func environmentId() async -> String? { "env-local" }
     func providers() -> [ProviderLimits] { limits }
     func signOut() async {}
@@ -303,6 +315,83 @@ final class SubagentVisibilityTests: XCTestCase {
         try resolve("t-side-chat")
         await until(model) { !shownIds(model).contains("t-side-chat") }
         XCTAssertTrue(shownIds(model).contains("t-subagent"))
+        model.stop()
+    }
+}
+
+@MainActor
+final class LinkedEnvironmentModelTests: XCTestCase {
+    private let clock = TestClock()
+    private let wsl = LinkedEnvironment(id: "env-wsl", label: "WSL")
+    private let (opened, opening) = AsyncStream<URL>.makeStream()
+
+    private func source() throws -> FixtureSource {
+        let local = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let remoteDetail = try T3ServerClient.relaySnapshot(LinkedFixtures.chunkValues("linked-detail.json"))
+        return FixtureSource(local, projections: ["wsl-question": remoteDetail])
+    }
+
+    private func wslSnapshot() throws -> ShellSnapshot {
+        ShellSnapshot(threads: try LinkedFixtures.threads(in: wsl), projects: try LinkedFixtures.projects())
+    }
+
+    private func model(_ source: FixtureSource) -> T3IsleModel {
+        let model = T3IsleModel(source: source, clock: clock, opener: { [opening] url in opening.yield(url) })
+        model.start()
+        return model
+    }
+
+    func testLinkedThreadsJoinLocalOnesWithTheirMachineLabel() async throws {
+        let source = try source()
+        source.linkedSnapshot = try wslSnapshot()
+        let model = model(source)
+        await until(model) { model.threads.contains { $0.id == "wsl-replied" } && model.threads.contains { $0.id == "t-working" } }
+
+        let remote = try XCTUnwrap(model.threads.first { $0.id == "wsl-replied" })
+        XCTAssertEqual(remote.environment, wsl)
+        XCTAssertEqual(remote.project, "deploy-tools")
+        XCTAssertEqual(remote.mood, .replied)
+        XCTAssertNil(model.threads.first { $0.id == "t-working" }?.environment)
+        XCTAssertFalse(model.threads.contains { $0.id == "thread:delegated-task:review" })
+        XCTAssertFalse(model.allCards.contains { $0.id == "thread:delegated-task:review" })
+        model.stop()
+    }
+
+    func testAQuestionOnALinkedThreadReadsAndAnswersThroughItsEnvironment() async throws {
+        let source = try source()
+        source.linkedSnapshot = try wslSnapshot()
+        let model = model(source)
+        await until(model) { model.prompts.contains { $0.threadId == "wsl-question" } }
+
+        XCTAssertEqual(model.threads.first { $0.id == "wsl-question" }?.mood, .needsYou)
+        XCTAssertEqual(source.detailEnvironments["wsl-question"], "env-wsl")
+        let questions = model.prompts.filter { $0.threadId == "wsl-question" && !$0.isApproval }
+        XCTAssertFalse(questions.isEmpty)
+        for question in questions { model.answer(question, with: .text("5 retries")) }
+        var sends = source.sends.makeAsyncIterator()
+        let environment = await sends.next()
+        XCTAssertEqual(environment, "env-wsl")
+        model.open("wsl-replied")
+        var urls = opened.makeAsyncIterator()
+        let url = await urls.next()
+        XCTAssertEqual(url?.absoluteString, "t3code://threads/env-wsl/wsl-replied")
+        model.stop()
+    }
+
+    func testAnUnreachableLinkLeavesLocalThreadsAndIsRetriedOnTheNextRefresh() async throws {
+        let source = try source()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        await calls.next()
+        await until(model) { model.threads.contains { $0.id == "t-working" } }
+        XCTAssertFalse(model.threads.contains { $0.environment != nil })
+
+        source.linkedSnapshot = try wslSnapshot()
+        await clock.waitForSleepers()
+        clock.advance(by: T3IsleModel.linkedInterval)
+        await calls.next()
+        await until(model) { model.threads.contains { $0.id == "wsl-replied" } }
+        XCTAssertTrue(model.threads.contains { $0.id == "t-working" })
         model.stop()
     }
 }

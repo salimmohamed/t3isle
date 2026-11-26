@@ -1,0 +1,31 @@
+{
+ "jsonrpc": "2.0",
+ "id": 3,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\"projects\": [{\"id\": \"p-deploy\", \"title\": \"deploy-tools\", \"workspaceRoot\": \"/home/dev/deploy-tools\", \"faviconPath\": null, \"projectIcon\": null, \"defaultModelSelection\": null, \"autoPull\": true, \"scripts\": [], \"trackedFolders\": [], \"pinnedAt\": null, \"archivedAt\": null, \"createdAt\": \"2026-11-22T22:10:00.000Z\"}], \"nextCursor\": null}"
+   }
+  ],
+  "structuredContent": {
+   "projects": [
+    {
+     "id": "p-deploy",
+     "title": "deploy-tools",
+     "workspaceRoot": "/home/dev/deploy-tools",
+     "faviconPath": null,
+     "projectIcon": null,
+     "defaultModelSelection": null,
+     "autoPull": true,
+     "scripts": [],
+     "trackedFolders": [],
+     "pinnedAt": null,
+     "archivedAt": null,
+     "createdAt": "2026-11-22T22:10:00.000Z"
+    }
+   ],
+   "nextCursor": null
+  }
+ }
+}

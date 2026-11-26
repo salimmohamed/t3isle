@@ -99,6 +99,9 @@ public final class T3IsleModel: ObservableObject {
     @Published private var details: [String: AgentDetail] = [:]
     private var shells: [String: ThreadShell] = [:]
     private var projects: [String: ProjectShell] = [:]
+    private var linkedShells: [String: ThreadShell] = [:]
+    private var linkedProjects: [String: ProjectShell] = [:]
+    private var linkedRefreshedAt: Date?
     private var detailPrompts: [String: [PendingPrompt]] = [:]
     private var lastFetch: [String: Date] = [:]
     private var fetching: Set<String> = []
@@ -193,6 +196,9 @@ public final class T3IsleModel: ObservableObject {
         completedSteps = [:]
         shells = [:]
         projects = [:]
+        linkedShells = [:]
+        linkedProjects = [:]
+        linkedRefreshedAt = nil
         details = [:]
         detailPrompts = [:]
         lastFetch = [:]
@@ -221,6 +227,20 @@ public final class T3IsleModel: ObservableObject {
         if !preferences.keepFinishedPinned { finished.removeAll() }
         scheduleRefresh()
         publish()
+    }
+
+    static let linkedInterval: TimeInterval = 10
+
+    private var allShells: [String: ThreadShell] {
+        linkedShells.merging(shells) { _, local in local }
+    }
+
+    private var allProjects: [String: ProjectShell] {
+        linkedProjects.merging(projects) { _, local in local }
+    }
+
+    private func linkedEnvironment(of threadId: String) -> String? {
+        allShells[threadId]?.linkedEnvironment?.id
     }
 
     private var tickInterval: TimeInterval {
@@ -274,7 +294,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private var visibleShells: [String: ThreadShell] {
-        shells.filter { isShown($0.value) }
+        allShells.filter { isShown($0.value) }
     }
 
     private func wantsDetail(_ shell: ThreadShell) -> Bool {
@@ -297,16 +317,38 @@ public final class T3IsleModel: ObservableObject {
             now.timeIntervalSince(at) < 45 || draftAnswers.keys.contains { key.hasPrefix("\($0)#") }
         }
         stopping = stopping.filter { now.timeIntervalSince($0.value) < 20 }
-        for shell in shells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: false) }
+        for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: false) }
         publish(prune: true)
+        refreshLinked(now: now)
+    }
+
+    private func refreshLinked(now: Date) {
+        guard now >= (linkedRefreshedAt ?? .distantPast) + Self.linkedInterval else { return }
+        linkedRefreshedAt = now
+        let session = session
+        Task { [weak self, source] in
+            let snapshot = await source.linked()
+            guard let self, self.session == session else { return }
+            self.absorbLinked(snapshot)
+        }
+    }
+
+    private func absorbLinked(_ snapshot: ShellSnapshot) {
+        let fresh = Dictionary(snapshot.threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for id in linkedShells.keys where fresh[id] == nil && shells[id] == nil { forgetDetail(id) }
+        linkedShells = fresh
+        linkedProjects = Dictionary(snapshot.projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for shell in fresh.values where wantsDetail(shell) && details[shell.id] == nil { requestDetail(shell.id, urgent: true) }
+        publish()
     }
 
     private func scheduleRefresh() {
-        for shell in shells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
+        for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
     }
 
     private func requestDetail(_ threadId: String, urgent: Bool) {
-        let interval: TimeInterval = urgent ? 0.25 : (expanded || !prompts.isEmpty ? 0.75 : 2)
+        let settled: TimeInterval = linkedEnvironment(of: threadId) == nil ? (expanded || !prompts.isEmpty ? 0.75 : 2) : Self.linkedInterval
+        let interval: TimeInterval = urgent ? 0.25 : settled
         let due = (lastFetch[threadId] ?? .distantPast) + interval
         if clock.now >= due {
             fetchDetail(threadId)
@@ -325,8 +367,9 @@ public final class T3IsleModel: ObservableObject {
         fetching.insert(threadId)
         lastFetch[threadId] = clock.now
         let session = session
+        let environment = linkedEnvironment(of: threadId)
         Task { [weak self, source] in
-            let projection = try? await source.detail(threadId: threadId)
+            let projection = try? await source.detail(threadId: threadId, in: environment)
             guard let self, self.session == session else { return }
             self.fetching.remove(threadId)
             guard let projection else { return }
@@ -336,7 +379,7 @@ public final class T3IsleModel: ObservableObject {
 
     private func absorb(_ projection: ThreadProjection) {
         let id = projection.thread.id
-        guard let shell = shells[id], isShown(shell) else {
+        guard let shell = allShells[id], isShown(shell) else {
             forgetDetail(id)
             return
         }
@@ -350,7 +393,7 @@ public final class T3IsleModel: ObservableObject {
             if completedSteps[id] != done { completedSteps[id] = done }
         }
         if details[id] != detail { details[id] = detail }
-        let project = shell.projectId.flatMap { projects[$0]?.title } ?? ""
+        let project = shell.projectId.flatMap { allProjects[$0]?.title } ?? ""
         detailPrompts[id] = DetailBuilder.prompts(projection, title: shell.title, project: project)
         publish()
     }
@@ -361,7 +404,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func showBanner(threadId: String, steps: Int) {
-        let title = shells[threadId]?.title ?? "Plan"
+        let title = allShells[threadId]?.title ?? "Plan"
         let banner = PlanBanner(threadId: threadId, threadTitle: title, stepCount: steps)
         self.banner = banner
         let hideAt = clock.now + 4
@@ -374,7 +417,7 @@ public final class T3IsleModel: ObservableObject {
     private func publish(prune: Bool = false) {
         let names = Dictionary(providers.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
         let now = clock.now
-        var built = InboxBuilder(providerNames: names).threads(from: Array(visibleShells.values), projects: projects, now: now)
+        var built = InboxBuilder(providerNames: names).threads(from: Array(visibleShells.values), projects: allProjects, now: now)
         for index in built.indices {
             let id = built[index].id
             if built[index].mood.isBusy, let line = details[id]?.latestLine {
@@ -430,7 +473,7 @@ public final class T3IsleModel: ObservableObject {
         let live = visible.values.filter { InboxBuilder.hasPendingRequest($0) }
         let liveRequestIds = Set(live.compactMap { $0.pendingRuntimeRequest?.id })
         let candidates = detailPrompts.values.flatMap { $0 }
-            .filter { liveRequestIds.contains($0.requestId) || (visible[$0.threadId]?.pendingRuntimeRequest != nil) }
+            .filter { liveRequestIds.contains($0.requestId) || visible[$0.threadId].map(InboxBuilder.awaitsAnswer) == true }
         let pending = Self.ordered(candidates.filter { answered[$0.id] == nil })
         answered = answered.filter { key, _ in candidates.contains { $0.id == key } }
         let ids = Set(pending.map(\.id))
@@ -471,7 +514,7 @@ public final class T3IsleModel: ObservableObject {
         let doneIds = finished.sorted { ($0.value, $0.key) < ($1.value, $1.key) }.map(\.key)
         let doneThreads = doneIds.compactMap { id in
             threads.first { $0.id == id } ?? visible[id].map {
-                InboxBuilder().thread(from: $0, project: $0.projectId.flatMap { projects[$0] }, now: now)
+                InboxBuilder().thread(from: $0, project: $0.projectId.flatMap { allProjects[$0] }, now: now)
             }
         }
         let cards = active.map { thread in
@@ -536,8 +579,9 @@ public final class T3IsleModel: ObservableObject {
         }
         guard !isDemo else { return }
         let session = session
+        let linked = threadId.flatMap(linkedEnvironment(of:))
         Task {
-            var environment = environmentId
+            var environment = linked ?? environmentId
             if environment == nil { environment = await source.environmentId() }
             guard self.session == session else { return }
             environmentId = environment
@@ -633,9 +677,10 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func send(_ command: T3Command, failure: @escaping @MainActor () -> Void) {
+        let environment = linkedEnvironment(of: command.threadId)
         Task { [weak self, source] in
             do {
-                try await source.send(command)
+                try await source.send(command, in: environment)
                 self?.requestDetail(command.threadId, urgent: true)
             } catch {
                 failure()
@@ -663,9 +708,10 @@ public final class T3IsleModel: ObservableObject {
         case .snoozed(let until): command = .snooze(threadId: thread.id, until: until)
         case .woke: command = .unsnooze(threadId: thread.id)
         }
+        let environment = linkedEnvironment(of: thread.id)
         Task { [weak self, source, clock] in
             do {
-                try await source.send(command)
+                try await source.send(command, in: environment)
                 if self?.changes[thread.id]?.change == change { self?.changes[thread.id]?.done = clock.now }
             } catch {
                 guard let self else { return }

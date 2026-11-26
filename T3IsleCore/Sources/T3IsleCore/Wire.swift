@@ -80,6 +80,16 @@ public struct DelegatedFrom: Decodable, Equatable, Sendable {
     }
 }
 
+public struct LinkedEnvironment: Decodable, Equatable, Sendable {
+    public var id: String
+    public var label: String
+
+    public init(id: String, label: String) {
+        self.id = id
+        self.label = label
+    }
+}
+
 public struct PullRequestRef: Decodable, Equatable, Sendable {
     public var number: Int?
     public var watch: AnyWireValue?
@@ -121,6 +131,7 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
     public var snoozedUntil: Date?
     public var snoozedAt: Date?
     public var lastVisitedAt: Date?
+    public var linkedEnvironment: LinkedEnvironment?
 
     public init(id: String, projectId: String? = nil, title: String, providerInstanceId: String? = nil,
                 modelSelection: ModelSelection? = nil, branch: String? = nil, lineage: Lineage? = nil,
@@ -134,7 +145,8 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
                 hasActionableProposedPlan: Bool? = nil, createdAt: Date? = nil,
                 updatedAt: Date? = nil, archivedAt: Date? = nil, deletedAt: Date? = nil,
                 settledOverride: String? = nil, settledAt: Date? = nil, unsettledAt: Date? = nil,
-                snoozedUntil: Date? = nil, snoozedAt: Date? = nil, lastVisitedAt: Date? = nil) {
+                snoozedUntil: Date? = nil, snoozedAt: Date? = nil, lastVisitedAt: Date? = nil,
+                linkedEnvironment: LinkedEnvironment? = nil) {
         self.id = id
         self.projectId = projectId
         self.title = title
@@ -170,6 +182,7 @@ public struct ThreadShell: Decodable, Equatable, Sendable, Identifiable {
         self.snoozedUntil = snoozedUntil
         self.snoozedAt = snoozedAt
         self.lastVisitedAt = lastVisitedAt
+        self.linkedEnvironment = linkedEnvironment
     }
 
     public var isSubagent: Bool {

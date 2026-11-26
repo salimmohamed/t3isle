@@ -54,6 +54,7 @@ public struct DebugState: Codable, Equatable, Sendable {
             public let project: String
             public let mood: String
             public let snoozed: Bool
+            public let environment: String?
         }
 
         public struct Prompt: Codable, Equatable, Sendable {
@@ -103,7 +104,8 @@ public struct DebugState: Codable, Equatable, Sendable {
             self.connection = Connection(connection)
             self.presence = "\(presence)"
             self.threads = threads.map {
-                Thread(id: $0.id, title: $0.title, project: $0.project, mood: "\($0.mood)", snoozed: $0.isSnoozed)
+                Thread(id: $0.id, title: $0.title, project: $0.project, mood: "\($0.mood)", snoozed: $0.isSnoozed,
+                       environment: $0.environment?.label)
             }
             self.prompts = prompts.map {
                 Prompt(id: $0.id, threadId: $0.threadId, kind: $0.isApproval ? "approval" : "question", title: $0.title)

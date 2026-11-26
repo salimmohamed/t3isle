@@ -249,7 +249,7 @@ final class DebugSourceTests: XCTestCase {
         var updates = await source.updates().makeAsyncIterator()
         guard case .snapshot(let snapshot)? = await updates.next() else { return XCTFail("expected a snapshot first") }
         XCTAssertEqual(snapshot.threads.map(\.id), ["question-thread"])
-        let projection = try await source.detail(threadId: "question-thread")
+        let projection = try await source.detail(threadId: "question-thread", in: nil)
         XCTAssertEqual(projection.runtimeRequests.map(\.id), ["question-request"])
         let environment = await source.environmentId()
         XCTAssertEqual(environment, "replay")
@@ -270,8 +270,9 @@ private final class BaseSource: T3Source, @unchecked Sendable {
         return stream
     }
 
-    func detail(threadId: String) async throws -> ThreadProjection { throw T3Failure.http(404, "Thread not found") }
-    func send(_ command: T3Command) async throws {}
+    func detail(threadId: String, in environment: String?) async throws -> ThreadProjection { throw T3Failure.http(404, "Thread not found") }
+    func send(_ command: T3Command, in environment: String?) async throws {}
+    func linked() async -> ShellSnapshot { ShellSnapshot(threads: [], projects: []) }
     func environmentId() async -> String? { nil }
     func providers() -> [ProviderLimits] { [] }
 }

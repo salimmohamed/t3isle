@@ -12,17 +12,22 @@ public enum ShellUpdate: Sendable {
 public actor T3ServerClient {
     private static let protocolHeader = "x-t3-orchestration-protocol"
     private static let protocolVersion = "2"
+    private static let mcpProtocolVersion = "2025-06-18"
 
     private let home: T3Home
     private let signIn: T3SignIn
+    private let linkSignIn: T3SignIn?
     private let urlSession: URLSession
     private var socket: RpcSocket?
     private var connecting: Task<RpcSocket, Error>?
     private var environmentId: String?
+    private var mcpSession: String?
+    private var mcpRequestId = 0
 
-    public init(home: T3Home, signIn: T3SignIn) {
+    public init(home: T3Home, signIn: T3SignIn, linkSignIn: T3SignIn? = nil) {
         self.home = home
         self.signIn = signIn
+        self.linkSignIn = linkSignIn
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
         urlSession = URLSession(configuration: configuration)
@@ -31,6 +36,135 @@ public actor T3ServerClient {
     public func detail(threadId: String) async throws -> ThreadProjection {
         let data = try await get("api/orchestration/threads/\(Self.pathComponent(threadId))/bounded")
         return try Self.decode(ThreadDetailEnvelope.self, data).projection
+    }
+
+    public func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
+        guard let environment else { return try await detail(threadId: threadId) }
+        let values = try await connectedSocket().firstChunk("peerLinks.subscribeThread",
+                                                            payload: ["environmentId": environment, "threadId": threadId])
+        return try Self.relaySnapshot(values)
+    }
+
+    static func relaySnapshot(_ values: [Any]) throws -> ThreadProjection {
+        guard let snapshot = values.first(where: { ($0 as? [String: Any])?["kind"] as? String == "snapshot" }),
+              let data = try? JSONSerialization.data(withJSONObject: snapshot)
+        else { throw T3Failure.unreadable }
+        return try decode(ThreadDetailEnvelope.self, data).projection
+    }
+
+    public func dispatch(_ command: T3Command, in environment: String?) async throws {
+        guard let environment else {
+            try await dispatch(command)
+            return
+        }
+        let tool = try LinkedCommand.tool(for: command, in: environment)
+        _ = try McpReply.structuredContent(try await mcp(tool.name, tool.arguments))
+    }
+
+    public func linkedSnapshot() async -> ShellSnapshot {
+        guard let list = try? await callTool("t3_environment_links", [:], as: LinkedEnvironmentList.self) else {
+            return ShellSnapshot(threads: [], projects: [])
+        }
+        return await withTaskGroup(of: ShellSnapshot?.self) { group in
+            for environment in list.reachable {
+                group.addTask { try? await self.linkedSnapshot(of: environment) }
+            }
+            var merged = ShellSnapshot(threads: [], projects: [])
+            for await part in group {
+                guard let part else { continue }
+                merged.threads += part.threads
+                merged.projects += part.projects
+            }
+            return merged
+        }
+    }
+
+    private func linkedSnapshot(of environment: LinkedEnvironment) async throws -> ShellSnapshot {
+        var threads: [ThreadShell] = []
+        var cursor: Int? = 0
+        while let current = cursor {
+            let page = try await callTool("t3_thread_list", [
+                "environmentId": environment.id, "allProjects": true, "settled": false,
+                "includeSubagents": true, "limit": 100, "cursor": current,
+            ], as: LinkedThreadPage.self)
+            threads += page.threads.map { $0.shell(in: environment) }
+            cursor = page.nextCursor.flatMap { $0 > current ? $0 : nil }
+        }
+        let projects = try? await callTool("t3_project_list", ["environmentId": environment.id, "limit": 100],
+                                           as: LinkedProjectPage.self).projects
+        return ShellSnapshot(threads: threads, projects: projects ?? [])
+    }
+
+    private func callTool<T: Decodable>(_ name: String, _ arguments: [String: Any], as type: T.Type) async throws -> T {
+        try Self.decode(type, try McpReply.structuredContent(try await mcp(name, arguments)))
+    }
+
+    private func mcp(_ name: String, _ arguments: [String: Any], retried: Bool = false) async throws -> Data {
+        guard let linkSignIn else { throw T3Failure.notRunning }
+        let session = try await mcpSessionId()
+        mcpRequestId += 1
+        let (data, status) = try await postMcp(McpReply.toolCall(id: mcpRequestId, name: name, arguments: arguments),
+                                               session: session)
+        switch status {
+        case 200..<300:
+            return data
+        case 401 where !retried:
+            mcpSession = nil
+            await linkSignIn.invalidate()
+            return try await mcp(name, arguments, retried: true)
+        case 400 where !retried, 404 where !retried:
+            mcpSession = nil
+            return try await mcp(name, arguments, retried: true)
+        case 401:
+            throw T3Failure.signedOut
+        default:
+            throw T3Failure.http(status, nil)
+        }
+    }
+
+    private func mcpSessionId() async throws -> String {
+        if let mcpSession { return mcpSession }
+        let initialize = McpReply.request(id: 0, method: "initialize", params: [
+            "protocolVersion": Self.mcpProtocolVersion, "capabilities": [String: Any](),
+            "clientInfo": ["name": "t3isle", "version": "1"],
+        ])
+        let (data, status, session) = try await postMcpReturningSession(initialize, session: nil)
+        guard (200..<300).contains(status), let session else {
+            if status == 401 { await linkSignIn?.invalidate() }
+            throw status == 401 ? T3Failure.signedOut : T3Failure.http(status, String(data: data, encoding: .utf8))
+        }
+        let initialized = (try? JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "method": "notifications/initialized"])) ?? Data()
+        _ = try? await postMcp(initialized, session: session)
+        mcpSession = session
+        return session
+    }
+
+    private func postMcp(_ body: Data, session: String) async throws -> (Data, Int) {
+        let (data, status, _) = try await postMcpReturningSession(body, session: session)
+        return (data, status)
+    }
+
+    private func postMcpReturningSession(_ body: Data, session: String?) async throws -> (Data, Int, String?) {
+        guard let linkSignIn, let origin = home.serverOrigin() else { throw T3Failure.notRunning }
+        var request = URLRequest(url: origin.appendingPathComponent("mcp"))
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue("Bearer \(try await linkSignIn.token())", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue(Self.mcpProtocolVersion, forHTTPHeaderField: "MCP-Protocol-Version")
+        if let session { request.setValue(session, forHTTPHeaderField: "MCP-Session-Id") }
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            throw T3Failure.notRunning
+        }
+        let http = response as? HTTPURLResponse
+        let payload = http?.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("text/event-stream") == true
+            ? McpReply.lastEvent(data) : data
+        return (payload, http?.statusCode ?? 0, http?.value(forHTTPHeaderField: "MCP-Session-Id"))
     }
 
     public func environment() async -> String? {

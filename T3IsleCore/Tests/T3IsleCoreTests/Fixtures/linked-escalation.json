@@ -1,0 +1,13 @@
+{
+ "jsonrpc": "2.0",
+ "id": 5,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\"_tag\": \"OrchestratorMcpFailure\", \"code\": \"runtime_mode_escalation_denied\", \"message\": \"Thread \\\"wsl-question\\\" runs in full-access/default, above this caller's approval-required/default limit. For linked calls, this limit is also capped by the link's approved access. This call does not create an approval request. Have the user act directly in the target thread through an authorized client.\"}"
+   }
+  ],
+  "isError": true
+ }
+}
