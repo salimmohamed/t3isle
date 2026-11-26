@@ -1,5 +1,20 @@
 import Foundation
 
+public struct LinkedRead: Sendable {
+    public var reachable: Set<String>
+    public var answered: Set<String>
+    public var threads: [ThreadShell]
+    public var projects: [ProjectShell]
+
+    public init(reachable: Set<String> = [], answered: Set<String> = [], threads: [ThreadShell] = [],
+                projects: [ProjectShell] = []) {
+        self.reachable = reachable
+        self.answered = answered
+        self.threads = threads
+        self.projects = projects
+    }
+}
+
 struct LinkedEnvironmentList: Decodable {
     struct Link: Decodable {
         let environmentId: String
@@ -44,7 +59,13 @@ struct LinkedThreadItem: Decodable {
     let updatedAt: Date?
 
     var runStatus: String {
-        status == "waiting" && pendingBackgroundTasks?.isEmpty == false ? "completed" : status
+        status == "waiting" && holdsCompletion ? "completed" : status
+    }
+
+    var holdsCompletion: Bool {
+        (pendingBackgroundTasks ?? []).contains { task in
+            task["awaited"] == .bool(true) || ["subagent", "background_task"].contains(task["kind"]?.stringValue ?? "")
+        }
     }
 
     func shell(in environment: LinkedEnvironment) -> ThreadShell {

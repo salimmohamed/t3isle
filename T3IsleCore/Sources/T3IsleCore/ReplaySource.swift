@@ -102,7 +102,7 @@ public final class ReplaySource: T3Source, @unchecked Sendable {
         }
     }
 
-    public func linked() async -> ShellSnapshot { ShellSnapshot(threads: [], projects: []) }
+    public func linked() async -> LinkedRead? { LinkedRead() }
 
     public static let environment = "replay"
 

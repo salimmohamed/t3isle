@@ -4,7 +4,7 @@ public protocol T3Source: AnyObject, Sendable {
     func updates() async -> AsyncStream<ShellUpdate>
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection
     func send(_ command: T3Command, in environment: String?) async throws
-    func linked() async -> ShellSnapshot
+    func linked() async -> LinkedRead?
     func environmentId() async -> String?
     func providers() -> [ProviderLimits]
 }
@@ -36,8 +36,8 @@ public final class LiveSource: T3Source {
         try await client.dispatch(command, in: environment)
     }
 
-    public func linked() async -> ShellSnapshot {
-        await client.linkedSnapshot()
+    public func linked() async -> LinkedRead? {
+        await client.linkedRead()
     }
 
     public func environmentId() async -> String? {

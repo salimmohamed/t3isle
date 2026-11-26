@@ -272,7 +272,7 @@ private final class BaseSource: T3Source, @unchecked Sendable {
 
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection { throw T3Failure.http(404, "Thread not found") }
     func send(_ command: T3Command, in environment: String?) async throws {}
-    func linked() async -> ShellSnapshot { ShellSnapshot(threads: [], projects: []) }
+    func linked() async -> LinkedRead? { LinkedRead() }
     func environmentId() async -> String? { nil }
     func providers() -> [ProviderLimits] { [] }
 }

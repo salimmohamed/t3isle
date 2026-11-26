@@ -124,7 +124,7 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     }
 
     var limits: [ProviderLimits] = []
-    var linkedSnapshot = ShellSnapshot(threads: [], projects: [])
+    var linkedRead: LinkedRead? = LinkedRead()
     private(set) var detailEnvironments: [String: String] = [:]
     let (linkedCalls, linkedCalled) = AsyncStream<Void>.makeStream()
     let (sends, sending) = AsyncStream<String?>.makeStream()
@@ -133,9 +133,9 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
         sending.yield(environment)
     }
 
-    func linked() async -> ShellSnapshot {
+    func linked() async -> LinkedRead? {
         defer { linkedCalled.yield() }
-        return linkedSnapshot
+        return linkedRead
     }
     func environmentId() async -> String? { "env-local" }
     func providers() -> [ProviderLimits] { limits }
@@ -331,8 +331,15 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         return FixtureSource(local, projections: ["wsl-question": remoteDetail])
     }
 
-    private func wslSnapshot() throws -> ShellSnapshot {
-        ShellSnapshot(threads: try LinkedFixtures.threads(in: wsl), projects: try LinkedFixtures.projects())
+    private func wslRead() throws -> LinkedRead {
+        LinkedRead(reachable: [wsl.id], answered: [wsl.id], threads: try LinkedFixtures.threads(in: wsl),
+                   projects: try LinkedFixtures.projects())
+    }
+
+    private func nextRefresh(_ calls: inout AsyncStream<Void>.Iterator) async {
+        await clock.waitForSleepers()
+        clock.advance(by: T3IsleModel.linkedInterval)
+        await calls.next()
     }
 
     private func model(_ source: FixtureSource) -> T3IsleModel {
@@ -343,7 +350,7 @@ final class LinkedEnvironmentModelTests: XCTestCase {
 
     func testLinkedThreadsJoinLocalOnesWithTheirMachineLabel() async throws {
         let source = try source()
-        source.linkedSnapshot = try wslSnapshot()
+        source.linkedRead = try wslRead()
         let model = model(source)
         await until(model) { model.threads.contains { $0.id == "wsl-replied" } && model.threads.contains { $0.id == "t-working" } }
 
@@ -359,7 +366,7 @@ final class LinkedEnvironmentModelTests: XCTestCase {
 
     func testAQuestionOnALinkedThreadReadsAndAnswersThroughItsEnvironment() async throws {
         let source = try source()
-        source.linkedSnapshot = try wslSnapshot()
+        source.linkedRead = try wslRead()
         let model = model(source)
         await until(model) { model.prompts.contains { $0.threadId == "wsl-question" } }
 
@@ -375,6 +382,9 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         var urls = opened.makeAsyncIterator()
         let url = await urls.next()
         XCTAssertEqual(url?.absoluteString, "t3code://threads/env-wsl/wsl-replied")
+        model.open("t-working")
+        let local = await urls.next()
+        XCTAssertEqual(local?.absoluteString, "t3code://threads/env-local/t-working")
         model.stop()
     }
 
@@ -386,12 +396,30 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         await until(model) { model.threads.contains { $0.id == "t-working" } }
         XCTAssertFalse(model.threads.contains { $0.environment != nil })
 
-        source.linkedSnapshot = try wslSnapshot()
-        await clock.waitForSleepers()
-        clock.advance(by: T3IsleModel.linkedInterval)
-        await calls.next()
+        source.linkedRead = try wslRead()
+        await nextRefresh(&calls)
         await until(model) { model.threads.contains { $0.id == "wsl-replied" } }
         XCTAssertTrue(model.threads.contains { $0.id == "t-working" })
+        model.stop()
+    }
+
+    func testAFailedReadKeepsTheRowsItCouldNotRefresh() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        await calls.next()
+        await until(model) { model.threads.contains { $0.id == "wsl-replied" } }
+
+        source.linkedRead = nil
+        await nextRefresh(&calls)
+        source.linkedRead = LinkedRead(reachable: [wsl.id])
+        await nextRefresh(&calls)
+        XCTAssertEqual(model.threads.first { $0.id == "wsl-replied" }?.project, "deploy-tools")
+
+        source.linkedRead = LinkedRead()
+        await nextRefresh(&calls)
+        await until(model) { !model.threads.contains { $0.environment != nil } }
         model.stop()
     }
 }

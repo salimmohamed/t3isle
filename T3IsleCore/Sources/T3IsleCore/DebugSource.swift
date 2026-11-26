@@ -34,7 +34,7 @@ public final class DebugSource: T3Source, @unchecked Sendable {
 
     public func send(_ command: T3Command, in environment: String?) async throws { try await active.send(command, in: environment) }
 
-    public func linked() async -> ShellSnapshot { await active.linked() }
+    public func linked() async -> LinkedRead? { await active.linked() }
 
     public func environmentId() async -> String? { await active.environmentId() }
 

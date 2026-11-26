@@ -102,6 +102,7 @@ public final class T3IsleModel: ObservableObject {
     private var linkedShells: [String: ThreadShell] = [:]
     private var linkedProjects: [String: ProjectShell] = [:]
     private var linkedRefreshedAt: Date?
+    private var readingLinked = false
     private var detailPrompts: [String: [PendingPrompt]] = [:]
     private var lastFetch: [String: Date] = [:]
     private var fetching: Set<String> = []
@@ -199,6 +200,7 @@ public final class T3IsleModel: ObservableObject {
         linkedShells = [:]
         linkedProjects = [:]
         linkedRefreshedAt = nil
+        readingLinked = false
         details = [:]
         detailPrompts = [:]
         lastFetch = [:]
@@ -323,21 +325,26 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func refreshLinked(now: Date) {
-        guard now >= (linkedRefreshedAt ?? .distantPast) + Self.linkedInterval else { return }
-        linkedRefreshedAt = now
+        guard !readingLinked, now >= (linkedRefreshedAt ?? .distantPast) + Self.linkedInterval else { return }
+        readingLinked = true
         let session = session
-        Task { [weak self, source] in
-            let snapshot = await source.linked()
+        Task { [weak self, source, clock] in
+            let read = await source.linked()
             guard let self, self.session == session else { return }
-            self.absorbLinked(snapshot)
+            self.readingLinked = false
+            self.linkedRefreshedAt = clock.now
+            if let read { self.absorbLinked(read) }
         }
     }
 
-    private func absorbLinked(_ snapshot: ShellSnapshot) {
-        let fresh = Dictionary(snapshot.threads.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    private func absorbLinked(_ read: LinkedRead) {
+        let unanswered = linkedShells.values.filter { shell in
+            shell.linkedEnvironment.map { read.reachable.contains($0.id) && !read.answered.contains($0.id) } == true
+        }
+        let fresh = Dictionary((unanswered + read.threads).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for id in linkedShells.keys where fresh[id] == nil && shells[id] == nil { forgetDetail(id) }
         linkedShells = fresh
-        linkedProjects = Dictionary(snapshot.projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        linkedProjects.merge(read.projects.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         for shell in fresh.values where wantsDetail(shell) && details[shell.id] == nil { requestDetail(shell.id, urgent: true) }
         publish()
     }
@@ -581,10 +588,11 @@ public final class T3IsleModel: ObservableObject {
         let session = session
         let linked = threadId.flatMap(linkedEnvironment(of:))
         Task {
-            var environment = linked ?? environmentId
-            if environment == nil { environment = await source.environmentId() }
+            var local = environmentId
+            if local == nil { local = await source.environmentId() }
             guard self.session == session else { return }
-            environmentId = environment
+            environmentId = local
+            let environment = linked ?? local
             guard environment != ReplaySource.environment else { return }
             if let threadId, let environment,
                let url = URL(string: "t3code://threads/\(environment)/\(T3ServerClient.pathComponent(threadId))") {
@@ -708,7 +716,7 @@ public final class T3IsleModel: ObservableObject {
         case .snoozed(let until): command = .snooze(threadId: thread.id, until: until)
         case .woke: command = .unsnooze(threadId: thread.id)
         }
-        let environment = linkedEnvironment(of: thread.id)
+        let environment = thread.environment?.id
         Task { [weak self, source, clock] in
             do {
                 try await source.send(command, in: environment)

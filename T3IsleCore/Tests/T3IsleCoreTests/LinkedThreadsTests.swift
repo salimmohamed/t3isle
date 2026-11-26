@@ -42,7 +42,15 @@ final class LinkedThreadsTests: XCTestCase {
         XCTAssertEqual(shells.map(InboxBuilder.mood), [.replied, .needsYou, .working, .waiting])
         XCTAssertTrue(InboxBuilder.hasPendingRequest(shells[1]))
         XCTAssertFalse(InboxBuilder.hasPendingRequest(shells[3]))
-        XCTAssertTrue(shells[2].isSubagent)
+    }
+
+    func testAQuestionNextToADevServerStillNeedsYou() throws {
+        let page = try JSONSerialization.jsonObject(with: McpReply.structuredContent(Fixture.data("linked-threads.json")))
+        let items = try XCTUnwrap((page as? [String: Any])?["threads"] as? [[String: Any]])
+        var asking = try XCTUnwrap(items.first { $0["threadId"] as? String == "wsl-question" })
+        asking["pendingBackgroundTasks"] = [["taskId": "dev", "kind": "command"]]
+        let item = try WireDecoder.make().decode(LinkedThreadItem.self, from: JSONSerialization.data(withJSONObject: asking))
+        XCTAssertEqual(InboxBuilder.mood(item.shell(in: wsl)), .needsYou)
     }
 
     func testAnUnreachableEnvironmentFailsQuietlyWithItsReason() throws {

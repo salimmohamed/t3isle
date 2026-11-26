@@ -61,21 +61,22 @@ public actor T3ServerClient {
         _ = try McpReply.structuredContent(try await mcp(tool.name, tool.arguments))
     }
 
-    public func linkedSnapshot() async -> ShellSnapshot {
+    public func linkedRead() async -> LinkedRead? {
         guard let list = try? await callTool("t3_environment_links", [:], as: LinkedEnvironmentList.self) else {
-            return ShellSnapshot(threads: [], projects: [])
+            return nil
         }
-        return await withTaskGroup(of: ShellSnapshot?.self) { group in
+        return await withTaskGroup(of: (String, ShellSnapshot?).self) { group in
             for environment in list.reachable {
-                group.addTask { try? await self.linkedSnapshot(of: environment) }
+                group.addTask { (environment.id, try? await self.linkedSnapshot(of: environment)) }
             }
-            var merged = ShellSnapshot(threads: [], projects: [])
-            for await part in group {
+            var read = LinkedRead(reachable: Set(list.reachable.map(\.id)))
+            for await (environment, part) in group {
                 guard let part else { continue }
-                merged.threads += part.threads
-                merged.projects += part.projects
+                read.answered.insert(environment)
+                read.threads += part.threads
+                read.projects += part.projects
             }
-            return merged
+            return read
         }
     }
 
