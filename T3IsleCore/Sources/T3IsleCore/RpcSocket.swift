@@ -41,7 +41,7 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
     private var closed = false
     private var onClose: (@Sendable (T3Failure) -> Void)?
 
-    init(clock: any T3Clock = LiveClock()) {
+    init(clock: any T3Clock) {
         self.clock = clock
         super.init()
     }
@@ -253,6 +253,7 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
         let transport = self.transport
         let session = self.session
         let onClose = self.onClose
+        self.onClose = nil
         pings?.cancel()
         pings = nil
         lock.unlock()

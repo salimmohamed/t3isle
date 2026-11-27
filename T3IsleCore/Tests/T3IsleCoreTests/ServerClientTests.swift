@@ -24,6 +24,25 @@ final class ServerClientTests: XCTestCase {
         XCTAssertTrue(disconnected, "stream ended without reporting the disconnect")
         await server.idle()
     }
+
+    func testTheClientClockTimesOutAnUnansweredSocket() async throws {
+        let server = try await SocketServer.start()
+        let home = try T3Home.local(port: server.port)
+        let clock = TestClock()
+        let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: CountingRunner()),
+                                    clock: clock)
+
+        var updates = await client.shellUpdates().makeAsyncIterator()
+        for _ in 0...Int(RpcSocket.pongTimeout / RpcSocket.pingInterval) {
+            await clock.waitForSleepers()
+            clock.advance(by: RpcSocket.pingInterval)
+        }
+
+        guard case .disconnected(.notRunning)? = await updates.next() else {
+            return XCTFail("an unanswered socket should disconnect on the client's clock")
+        }
+        await server.idle()
+    }
 }
 
 private final class HeldRunner: CommandRunner, @unchecked Sendable {

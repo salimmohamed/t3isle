@@ -83,6 +83,20 @@ final class WireProtocolTests: XCTestCase {
         }
     }
 
+    func testRemovalsWithoutAnIdAreUnreadable() {
+        guard case .unreadable(.threadRemoved, let threadReason)? = T3ServerClient.shellUpdate(["kind": "thread.removed"]) else {
+            return XCTFail("a thread.removed with no threadId should be unreadable")
+        }
+        XCTAssertTrue(threadReason.contains("threadId"), threadReason)
+        guard case .unreadable(.projectRemoved, let projectReason)? = T3ServerClient.shellUpdate(["kind": "project.removed"]) else {
+            return XCTFail("a project.removed with no projectId should be unreadable")
+        }
+        XCTAssertTrue(projectReason.contains("projectId"), projectReason)
+        guard case .threadRemoved("t")? = T3ServerClient.shellUpdate(["kind": "thread.removed", "threadId": "t"]),
+              case .projectRemoved("p")? = T3ServerClient.shellUpdate(["kind": "project.removed", "projectId": "p"])
+        else { return XCTFail("removals with an id should still decode") }
+    }
+
     func testEnrichmentSnapshotOnlyUpdatesProjects() {
         let enrichment: [String: Any] = [
             "kind": "snapshot",
@@ -99,7 +113,7 @@ final class WireProtocolTests: XCTestCase {
     }
 
     func testRequestOnClosedSocketFailsImmediately() {
-        let socket = RpcSocket()
+        let socket = RpcSocket(clock: TestClock())
         socket.close()
         var outcome: T3Failure?
         socket.request("orchestration.subscribeShell", payload: [:]) { event in
