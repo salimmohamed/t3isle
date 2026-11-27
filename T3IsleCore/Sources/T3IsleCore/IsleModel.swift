@@ -136,10 +136,9 @@ public final class T3IsleModel: ObservableObject {
     public var workingCount: Int { threads.filter { $0.mood.isBusy }.count }
 
     public var closedPresence: ClosedPresence {
-        guard preferences.enabled else { return .none }
+        guard preferences.enabled, connection == .live else { return .none }
         if needsAttention || banner != nil { return .alert }
-        if !threads.isEmpty { return .threads }
-        return connection == .live ? .idle : .none
+        return threads.isEmpty ? .idle : .threads
     }
     public var allCards: [AgentCard] { agentGroups.flatMap(\.cards) }
 

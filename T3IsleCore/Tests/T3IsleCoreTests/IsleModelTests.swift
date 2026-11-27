@@ -83,6 +83,7 @@ final class IsleModelTests: XCTestCase {
         XCTAssertEqual(model.closedPresence, .none)
         observer.cancel()
         model.apply(T3Preferences(enabled: true))
+        await until(model) { model.connection == .live }
         XCTAssertEqual(model.closedPresence, .alert)
         model.stop()
     }
@@ -191,7 +192,9 @@ final class IdlePresenceTests: XCTestCase {
 
     func testConnectedWithOnlyHiddenSubagentsIsIdle() async throws {
         let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
-        let (model, _) = started(with: snapshot.threads.filter(\.isSubagent))
+        let subagents = snapshot.threads.filter(\.isSubagent)
+        XCTAssertFalse(subagents.isEmpty)
+        let (model, _) = started(with: subagents)
         await until(model) { model.connection == .live }
         XCTAssertTrue(model.threads.isEmpty)
         XCTAssertEqual(model.closedPresence, .idle)
@@ -203,6 +206,18 @@ final class IdlePresenceTests: XCTestCase {
         await until(model) { model.closedPresence == .idle }
         source.push(.disconnected(.notRunning))
         await until(model) { model.connection != .live }
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testDisconnectingHidesThreadsLeftFromBeforeTheDisconnect() async throws {
+        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let (model, source) = started(with: snapshot.threads)
+        await until(model) { !model.threads.isEmpty }
+        XCTAssertNotEqual(model.closedPresence, .none)
+        source.push(.disconnected(.notRunning))
+        await until(model) { model.connection != .live }
+        XCTAssertFalse(model.threads.isEmpty)
         XCTAssertEqual(model.closedPresence, .none)
         model.stop()
     }
