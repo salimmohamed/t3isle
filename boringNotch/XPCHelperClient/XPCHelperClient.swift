@@ -11,6 +11,7 @@ final class XPCHelperClient: NSObject {
     
     private var remoteService: RemoteXPCService<BoringNotchXPCHelperProtocol>?
     private var connection: NSXPCConnection?
+    private var readTickets = AccessibilityReadTickets()
     private var readChanges = AccessibilityReadChanges()
     private var monitoringTask: Task<Void, Never>?
     
@@ -61,12 +62,17 @@ final class XPCHelperClient: NSObject {
     }
     
     @MainActor
-    private func notifyIfChanged(_ read: AccessibilityRead) {
-        guard readChanges.record(read) else { return }
+    var lastRead: AccessibilityRead? {
+        readChanges.last?.read
+    }
+
+    @MainActor
+    private func notifyIfChanged(_ reading: AccessibilityReading) {
+        guard readChanges.record(reading) else { return }
         NotificationCenter.default.post(
             name: .accessibilityAuthorizationChanged,
             object: nil,
-            userInfo: [AccessibilityRead.notificationKey: read]
+            userInfo: [AccessibilityReading.notificationKey: reading]
         )
     }
 
@@ -126,18 +132,20 @@ final class XPCHelperClient: NSObject {
     }
     
     nonisolated func isAccessibilityAuthorized() async -> Bool {
-        await readAccessibilityTrust() == .trusted
+        await readAccessibilityTrust().read == .trusted
     }
 
-    nonisolated func readAccessibilityTrust() async -> AccessibilityRead {
+    nonisolated func readAccessibilityTrust() async -> AccessibilityReading {
+        let ticket = await MainActor.run { readTickets.issue() }
         let read: AccessibilityRead
         if let overridden = overriddenTrust() {
             read = overridden
         } else {
             read = await readSystemTrust()
         }
-        await MainActor.run { notifyIfChanged(read) }
-        return read
+        let reading = AccessibilityReading(read: read, ticket: ticket)
+        await MainActor.run { notifyIfChanged(reading) }
+        return reading
     }
 
     private nonisolated func readSystemTrust() async -> AccessibilityRead {

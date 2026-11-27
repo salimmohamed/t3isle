@@ -496,7 +496,6 @@ struct HUD: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.large)
-                    .disabled(accessibility.trust.guidance != .trusted)
                 }
                 
                 if accessibility.trust.guidance != .trusted {

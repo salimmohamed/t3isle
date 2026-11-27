@@ -11,15 +11,16 @@ final class HUDAccessibility: ObservableObject {
     @Published private(set) var trust = AccessibilityTrust()
     private var checksInFlight = 0
     private var cancellables: Set<AnyCancellable> = []
+    private lazy var unreachableRetry = UnreachableReadRetry { [weak self] in self?.check() }
 
     private init() {
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .sink { [weak self] _ in self?.check() }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)
-            .compactMap { $0.userInfo?[AccessibilityRead.notificationKey] as? AccessibilityRead }
+            .compactMap { $0.userInfo?[AccessibilityReading.notificationKey] as? AccessibilityReading }
             .receive(on: RunLoop.main)
-            .sink { [weak self] read in self?.trust.checked(read) }
+            .sink { [weak self] reading in self?.land(reading) }
             .store(in: &cancellables)
     }
 
@@ -47,15 +48,20 @@ final class HUDAccessibility: ObservableObject {
 
     var isSettled: Bool { checksInFlight == 0 }
 
+    private func land(_ reading: AccessibilityReading) {
+        guard trust.checked(reading) else { return }
+        unreachableRetry.landed(reading.read)
+    }
+
     @discardableResult
     func check() -> Task<AccessibilityRead, Never> {
         checksInFlight += 1
         return Task { @MainActor in
-            let read = await XPCHelperClient.shared.readAccessibilityTrust()
-            trust.checked(read)
-            log(read)
+            let reading = await XPCHelperClient.shared.readAccessibilityTrust()
+            land(reading)
+            log(reading.read)
             checksInFlight -= 1
-            return read
+            return reading.read
         }
     }
 }

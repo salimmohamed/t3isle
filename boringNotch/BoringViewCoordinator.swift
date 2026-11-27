@@ -112,10 +112,17 @@ class BoringViewCoordinator: ObservableObject {
             forName: Notification.Name.accessibilityAuthorizationChanged,
             object: nil,
             queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             Task { @MainActor in
-                if Defaults[.hudReplacement] {
+                await self?.hudEnableTask?.value
+                let read = XPCHelperClient.shared.lastRead
+                switch HUDReplacementTrustChange(read: read, isOn: Defaults[.hudReplacement]) {
+                case .startInterceptor?:
                     await MediaKeyInterceptor.shared.start()
+                case .turnOff?:
+                    Defaults[.hudReplacement] = false
+                case nil:
+                    return
                 }
             }
         }
