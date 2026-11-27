@@ -44,8 +44,6 @@ final class CountingRunner: CommandRunner, @unchecked Sendable {
 final class McpTestServer: @unchecked Sendable {
     private static let rejection = response("401 Unauthorized")
     private static let acceptance = response("202 Accepted")
-    private static let initialized = response("200 OK", session: "mcp-session",
-                                              body: #"{"jsonrpc":"2.0","id":0,"result":{}}"#)
     private static let noLinks = response("200 OK", body: #"{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"links":[]}}}"#)
 
     private static func response(_ status: String, session: String? = nil, body: String = "") -> Data {
@@ -66,6 +64,8 @@ final class McpTestServer: @unchecked Sendable {
     private var rejectsAll = true
     private var holdsInitialize = false
     private var held: HeldReply?
+    private var pairsRejections = false
+    private var unpairedToolCall: NWConnection?
     let (initializeArrivals, initializeArrived) = AsyncStream<Void>.makeStream()
 
     static func start() async throws -> McpTestServer {
@@ -87,6 +87,11 @@ final class McpTestServer: @unchecked Sendable {
     var rejecting: Bool {
         get { lock.withLock { rejectsAll } }
         set { lock.withLock { rejectsAll = newValue } }
+    }
+
+    var rejectsToolCallsInPairs: Bool {
+        get { lock.withLock { pairsRejections } }
+        set { lock.withLock { pairsRejections = newValue } }
     }
 
     func holdNextInitialize() {
@@ -116,29 +121,40 @@ final class McpTestServer: @unchecked Sendable {
     }
 
     private func answer(_ request: Data, on connection: NWConnection) {
-        let isInitialize = String(decoding: request, as: UTF8.self).contains(#""initialize""#)
-        let reply: Data? = lock.withLock {
+        let text = String(decoding: request, as: UTF8.self)
+        let isInitialize = text.contains(#""initialize""#)
+        let replies: [HeldReply] = lock.withLock {
             answered += 1
-            let reply = rejectsAll ? Self.rejection : Self.reply(to: request)
-            guard isInitialize else { return reply }
-            initializeCount += 1
-            guard holdsInitialize else { return reply }
+            if isInitialize { initializeCount += 1 }
+            if pairsRejections, !isInitialize, text.contains("tools") { return pairRejection(of: connection) }
+            let reply = HeldReply(connection: connection, reply: rejectsAll ? Self.rejection : reply(to: text))
+            guard isInitialize, holdsInitialize else { return [reply] }
             holdsInitialize = false
-            held = HeldReply(connection: connection, reply: reply)
-            return nil
+            held = reply
+            return []
         }
         if isInitialize { initializeArrived.yield() }
-        if let reply { send(reply, on: connection) }
+        for reply in replies { send(reply.reply, on: reply.connection) }
+    }
+
+    private func pairRejection(of connection: NWConnection) -> [HeldReply] {
+        guard let unpaired = unpairedToolCall else {
+            unpairedToolCall = connection
+            return []
+        }
+        unpairedToolCall = nil
+        return [unpaired, connection].map { HeldReply(connection: $0, reply: Self.rejection) }
     }
 
     private func send(_ reply: Data, on connection: NWConnection) {
         connection.send(content: reply, completion: .contentProcessed { _ in connection.cancel() })
     }
 
-    private static func reply(to request: Data) -> Data {
-        let text = String(decoding: request, as: UTF8.self)
-        if text.contains("notifications") { return acceptance }
-        return text.contains("tools") ? noLinks : initialized
+    private func reply(to text: String) -> Data {
+        if text.contains("notifications") { return Self.acceptance }
+        guard !text.contains("tools") else { return Self.noLinks }
+        return Self.response("200 OK", session: "mcp-session-\(initializeCount)",
+                             body: #"{"jsonrpc":"2.0","id":0,"result":{}}"#)
     }
 
     private static func isWholeRequest(_ data: Data) -> Bool {
