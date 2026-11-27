@@ -17,9 +17,9 @@ final class HUDAccessibility: ObservableObject {
             .sink { [weak self] _ in self?.check() }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)
-            .compactMap { $0.userInfo?["granted"] as? Bool }
+            .compactMap { $0.userInfo?[AccessibilityRead.notificationKey] as? AccessibilityRead }
             .receive(on: RunLoop.main)
-            .sink { [weak self] granted in self?.trust.checked(AccessibilityRead(granted: granted)) }
+            .sink { [weak self] read in self?.trust.checked(read) }
             .store(in: &cancellables)
     }
 
@@ -48,14 +48,14 @@ final class HUDAccessibility: ObservableObject {
     var isSettled: Bool { checksInFlight == 0 }
 
     @discardableResult
-    func check() -> Task<Bool, Never> {
+    func check() -> Task<AccessibilityRead, Never> {
         checksInFlight += 1
         return Task { @MainActor in
             let read = await XPCHelperClient.shared.readAccessibilityTrust()
             trust.checked(read)
             log(read)
             checksInFlight -= 1
-            return read == .trusted
+            return read
         }
     }
 }

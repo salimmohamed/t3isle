@@ -9,6 +9,7 @@ import AppKit
 import ApplicationServices
 import Defaults
 import AVFoundation
+import T3IsleCore
 
 private let kSystemDefinedEventType = CGEventType(rawValue: 14)!
 
@@ -25,8 +26,12 @@ final class MediaKeyInterceptor {
         case keyboardBrightnessDown = 22
     }
     
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private struct InstalledTap {
+        let port: CFMachPort
+        let source: CFRunLoopSource?
+    }
+
+    private var slot = EventTapSlot<InstalledTap>()
     private let step: Float = 1.0 / 16.0
     private var audioPlayer: AVAudioPlayer?
     
@@ -34,20 +39,30 @@ final class MediaKeyInterceptor {
     
     // MARK: - Event Tap
     
+    @MainActor
     func start() async {
-        guard eventTap == nil else { return }
-        
-        // Ensure HUD replacement is enabled
         guard Defaults[.hudReplacement] else {
             stop()
             return
         }
-        
-        // Check accessibility authorization
-        guard await XPCHelperClient.shared.isAccessibilityAuthorized() else { return }
-        
+        guard let claim = slot.claim() else { return }
+        let authorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
+        slot.fill(claim) { authorized ? installTap() : nil }
+    }
+
+    @MainActor
+    func stop() {
+        guard let installed = slot.empty() else { return }
+        CGEvent.tapEnable(tap: installed.port, enable: false)
+        if let source = installed.source {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        CFMachPortInvalidate(installed.port)
+    }
+
+    private func installTap() -> InstalledTap? {
         let mask = CGEventMask(1 << kSystemDefinedEventType.rawValue)
-        eventTap = CGEvent.tapCreate(
+        guard let port = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
@@ -58,26 +73,13 @@ final class MediaKeyInterceptor {
                 return interceptor.handleEvent(cgEvent)
             },
             userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        )
-        
-        if let eventTap {
-            runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-            if let runLoopSource {
-                CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-            }
-            CGEvent.tapEnable(tap: eventTap, enable: true)
+        ) else { return nil }
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
+        if let source {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         }
-    }
-    
-    func stop() {
-        if let eventTap {
-            CGEvent.tapEnable(tap: eventTap, enable: false)
-        }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-        }
-        runLoopSource = nil
-        eventTap = nil
+        CGEvent.tapEnable(tap: port, enable: true)
+        return InstalledTap(port: port, source: source)
     }
     
     // MARK: - Event Handling

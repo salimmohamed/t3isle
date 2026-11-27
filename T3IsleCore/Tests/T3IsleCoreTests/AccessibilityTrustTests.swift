@@ -50,9 +50,34 @@ final class AccessibilityTrustTests: XCTestCase {
         XCTAssertEqual(trust.guidance, .trusted)
     }
 
-    func testGrantedMapsOnlyAnsweredReads() {
+    func testGrantedMapsToTrustedOrDenied() {
         XCTAssertEqual(AccessibilityRead(granted: true), .trusted)
         XCTAssertEqual(AccessibilityRead(granted: false), .denied)
-        XCTAssertEqual(AccessibilityRead.allCases.map(\.granted), [true, false, nil])
+    }
+
+    func testUnreachableNoticeOffersNoRequest() {
+        XCTAssertFalse(AccessibilityGuidance.unreachable.offersRequest)
+        XCTAssertTrue(AccessibilityGuidance.denied.offersRequest)
+        XCTAssertTrue(AccessibilityGuidance.unchecked.offersRequest)
+    }
+
+    func testCancelledEnableDoesNothingEvenWhenDenied() {
+        XCTAssertNil(HUDReplacementEnable(read: .denied, cancelled: true))
+        XCTAssertNil(HUDReplacementEnable(read: .trusted, cancelled: true))
+    }
+
+    func testEnableRequestsAccessOnlyAfterADenial() {
+        XCTAssertEqual(HUDReplacementEnable(read: .trusted, cancelled: false), .startInterceptor)
+        XCTAssertEqual(HUDReplacementEnable(read: .denied, cancelled: false), .turnOff(requestingAccess: true))
+        XCTAssertEqual(HUDReplacementEnable(read: .unreachable, cancelled: false), .turnOff(requestingAccess: false))
+    }
+
+    func testAGoodReadAfterAnUnreachableOneCountsAsAChange() {
+        var changes = AccessibilityReadChanges()
+        XCTAssertTrue(changes.record(.trusted))
+        XCTAssertFalse(changes.record(.trusted))
+        XCTAssertTrue(changes.record(.unreachable))
+        XCTAssertFalse(changes.record(.unreachable))
+        XCTAssertTrue(changes.record(.trusted))
     }
 }

@@ -20,8 +20,10 @@ struct HUDAccessibilityNotice: View {
                 Text("Accessibility access is required to replace the system HUD.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Button("Request Accessibility") { accessibility.request() }
-                    .buttonStyle(.borderedProminent)
+                if accessibility.trust.guidance.offersRequest {
+                    Button("Request Accessibility") { accessibility.request() }
+                        .buttonStyle(.borderedProminent)
+                }
             }
         }
         .padding(.top, 6)
