@@ -4,24 +4,38 @@ import OSLog
 import T3IsleCore
 
 @MainActor
-final class HUDAccessibility: ObservableObject {
+final class HUDAccessibility {
     static let shared = HUDAccessibility()
     private static let log = Logger(subsystem: bundleIdentifier, category: "accessibility")
 
-    @Published private(set) var trust = AccessibilityTrust()
-    private var checksInFlight = 0
+    let hudSwitch: HUDReplacementSwitch
     private var cancellables: Set<AnyCancellable> = []
-    private lazy var unreachableRetry = UnreachableReadRetry { [weak self] in self?.check() }
 
     private init() {
+        hudSwitch = HUDReplacementSwitch { await HUDAccessibility.read() }
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in self?.check() }
+            .sink { [weak self] _ in self?.hudSwitch.check() }
             .store(in: &cancellables)
-        NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)
+        NotificationCenter.default.publisher(for: .accessibilityTrustRead)
             .compactMap { $0.userInfo?[AccessibilityReading.notificationKey] as? AccessibilityReading }
             .receive(on: RunLoop.main)
-            .sink { [weak self] reading in self?.land(reading) }
+            .sink { [weak self] reading in self?.hudSwitch.landed(reading) }
             .store(in: &cancellables)
+        Self.settingsWindow(NSWindow.didBecomeKeyNotification, isShown: true)
+            .merge(with: Self.settingsWindow(NSWindow.willCloseNotification, isShown: false))
+            .prepend(false)
+            .combineLatest(SettingsNavigation.shared.$pane.map { $0 == "HUD" })
+            .map { $0 && $1 }
+            .removeDuplicates()
+            .sink { [weak self] isOpen in self?.hudSwitch.hudPane(isOpen: isOpen) }
+            .store(in: &cancellables)
+    }
+
+    private static func settingsWindow(_ name: Notification.Name, isShown: Bool) -> AnyPublisher<Bool, Never> {
+        NotificationCenter.default.publisher(for: name)
+            .filter { $0.object as? NSWindow === SettingsWindowController.shared.window }
+            .map { _ in isShown }
+            .eraseToAnyPublisher()
     }
 
     var appName: String {
@@ -33,35 +47,17 @@ final class HUDAccessibility: ObservableObject {
     }
 
     func openSystemSettings() {
-        guard let url = URL(string: AccessibilityTrust.settingsAddress) else { return }
+        guard let url = URL(string: HUDReplacementSwitch.settingsAddress) else { return }
         NSWorkspace.shared.open(url)
     }
 
-    private func log(_ read: AccessibilityRead) {
-        let guidance = trust.guidance.rawValue
-        if read == .unreachable {
-            Self.log.error("Accessibility trust read failed because the XPC helper didn't answer, HUD settings show \(guidance, privacy: .public)")
+    private static func read() async -> AccessibilityReading {
+        let reading = await XPCHelperClient.shared.readAccessibilityTrust()
+        if reading.read == .unreachable {
+            log.error("Accessibility trust read failed because the XPC helper didn't answer")
         } else {
-            Self.log.notice("Accessibility trust read \(read.rawValue, privacy: .public), HUD settings show \(guidance, privacy: .public)")
+            log.notice("Accessibility trust read \(reading.read.rawValue, privacy: .public)")
         }
-    }
-
-    var isSettled: Bool { checksInFlight == 0 }
-
-    private func land(_ reading: AccessibilityReading) {
-        guard trust.checked(reading) else { return }
-        unreachableRetry.landed(reading.read)
-    }
-
-    @discardableResult
-    func check() -> Task<AccessibilityRead, Never> {
-        checksInFlight += 1
-        return Task { @MainActor in
-            let reading = await XPCHelperClient.shared.readAccessibilityTrust()
-            land(reading)
-            log(reading.read)
-            checksInFlight -= 1
-            return trust.lastRead ?? reading.read
-        }
+        return reading
     }
 }

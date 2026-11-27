@@ -2,11 +2,11 @@ import SwiftUI
 import T3IsleCore
 
 struct HUDAccessibilityNotice: View {
-    @ObservedObject var accessibility: HUDAccessibility
+    let accessibility: HUDAccessibility
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if accessibility.trust.guidance.showsReAddHint {
+            if accessibility.hudSwitch.guidance.showsReAddHint {
                 Text("\(accessibility.appName) can't use Accessibility. Turn it on in Privacy & Security > Accessibility. If it's already on, the entry may be stale, so remove \(accessibility.appName) and add it again.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -16,7 +16,7 @@ struct HUDAccessibilityNotice: View {
                         .buttonStyle(.borderedProminent)
                     Button("Request Accessibility") { accessibility.request() }
                 }
-            } else if accessibility.trust.guidance.offersRequest {
+            } else if accessibility.hudSwitch.guidance.offersRequest {
                 Text("Accessibility access is required to replace the system HUD.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

@@ -145,7 +145,7 @@ final class T3IsleRuntime: ObservableObject {
     private var replayStatus: ReplayStatus? { activeReplay?.current }
 
     var isSettled: Bool {
-        guard headphonesMonitor.isSettled, HUDAccessibility.shared.isSettled else { return false }
+        guard headphonesMonitor.isSettled, HUDAccessibility.shared.hudSwitch.isSettled else { return false }
         guard Defaults[.t3Enabled], let replay = activeReplay else { return !model.isFetchingDetails }
         return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
     }
