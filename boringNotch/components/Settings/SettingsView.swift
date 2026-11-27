@@ -268,6 +268,8 @@ struct GeneralSettings: View {
             gestureControls()
 
             PomodoroSettings()
+
+            ClipboardHistorySettings()
         }
         .toolbar {
             Button("Quit app") {
