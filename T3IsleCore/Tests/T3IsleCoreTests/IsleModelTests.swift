@@ -547,6 +547,9 @@ final class LinkedEnvironmentModelTests: XCTestCase {
 
     func testClosingTheNotchStopsDetailReadsForASelectedLinkedThreadThatDoesNotNeedYou() async throws {
         let source = try source()
+        var watching = try XCTUnwrap(source.projections["wsl-question"])
+        watching.thread.id = "wsl-watching"
+        source.projections["wsl-watching"] = watching
         source.linkedRead = try wslRead()
         let model = model(source)
         var calls = source.linkedCalls.makeAsyncIterator()
@@ -566,6 +569,7 @@ final class LinkedEnvironmentModelTests: XCTestCase {
             let next = await reads.next()
             XCTAssertEqual(next, "wsl-question")
         }
+        XCTAssertNil(model.detail(for: "wsl-watching"))
         model.stop()
     }
 
