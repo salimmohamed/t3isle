@@ -146,6 +146,7 @@ public final class UnreachableReadRetry {
             } catch {
                 return
             }
+            guard !Task.isCancelled else { return }
             read()
         }
     }

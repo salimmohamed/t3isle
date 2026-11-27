@@ -61,7 +61,7 @@ final class HUDAccessibility: ObservableObject {
             land(reading)
             log(reading.read)
             checksInFlight -= 1
-            return reading.read
+            return trust.lastRead ?? reading.read
         }
     }
 }
