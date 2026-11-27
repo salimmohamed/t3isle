@@ -39,11 +39,11 @@ final class LiveModelTests: XCTestCase {
         let source = SnapshotRecorder(LiveSource(tokenStore: store))
         let model = T3IsleModel(source: source, opener: { _ in })
         model.start()
+        defer { model.stop() }
         await until(model) { model.connection != .connecting }
         XCTAssertEqual(model.connection, .live)
         let snapshot = try XCTUnwrap(source.firstSnapshot)
         XCTAssertFalse(snapshot.threads.isEmpty)
-        model.stop()
     }
 }
 
