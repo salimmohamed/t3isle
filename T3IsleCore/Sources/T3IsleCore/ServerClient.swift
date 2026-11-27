@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public enum ShellUpdate: Sendable {
     case snapshot(ShellSnapshot)
@@ -7,12 +8,14 @@ public enum ShellUpdate: Sendable {
     case projectUpdated(ProjectShell)
     case projectRemoved(String)
     case disconnected(T3Failure)
+    case unreadable(kind: String, reason: String)
 }
 
 public actor T3ServerClient {
     private static let protocolHeader = "x-t3-orchestration-protocol"
     private static let protocolVersion = "2"
     private static let mcpProtocolVersion = "2025-06-18"
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "T3IsleCore", category: "shell")
 
     private let home: T3Home
     private let signIn: T3SignIn
@@ -250,7 +253,12 @@ public actor T3ServerClient {
                            payload: ["omitIdleSubagents": true, "omitOlderSettled": true]) { event in
                 switch event {
                 case .chunk(let values):
-                    for update in values.flatMap(Self.shellUpdates) { continuation.yield(update) }
+                    for update in values.flatMap(Self.shellUpdates) {
+                        if case .unreadable(let kind, let reason) = update {
+                            Self.log.error("Couldn't read \(kind, privacy: .public) update: \(reason, privacy: .public)")
+                        }
+                        continuation.yield(update)
+                    }
                 case .exit(let result):
                     if case .failure(let failure) = result {
                         continuation.yield(.disconnected(failure))
@@ -357,35 +365,45 @@ public actor T3ServerClient {
         else { return shellUpdate(value).map { [$0] } ?? [] }
         struct Enrichment: Decodable { let snapshot: Projects }
         struct Projects: Decodable { let projects: [ProjectShell] }
-        guard let data = try? JSONSerialization.data(withJSONObject: object),
-              let enrichment = try? WireDecoder.make().decode(Enrichment.self, from: data)
-        else { return [] }
-        return enrichment.snapshot.projects.map { .projectUpdated($0) }
+        guard let data = try? JSONSerialization.data(withJSONObject: object) else { return [] }
+        do {
+            return try WireDecoder.make().decode(Enrichment.self, from: data).snapshot.projects.map { .projectUpdated($0) }
+        } catch {
+            return [.unreadable(kind: "enrichment", reason: String(describing: error))]
+        }
     }
 
     static func shellUpdate(_ value: Any) -> ShellUpdate? {
         guard let object = value as? [String: Any], let kind = object["kind"] as? String,
               let data = try? JSONSerialization.data(withJSONObject: object)
         else { return nil }
-        let decoder = WireDecoder.make()
         switch kind {
         case "snapshot":
             struct Envelope: Decodable { let snapshot: ShellSnapshot }
-            return (try? decoder.decode(Envelope.self, from: data)).map { .snapshot($0.snapshot) }
+            return decoded(Envelope.self, kind: kind, from: data) { .snapshot($0.snapshot) }
         case "thread.updated":
             struct Envelope: Decodable { let thread: ThreadShell; let location: String? }
-            return (try? decoder.decode(Envelope.self, from: data)).map {
+            return decoded(Envelope.self, kind: kind, from: data) {
                 .threadUpdated($0.thread, archived: $0.location == "archive")
             }
         case "thread.removed":
             return (object["threadId"] as? String).map { .threadRemoved($0) }
         case "project.updated":
             struct Envelope: Decodable { let project: ProjectShell }
-            return (try? decoder.decode(Envelope.self, from: data)).map { .projectUpdated($0.project) }
+            return decoded(Envelope.self, kind: kind, from: data) { .projectUpdated($0.project) }
         case "project.removed":
             return (object["projectId"] as? String).map { .projectRemoved($0) }
         default:
             return nil
+        }
+    }
+
+    private static func decoded<Envelope: Decodable>(_ type: Envelope.Type, kind: String, from data: Data,
+                                                     _ update: (Envelope) -> ShellUpdate) -> ShellUpdate {
+        do {
+            return update(try WireDecoder.make().decode(type, from: data))
+        } catch {
+            return .unreadable(kind: kind, reason: String(describing: error))
         }
     }
 }

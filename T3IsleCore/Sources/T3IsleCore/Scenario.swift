@@ -114,6 +114,7 @@ public struct Scenario: Sendable {
         case .shell(let value):
             let updates = try T3ServerClient.shellUpdates(JSONSerialization.jsonObject(with: Self.wire(value, offset)))
             guard !updates.isEmpty else { throw malformed("not a shell item T3 streams") }
+            for case .unreadable(let kind, let reason) in updates { throw malformed("unreadable \(kind): \(reason)") }
             return updates.map(ReplayEvent.shell)
         case .detail(let value):
             guard let envelope = try? T3ServerClient.decode(ThreadDetailEnvelope.self, Self.wire(value, offset)) else {
