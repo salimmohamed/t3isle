@@ -39,6 +39,18 @@ final class EventTapSlotTests: XCTestCase {
         XCTAssertEqual(slot.tap, 7)
     }
 
+    func testStopDuringTwoOverlappingStartsKeepsBothFromMakingATap() throws {
+        var slot = EventTapSlot<Int>()
+        let first = try XCTUnwrap(slot.claim())
+        let second = try XCTUnwrap(slot.claim())
+        XCTAssertNil(slot.empty())
+        var made = false
+        XCTAssertNil(slot.fill(first) { made = true; return 1 })
+        XCTAssertNil(slot.fill(second) { made = true; return 2 })
+        XCTAssertFalse(made)
+        XCTAssertNil(slot.tap)
+    }
+
     func testStopHandsBackTheTapItMade() throws {
         var slot = EventTapSlot<Int>()
         let claim = try XCTUnwrap(slot.claim())
