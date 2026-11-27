@@ -83,6 +83,7 @@ final class IsleModelTests: XCTestCase {
         XCTAssertEqual(model.closedPresence, .none)
         observer.cancel()
         model.apply(T3Preferences(enabled: true))
+        await until(model) { model.connection == .live }
         XCTAssertEqual(model.closedPresence, .alert)
         model.stop()
     }
@@ -162,6 +163,70 @@ final class ProviderRefreshTests: XCTestCase {
         source.push(.snapshot(snapshot))
         await until(model) { !model.threads.isEmpty }
         XCTAssertEqual(model.providers, [limits])
+        model.stop()
+    }
+}
+
+@MainActor
+final class IdlePresenceTests: XCTestCase {
+    private func started(with threads: [ThreadShell]) -> (T3IsleModel, FixtureSource) {
+        let source = FixtureSource(ShellSnapshot(threads: threads, projects: []))
+        let model = T3IsleModel(source: source, clock: TestClock(), opener: { _ in })
+        model.start()
+        return (model, source)
+    }
+
+    func testNothingShowsBeforeTheFirstSnapshot() {
+        let (model, _) = started(with: [])
+        XCTAssertEqual(model.connection, .connecting)
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testConnectedWithNoThreadsIsIdle() async {
+        let (model, _) = started(with: [])
+        await until(model) { model.connection == .live }
+        XCTAssertEqual(model.closedPresence, .idle)
+        model.stop()
+    }
+
+    func testConnectedWithOnlyHiddenSubagentsIsIdle() async throws {
+        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let subagents = snapshot.threads.filter(\.isSubagent)
+        XCTAssertFalse(subagents.isEmpty)
+        let (model, _) = started(with: subagents)
+        await until(model) { model.connection == .live }
+        XCTAssertTrue(model.threads.isEmpty)
+        XCTAssertEqual(model.closedPresence, .idle)
+        model.stop()
+    }
+
+    func testDisconnectingClearsIdle() async {
+        let (model, source) = started(with: [])
+        await until(model) { model.closedPresence == .idle }
+        source.push(.disconnected(.notRunning))
+        await until(model) { model.connection != .live }
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testDisconnectingHidesThreadsLeftFromBeforeTheDisconnect() async throws {
+        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let (model, source) = started(with: snapshot.threads)
+        await until(model) { !model.threads.isEmpty }
+        XCTAssertNotEqual(model.closedPresence, .none)
+        source.push(.disconnected(.notRunning))
+        await until(model) { model.connection != .live }
+        XCTAssertFalse(model.threads.isEmpty)
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testDisablingClearsIdle() async {
+        let (model, _) = started(with: [])
+        await until(model) { model.closedPresence == .idle }
+        model.apply(T3Preferences(enabled: false))
+        XCTAssertEqual(model.closedPresence, .none)
         model.stop()
     }
 }

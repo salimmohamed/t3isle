@@ -24,6 +24,12 @@ final class LiveActivitiesTests: XCTestCase {
         XCTAssertEqual(ClosedActivity.resolve(t3: .none, headphones: nil, nowPlaying: false), .none)
     }
 
+    func testConnectedIdleShowsTheGlanceOnlyWhenNothingElseIsLive() {
+        XCTAssertEqual(ClosedActivity.resolve(t3: .idle, headphones: nil, nowPlaying: false), .t3)
+        XCTAssertEqual(ClosedActivity.resolve(t3: .idle, headphones: nil, nowPlaying: true), .nowPlaying)
+        XCTAssertEqual(ClosedActivity.resolve(t3: .idle, headphones: pods, nowPlaying: false), .headphones(pods))
+    }
+
     func testBluetoothAccessReadsEachAuthorization() {
         let authorizations: [CBManagerAuthorization] = [.notDetermined, .restricted, .denied, .allowedAlways]
         XCTAssertEqual(authorizations.map(BluetoothAccess.init), [.notDetermined, .restricted, .denied, .allowed])

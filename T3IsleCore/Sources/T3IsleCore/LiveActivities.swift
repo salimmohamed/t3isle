@@ -11,7 +11,7 @@ public enum ClosedActivity: Equatable, Sendable {
         if t3 == .alert { return .t3 }
         if let headphones { return .headphones(headphones) }
         if nowPlaying { return .nowPlaying }
-        return t3 == .threads ? .t3 : .none
+        return t3 == .none ? .none : .t3
     }
 
     public var headphones: HeadphonesConnect? {

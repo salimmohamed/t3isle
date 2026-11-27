@@ -3,7 +3,7 @@ import XCTest
 
 final class ScenarioTests: XCTestCase {
     func testShipsTheDocumentedScenarios() {
-        XCTAssertEqual(Scenario.names, ["busy-session", "plan-done", "question", "quota-low", "showcase"])
+        XCTAssertEqual(Scenario.names, ["busy-session", "idle", "plan-done", "question", "quota-low", "showcase"])
     }
 
     func testEveryBundledScenarioDecodesEveryLine() throws {
