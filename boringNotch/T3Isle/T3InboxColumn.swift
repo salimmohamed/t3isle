@@ -260,11 +260,7 @@ struct ThreadRow: View {
                                 .foregroundStyle(T3Theme.muted)
                                 .lineLimit(1)
                             if let environment = thread.environment {
-                                Label(environment.label, systemImage: "desktopcomputer")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(T3Theme.muted)
-                                    .lineLimit(1)
-                                    .fixedSize()
+                                MachineLabel(name: environment.label)
                             }
                         }
                         LiveLine(text: thread.line, attention: !thread.mood.isBusy && !asleep)
@@ -380,6 +376,24 @@ struct ThreadRow: View {
 
     private var swap: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.92, anchor: .trailing)).combined(with: .blurred)
+    }
+}
+
+private struct MachineLabel: View {
+    let name: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            Label(name, systemImage: "desktopcomputer")
+                .lineLimit(1)
+                .fixedSize()
+            Image(systemName: "desktopcomputer")
+        }
+        .font(.system(size: 9))
+        .foregroundStyle(T3Theme.muted)
+        .help(name)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
     }
 }
 

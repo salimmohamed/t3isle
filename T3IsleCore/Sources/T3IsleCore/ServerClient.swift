@@ -23,6 +23,7 @@ public actor T3ServerClient {
     private var connecting: Task<RpcSocket, Error>?
     private var environmentId: String?
     private var mcpSession: String?
+    private var initializingMcp: Task<String, Error>?
     private var mcpRequestId = 0
     private var linkBackoff = SessionBackoff()
 
@@ -105,14 +106,9 @@ public actor T3ServerClient {
 
     private func mcp(_ name: String, _ arguments: [String: Any], waitsOutBackoff: Bool = true) async throws -> Data {
         guard !waitsOutBackoff || linkBackoff.allows(at: clock.now) else { throw T3Failure.signedOut }
-        do {
-            let data = try await mcpCall(name, arguments)
-            linkBackoff.accepted()
-            return data
-        } catch T3Failure.signedOut {
-            linkBackoff.rejected(at: clock.now)
-            throw T3Failure.signedOut
-        }
+        let data = try await mcpCall(name, arguments)
+        linkBackoff.accepted()
+        return data
     }
 
     private func mcpCall(_ name: String, _ arguments: [String: Any], retried: Bool = false) async throws -> Data {
@@ -125,28 +121,46 @@ public actor T3ServerClient {
         case 200..<300:
             return data
         case 401 where !retried:
-            mcpSession = nil
-            await linkSignIn.invalidate()
+            if dropMcpSession(session) { await linkSignIn.invalidate() }
             return try await mcpCall(name, arguments, retried: true)
         case 400 where !retried, 404 where !retried:
-            mcpSession = nil
+            dropMcpSession(session)
             return try await mcpCall(name, arguments, retried: true)
         case 401:
+            linkBackoff.rejected(at: clock.now)
             throw T3Failure.signedOut
         default:
             throw T3Failure.http(status, nil)
         }
     }
 
+    @discardableResult
+    private func dropMcpSession(_ session: String) -> Bool {
+        guard mcpSession == session else { return false }
+        mcpSession = nil
+        return true
+    }
+
     private func mcpSessionId() async throws -> String {
         if let mcpSession { return mcpSession }
+        if let initializingMcp { return try await initializingMcp.value }
+        let task = Task { try await self.initializeMcp() }
+        initializingMcp = task
+        defer { if initializingMcp == task { initializingMcp = nil } }
+        return try await task.value
+    }
+
+    private func initializeMcp() async throws -> String {
         let initialize = McpReply.request(id: 0, method: "initialize", params: [
             "protocolVersion": Self.mcpProtocolVersion, "capabilities": [String: Any](),
             "clientInfo": ["name": "t3isle", "version": "1"],
         ])
         let (data, status, session) = try await postMcpReturningSession(initialize, session: nil)
         guard (200..<300).contains(status), let session else {
-            if status == 401 { await linkSignIn?.invalidate() }
+            if status == 401 {
+                linkBackoff.rejected(at: clock.now)
+                await linkSignIn?.invalidate()
+            }
             throw status == 401 ? T3Failure.signedOut : T3Failure.http(status, String(data: data, encoding: .utf8))
         }
         let initialized = (try? JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "method": "notifications/initialized"])) ?? Data()

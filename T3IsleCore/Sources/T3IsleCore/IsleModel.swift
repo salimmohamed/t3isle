@@ -303,8 +303,9 @@ public final class T3IsleModel: ObservableObject {
         guard isShown(shell) else { return false }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
-        return mood == .needsYou || mood == .working || mood == .waiting || shell.id == selectedAgentId
-            || finished[shell.id] != nil
+        if mood == .needsYou || shell.id == selectedAgentId { return true }
+        let following = mood == .working || mood == .waiting || finished[shell.id] != nil
+        return following && (shell.linkedEnvironment == nil || expanded)
     }
 
     private func refreshProviders() {

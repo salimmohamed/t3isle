@@ -62,7 +62,7 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertThrowsError(try DebugCommand.parse([])) { XCTAssertEqual($0 as? DebugCommandError, .empty) }
         XCTAssertThrowsError(try DebugCommand.parse(["dance"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("dance")) }
         XCTAssertThrowsError(try DebugCommand.parse(["question"])) { XCTAssertEqual($0 as? DebugCommandError, .unknown("question")) }
-        let replayUsage = "replay busy-session|idle|plan-done|question|quota-low|showcase|off"
+        let replayUsage = "replay busy-session|idle|linked-rows|plan-done|question|quota-low|showcase|off"
         let airpodsUsage = "airpods-connect [name] [battery] [headphones|speaker|car]"
         let bad: [([String], String)] = [
             (["tab", "calendar"], "tab home|t3|shelf"),

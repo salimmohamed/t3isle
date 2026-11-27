@@ -105,6 +105,7 @@ To tear down, run the reverse of each command you ran, last first. A reverse wit
 | `showcase` | Six threads in three projects: two approvals, a two-question request, a snoozed thread, a failed thread and two providers. Over 12 seconds a plan finishes. Demo mode plays it too. |
 | `busy-session` | Four threads working in two projects, with no questions or approvals |
 | `idle` | Connected with only a hidden subagent thread, so the closed notch shows the idle face and both providers' usage |
+| `linked-rows` | Two finished threads from linked machines, one with a long title, next to a local one |
 | `question` | One thread asks one question, which shows the attention border |
 | `plan-done` | One thread finishes its three-step plan after 1.5 seconds, which shows the "Plan complete" banner |
 | `quota-low` | Two threads, with both providers at 95 and 92 percent of their session window |

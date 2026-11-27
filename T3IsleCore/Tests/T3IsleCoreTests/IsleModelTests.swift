@@ -119,7 +119,10 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     }
 
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
-        if let environment { lock.withLock { environments[threadId] = environment } }
+        if let environment {
+            lock.withLock { environments[threadId] = environment }
+            linkedDetailRead.yield(threadId)
+        }
         guard let projection = projections[threadId] else { throw CancellationError() }
         return projection
     }
@@ -134,6 +137,7 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     private var environments: [String: String] = [:]
     var detailEnvironments: [String: String] { lock.withLock { environments } }
     let (linkedCalls, linkedCalled) = AsyncStream<Void>.makeStream()
+    let (linkedDetailReads, linkedDetailRead) = AsyncStream<String>.makeStream()
     let (sends, sending) = AsyncStream<String?>.makeStream()
 
     func send(_ command: T3Command, in environment: String?) async throws {
@@ -456,6 +460,40 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         model.open("t-working")
         let local = await urls.next()
         XCTAssertEqual(local?.absoluteString, "t3code://threads/env-local/t-working")
+        model.stop()
+    }
+
+    func testAClosedNotchReadsDetailOnlyForTheLinkedThreadThatNeedsYou() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await calls.next()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+
+        await nextRefresh(&calls)
+        let second = await reads.next()
+        XCTAssertEqual(second, "wsl-question")
+
+        model.select("wsl-watching")
+        let selected = await reads.next()
+        XCTAssertEqual(selected, "wsl-watching")
+        model.stop()
+    }
+
+    func testOpeningTheNotchReadsDetailForTheLinkedThreadsItShows() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+
+        model.expanded = true
+        let shown = await reads.next()
+        XCTAssertEqual(shown, "wsl-watching")
         model.stop()
     }
 
