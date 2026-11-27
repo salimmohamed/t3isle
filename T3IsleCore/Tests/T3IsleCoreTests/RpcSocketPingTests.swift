@@ -98,6 +98,39 @@ final class RpcSocketPingTests: XCTestCase {
 private enum SocketEvent: Equatable {
     case sent(String)
     case closed(T3Failure)
+    case asleep
+    case pingsStopped
+}
+
+private final class PingLoopEnd: Sendable {
+    @TaskLocal static var current: PingLoopEnd?
+
+    private let ended: @Sendable () -> Void
+
+    init(_ ended: @escaping @Sendable () -> Void) {
+        self.ended = ended
+    }
+
+    deinit {
+        ended()
+    }
+}
+
+private final class SleepRecordingClock: T3Clock, @unchecked Sendable {
+    private let base: TestClock
+    private let asleep: @Sendable () -> Void
+
+    init(_ base: TestClock, asleep: @escaping @Sendable () -> Void) {
+        self.base = base
+        self.asleep = asleep
+    }
+
+    var now: Date { base.now }
+
+    func sleep(until deadline: Date) async throws {
+        asleep()
+        try await base.sleep(until: deadline)
+    }
 }
 
 private final class Harness: @unchecked Sendable {
@@ -105,6 +138,8 @@ private final class Harness: @unchecked Sendable {
     let transport: FakeTransport
     let socket: RpcSocket
     private var events: AsyncStream<SocketEvent>.Iterator
+    private var loopIsAsleep = false
+    private var pingsStopped = false
     private let lock = NSLock()
     private var closed = 0
 
@@ -112,10 +147,12 @@ private final class Harness: @unchecked Sendable {
         let (events, recorded) = AsyncStream.makeStream(of: SocketEvent.self)
         self.events = events.makeAsyncIterator()
         transport = FakeTransport { recorded.yield(.sent($0)) }
-        socket = RpcSocket(clock: clock)
-        socket.open(transport) { [weak self] failure in
-            self?.countClose()
-            recorded.yield(.closed(failure))
+        socket = RpcSocket(clock: SleepRecordingClock(clock) { recorded.yield(.asleep) })
+        PingLoopEnd.$current.withValue(PingLoopEnd { recorded.yield(.pingsStopped) }) {
+            socket.open(transport) { [weak self] failure in
+                self?.countClose()
+                recorded.yield(.closed(failure))
+            }
         }
     }
 
@@ -130,9 +167,22 @@ private final class Harness: @unchecked Sendable {
     }
 
     func tick() async -> SocketEvent? {
+        if !loopIsAsleep {
+            let event = await next()
+            guard event == .asleep else { return event }
+        }
         await clock.waitForSleepers()
         clock.advance(by: RpcSocket.pingInterval)
-        return await events.next()
+        let event = await next()
+        loopIsAsleep = event == .asleep
+        return event
+    }
+
+    private func next() async -> SocketEvent? {
+        guard !pingsStopped else { return .pingsStopped }
+        let event = await events.next()
+        pingsStopped = event == .pingsStopped
+        return event
     }
 }
 

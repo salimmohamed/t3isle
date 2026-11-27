@@ -59,6 +59,22 @@ final class McpSessionTests: XCTestCase {
         XCTAssertEqual(server.requests, requests + 1)
     }
 
+    func testTurningPairingOffAnswersTheHeldToolCall() async throws {
+        let server = try await McpTestServer.start()
+        server.rejecting = false
+        server.rejectsToolCallsInPairs = true
+        let client = try McpTestClient.make(server: server, runner: CountingRunner(), clock: TestClock())
+        var arrivals = server.arrivals.makeAsyncIterator()
+        async let read = client.linkedRead()
+        while let method = await arrivals.next(), method != "tools/call" {}
+
+        server.rejectsToolCallsInPairs = false
+        server.dropHeldCalls()
+        let answered = await read
+        XCTAssertNotNil(answered, "the held tool call should get its rejection, then the retry should read the links")
+        XCTAssertEqual(server.initializes, 2)
+    }
+
     private static func readTwiceDuringOneInitialize(_ server: McpTestServer) async throws
         -> ((LinkedRead?, LinkedRead?), CountingRunner) {
         let clock = WatchedClock()
@@ -71,7 +87,7 @@ final class McpSessionTests: XCTestCase {
                                   clock: WatchedClock) async throws -> (LinkedRead?, LinkedRead?) {
         server.holdNextInitialize()
         var checks = clock.reads.makeAsyncIterator()
-        var arrivals = server.initializeArrivals.makeAsyncIterator()
+        var arrivals = server.arrivals.makeAsyncIterator()
         async let first = client.linkedRead()
         await checks.next()
         await arrivals.next()

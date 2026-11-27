@@ -66,7 +66,7 @@ final class McpTestServer: @unchecked Sendable {
     private var held: HeldReply?
     private var pairsRejections = false
     private var unpairedToolCall: NWConnection?
-    let (initializeArrivals, initializeArrived) = AsyncStream<Void>.makeStream()
+    let (arrivals, arrived) = AsyncStream<String?>.makeStream()
 
     static func start() async throws -> McpTestServer {
         let server = try McpTestServer()
@@ -114,6 +114,17 @@ final class McpTestServer: @unchecked Sendable {
         if let reply { send(reply.reply, on: reply.connection) }
     }
 
+    func dropHeldCalls() {
+        let unanswered: [NWConnection] = lock.withLock {
+            defer {
+                held = nil
+                unpairedToolCall = nil
+            }
+            return [held?.connection, unpairedToolCall].compactMap { $0 }
+        }
+        for connection in unanswered { connection.cancel() }
+    }
+
     private func read(_ connection: NWConnection, buffered: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] chunk, _, isComplete, error in
             guard let self else { return }
@@ -141,7 +152,7 @@ final class McpTestServer: @unchecked Sendable {
             held = reply
             return []
         }
-        if isInitialize { initializeArrived.yield() }
+        arrived.yield(method)
         for reply in replies { send(reply.reply, on: reply.connection) }
     }
 
