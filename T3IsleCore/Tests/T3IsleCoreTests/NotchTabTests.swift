@@ -37,11 +37,27 @@ final class NotchTabTests: XCTestCase {
     }
 
     func testTabBarHidesOnlyWithoutT3AndWithoutShelfTabs() {
-        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false))
-        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: false, shelfEmpty: false, alwaysShowTabs: true))
-        XCTAssertTrue(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false))
-        XCTAssertTrue(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: true))
-        XCTAssertTrue(NotchTab.barShown(t3Enabled: true, shelfEnabled: false, shelfEmpty: true, alwaysShowTabs: false))
+        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: false, clipboardEmpty: true))
+        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: false, shelfEmpty: false, alwaysShowTabs: true,
+                                         clipboardHistory: false, clipboardEmpty: true))
+        XCTAssertTrue(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false,
+                                        clipboardHistory: false, clipboardEmpty: true))
+        XCTAssertTrue(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: true,
+                                        clipboardHistory: false, clipboardEmpty: true))
+        XCTAssertTrue(NotchTab.barShown(t3Enabled: true, shelfEnabled: false, shelfEmpty: true, alwaysShowTabs: false,
+                                        clipboardHistory: false, clipboardEmpty: true))
+    }
+
+    func testClipboardHistoryWithItemsKeepsTheBarShownOnAnEmptyShelf() {
+        XCTAssertTrue(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                        clipboardHistory: true, clipboardEmpty: false))
+        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: true, clipboardEmpty: true))
+        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: false, clipboardEmpty: false))
+        XCTAssertFalse(NotchTab.barShown(t3Enabled: false, shelfEnabled: false, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: true, clipboardEmpty: false))
     }
 
     func testOpenNotchLeavesAnyTabForHomeWhenTheBarHides() {
@@ -52,14 +68,17 @@ final class NotchTabTests: XCTestCase {
     }
 
     func testRemovingTheLastShelfItemHidesTheBarAndLeavesShelf() {
-        let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false)
-        let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false,
+                                       clipboardHistory: false, clipboardEmpty: true)
+        let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                      clipboardHistory: false, clipboardEmpty: true)
         XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: before, t3Enabled: false), .shelf)
         XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: after, t3Enabled: false), .home)
     }
 
     func testTurningT3OffWithShelfItemsLeavesTheT3TabForHome() {
-        let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false)
+        let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: false, alwaysShowTabs: false,
+                                         clipboardHistory: false, clipboardEmpty: true)
         XCTAssertTrue(barShown)
         XCTAssertEqual(NotchTab.t3.whileOpen(barShown: barShown, t3Enabled: false), .home)
         XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: barShown, t3Enabled: false), .shelf)
@@ -67,14 +86,17 @@ final class NotchTabTests: XCTestCase {
     }
 
     func testTurningAlwaysShowTabsOffOnAnEmptiedShelfLeavesForHome() {
-        let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: true)
-        let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        let before = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: true,
+                                       clipboardHistory: false, clipboardEmpty: true)
+        let after = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                      clipboardHistory: false, clipboardEmpty: true)
         XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: before, t3Enabled: false), .shelf)
         XCTAssertEqual(NotchTab.shelf.whileOpen(barShown: after, t3Enabled: false), .home)
     }
 
     func testTurningAlwaysShowTabsOffKeepsTheT3TabWhileT3IsOn() {
-        let barShown = NotchTab.barShown(t3Enabled: true, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        let barShown = NotchTab.barShown(t3Enabled: true, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: false, clipboardEmpty: true)
         XCTAssertEqual(NotchTab.t3.whileOpen(barShown: barShown, t3Enabled: true), .t3)
     }
 
@@ -88,7 +110,8 @@ final class NotchTabTests: XCTestCase {
     }
 
     func testEmptyShelfWithoutTabBarOpensHomeInsteadOfShelf() {
-        let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false)
+        let barShown = NotchTab.barShown(t3Enabled: false, shelfEnabled: true, shelfEmpty: true, alwaysShowTabs: false,
+                                         clipboardHistory: false, clipboardEmpty: true)
         XCTAssertEqual(OpeningTab.shelf.tab(current: .shelf, t3Ready: false, shelfFirst: false, barShown: barShown), .home)
         XCTAssertEqual(OpeningTab.last.tab(current: .shelf, t3Ready: false, shelfFirst: false, barShown: barShown), .home)
     }

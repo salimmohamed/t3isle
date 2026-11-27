@@ -146,9 +146,11 @@ struct T3Integration: ViewModifier {
     @ObservedObject var model = T3IsleRuntime.shared.model
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject private var shelf = ShelfStateViewModel.shared
+    @ObservedObject private var clipboard = T3IsleRuntime.shared.clipboard
     @Default(.openingTab) private var openingTab
     @Default(.t3Enabled) private var t3Enabled
     @Default(.boringShelf) private var shelfEnabled
+    @Default(.clipboardHistory) private var clipboardHistory
     @State private var openedByT3 = false
     @State private var closeTask: Task<Void, Never>?
 
@@ -173,7 +175,7 @@ struct T3Integration: ViewModifier {
                 vm.notchSize = T3Tabs.openSize(for: view, base: openNotchSize)
             }
             .onChange(of: openingTab) { _, _ in resolveTab() }
-            .onChange(of: [t3Enabled, shelfEnabled, shelf.isEmpty, coordinator.alwaysShowTabs]) { _, _ in resolveTab() }
+            .onChange(of: [t3Enabled, shelfEnabled, shelf.isEmpty, clipboardHistory, clipboard.items.isEmpty, coordinator.alwaysShowTabs]) { _, _ in resolveTab() }
             .onChange(of: vm.notchState) { _, state in
                 if state == .closed {
                     openedByT3 = false
@@ -190,7 +192,7 @@ struct T3Integration: ViewModifier {
             coordinator.currentView = T3Tabs.openingView(current: coordinator.currentView)
             return
         }
-        let tab = coordinator.currentView.whileOpen(barShown: T3Tabs.barShown(shelfEmpty: shelf.isEmpty), t3Enabled: t3Enabled)
+        let tab = coordinator.currentView.whileOpen(barShown: T3Tabs.barShown, t3Enabled: t3Enabled)
         guard tab != coordinator.currentView else { return }
         withAnimation(.smooth) { coordinator.currentView = tab }
     }

@@ -159,6 +159,7 @@ public struct DebugState: Codable, Equatable, Sendable {
 
     public let notch: Notch
     public let tab: NotchTab
+    public let tabBarShown: Bool
     public let settingsOpen: Bool
     public let closedActivity: Activity
     public let headphones: Headphones?
@@ -171,12 +172,13 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let clipboardHistory: Clipboard
     public let t3: T3
 
-    public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
+    public init(notch: Notch, tab: NotchTab, tabBarShown: Bool, settingsOpen: Bool, closedActivity: ClosedActivity,
                 headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, hudAccessibility: AccessibilityGuidance,
                 accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, pomodoro: Pomodoro,
                 clipboardHistory: Clipboard, t3: T3) {
         self.notch = notch
         self.tab = tab
+        self.tabBarShown = tabBarShown
         self.settingsOpen = settingsOpen
         self.closedActivity = Activity(closedActivity)
         self.headphones = headphones.map { Headphones(name: $0.name, kind: "\($0.kind)") }
@@ -194,6 +196,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(notch, forKey: .notch)
         try container.encode(tab, forKey: .tab)
+        try container.encode(tabBarShown, forKey: .tabBarShown)
         try container.encode(settingsOpen, forKey: .settingsOpen)
         try container.encode(closedActivity, forKey: .closedActivity)
         try container.encode(headphones, forKey: .headphones)
