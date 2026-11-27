@@ -99,12 +99,16 @@ final class IsleModelTests: XCTestCase {
 
 private final class FixtureSource: T3Source, @unchecked Sendable {
     private let snapshot: ShellSnapshot
-    private let projections: [String: ThreadProjection]
+    private var details: [String: ThreadProjection]
+    var projections: [String: ThreadProjection] {
+        get { lock.withLock { details } }
+        set { lock.withLock { details = newValue } }
+    }
     private var continuation: AsyncStream<ShellUpdate>.Continuation?
 
     init(_ snapshot: ShellSnapshot, projections: [String: ThreadProjection] = [:]) {
         self.snapshot = snapshot
-        self.projections = projections
+        details = projections
     }
 
     func push(_ update: ShellUpdate) {
@@ -406,9 +410,13 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         return FixtureSource(local, projections: ["wsl-question": remoteDetail])
     }
 
-    private func wslRead() throws -> LinkedRead {
-        LinkedRead(reachable: [wsl.id], answered: [wsl.id], threads: try LinkedFixtures.threads(in: wsl),
-                   projects: try LinkedFixtures.projects())
+    private func wslRead(questionStatus: String = "waiting") throws -> LinkedRead {
+        let threads = try LinkedFixtures.threads(in: wsl).map { shell in
+            var shell = shell
+            if shell.id == "wsl-question" { shell.status = questionStatus }
+            return shell
+        }
+        return LinkedRead(reachable: [wsl.id], answered: [wsl.id], threads: threads, projects: try LinkedFixtures.projects())
     }
 
     private func nextRefresh(_ calls: inout AsyncStream<Void>.Iterator) async {
@@ -477,23 +485,46 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         let second = await reads.next()
         XCTAssertEqual(second, "wsl-question")
 
-        model.select("wsl-watching")
-        let selected = await reads.next()
-        XCTAssertEqual(selected, "wsl-watching")
-        model.stop()
-    }
-
-    func testOpeningTheNotchReadsDetailForTheLinkedThreadsItShows() async throws {
-        let source = try source()
-        source.linkedRead = try wslRead()
-        let model = model(source)
-        var reads = source.linkedDetailReads.makeAsyncIterator()
-        let first = await reads.next()
-        XCTAssertEqual(first, "wsl-question")
-
         model.expanded = true
         let shown = await reads.next()
         XCTAssertEqual(shown, "wsl-watching")
+        model.stop()
+    }
+
+    func testClosingTheNotchForgetsDetailOfLinkedThreadsThatNoLongerNeedIt() async throws {
+        let source = try source()
+        var watching = try XCTUnwrap(source.projections["wsl-question"])
+        watching.thread.id = "wsl-watching"
+        source.projections["wsl-watching"] = watching
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        await until(model) { model.detail(for: "wsl-question") != nil }
+
+        model.expanded = true
+        await until(model) { model.detail(for: "wsl-watching") != nil }
+        model.expanded = false
+
+        XCTAssertNil(model.detail(for: "wsl-watching"))
+        XCTAssertNotNil(model.detail(for: "wsl-question"))
+        model.stop()
+    }
+
+    func testAnAnsweredLinkedQuestionDoesNotComeBackWithTheNextOne() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        await until(model) { model.prompts.contains { $0.threadId == "wsl-question" } }
+
+        source.projections = [:]
+        source.linkedRead = try wslRead(questionStatus: "running")
+        await nextRefresh(&calls)
+        await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .working }
+
+        source.linkedRead = try wslRead()
+        await nextRefresh(&calls)
+        await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .needsYou }
+        XCTAssertFalse(model.prompts.contains { $0.threadId == "wsl-question" })
         model.stop()
     }
 
