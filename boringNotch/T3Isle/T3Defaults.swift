@@ -25,17 +25,9 @@ extension Defaults.Keys {
 }
 
 #if DEBUG
-enum AccessibilityTrustOverride: String, Defaults.Serializable {
-    case system, trusted, denied, unreachable
-
-    init(_ read: AccessibilityRead?) {
-        self = read.flatMap { Self(rawValue: $0.rawValue) } ?? .system
-    }
-
-    var read: AccessibilityRead? { AccessibilityRead(rawValue: rawValue) }
-}
+extension AccessibilityRead: Defaults.Serializable, Defaults.PreferRawRepresentable {}
 
 extension Defaults.Keys {
-    static let debugAccessibilityTrust = Key<AccessibilityTrustOverride>("debugAccessibilityTrust", default: .system)
+    static let debugAccessibilityTrust = Key<AccessibilityRead?>("debugAccessibilityTrust", default: nil)
 }
 #endif

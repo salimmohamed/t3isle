@@ -102,13 +102,13 @@ final class XPCHelperClient: NSObject {
     #if DEBUG
     @MainActor
     func overrideTrust(_ read: AccessibilityRead?) {
-        Defaults[.debugAccessibilityTrust] = AccessibilityTrustOverride(read)
+        Defaults[.debugAccessibilityTrust] = read
     }
     #endif
 
     private nonisolated func overriddenTrust() async -> AccessibilityRead? {
         #if DEBUG
-        guard let read = Defaults[.debugAccessibilityTrust].read else { return nil }
+        guard let read = Defaults[.debugAccessibilityTrust] else { return nil }
         if let granted = read.granted {
             await MainActor.run { notifyAuthorizationChange(granted) }
         }
