@@ -96,7 +96,7 @@ final class T3DebugMonitor {
                                headphones: runtime.headphones,
                                notchViewModels: Self.notches.allObjects.count,
                                headphonesMonitor: runtime.headphonesMonitorState,
-                               hudAccessibility: HUDAccessibility.shared.trust.guidance,
+                               hudAccessibility: HUDAccessibility.shared.hudSwitch.guidance,
                                accessibilityOverride: Defaults[.debugAccessibilityTrust],
                                hudReplacement: Defaults[.hudReplacement],
                                pomodoro: runtime.pomodoroDebugState,

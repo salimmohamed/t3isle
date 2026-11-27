@@ -95,7 +95,7 @@ enum T3DebugCommands {
             runtime.feedBluetoothAccess(access)
         case .accessibilityTrust(let read):
             XPCHelperClient.shared.overrideTrust(read)
-            HUDAccessibility.shared.check()
+            HUDAccessibility.shared.hudSwitch.check()
         case .pomodoro(let action):
             guard Defaults[.pomodoroTimer] else { throw Failure("The Pomodoro timer is turned off in Settings") }
             switch action {

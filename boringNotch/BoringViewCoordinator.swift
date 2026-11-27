@@ -55,7 +55,6 @@ class BoringViewCoordinator: ObservableObject {
     @Published var helloAnimationRunning: Bool = false
     private var sneakPeekDispatch: DispatchWorkItem?
     private var expandingViewDispatch: DispatchWorkItem?
-    private var hudEnableTask: Task<Void, Never>?
 
     @AppStorage("firstLaunch") var firstLaunch: Bool = true
     @AppStorage("showWhatsNew") var showWhatsNew: Bool = true
@@ -82,7 +81,6 @@ class BoringViewCoordinator: ObservableObject {
     @Published var selectedScreenUUID: String = NSScreen.main?.displayUUID ?? ""
 
     @Published var optionKeyPressed: Bool = true
-    private var accessibilityObserver: Any?
     private var hudReplacementCancellable: AnyCancellable?
 
     private init() {
@@ -107,52 +105,12 @@ class BoringViewCoordinator: ObservableObject {
         }
         
         selectedScreenUUID = preferredScreenUUID ?? NSScreen.main?.displayUUID ?? ""
-        // Observe changes to accessibility authorization and react accordingly
-        accessibilityObserver = NotificationCenter.default.addObserver(
-            forName: Notification.Name.accessibilityAuthorizationChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                await self?.hudEnableTask?.value
-                let read = XPCHelperClient.shared.lastRead
-                switch HUDReplacementTrustChange(read: read, isOn: Defaults[.hudReplacement]) {
-                case .startInterceptor?:
-                    await MediaKeyInterceptor.shared.start()
-                case .turnOff?:
-                    Defaults[.hudReplacement] = false
-                case nil:
-                    return
-                }
-            }
-        }
-
+        let hudSwitch = HUDAccessibility.shared.hudSwitch
+        hudSwitch.apply = { [weak self] output in self?.applyHUDSwitch(output) }
         // Observe changes to hudReplacement
         hudReplacementCancellable = Defaults.publisher(.hudReplacement, options: [.initial])
-            .sink { [weak self] change in
-                Task { @MainActor in
-                    guard let self = self else { return }
-
-                    self.hudEnableTask?.cancel()
-                    self.hudEnableTask = nil
-
-                    if change.newValue {
-                        self.hudEnableTask = Task { @MainActor in
-                            let read = await HUDAccessibility.shared.check().value
-                            switch HUDReplacementEnable(read: read, cancelled: Task.isCancelled) {
-                            case .startInterceptor?:
-                                await MediaKeyInterceptor.shared.start()
-                            case .requestAccessAndTurnOff?:
-                                HUDAccessibility.shared.request()
-                                Defaults[.hudReplacement] = false
-                            case .keepSaved?, nil:
-                                return
-                            }
-                        }
-                    } else {
-                        MediaKeyInterceptor.shared.stop()
-                    }
-                }
+            .sink { change in
+                Task { @MainActor in hudSwitch.switched(isOn: change.newValue) }
             }
 
         Task { @MainActor in
@@ -160,6 +118,19 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
     
+    private func applyHUDSwitch(_ output: HUDReplacementSwitch.Output) {
+        switch output {
+        case .startInterceptor:
+            Task { await MediaKeyInterceptor.shared.start() }
+        case .stopInterceptor:
+            MediaKeyInterceptor.shared.stop()
+        case .requestAccess:
+            HUDAccessibility.shared.request()
+        case .turnOff:
+            Defaults[.hudReplacement] = false
+        }
+    }
+
     @objc func sneakPeekEvent(_ notification: Notification) {
         let decoder = JSONDecoder()
         if let decodedData = try? decoder.decode(

@@ -477,7 +477,7 @@ struct HUD: View {
     @Default(.optionKeyAction) var optionKeyAction
     @Default(.hudReplacement) var hudReplacement
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @ObservedObject private var accessibility = HUDAccessibility.shared
+    private let accessibility = HUDAccessibility.shared
     
     var body: some View {
         Form {
@@ -498,7 +498,7 @@ struct HUD: View {
                     .controlSize(.large)
                 }
                 
-                if accessibility.trust.guidance != .trusted {
+                if accessibility.hudSwitch.guidance != .trusted {
                     HUDAccessibilityNotice(accessibility: accessibility)
                 }
             }
@@ -572,10 +572,11 @@ struct HUD: View {
         .accentColor(.effectiveAccent)
         .navigationTitle("HUDs")
         .onAppear {
-            accessibility.check()
+            accessibility.hudSwitch.hudPane(isOpen: true)
             XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
         }
         .onDisappear {
+            accessibility.hudSwitch.hudPane(isOpen: false)
             XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
         }
     }

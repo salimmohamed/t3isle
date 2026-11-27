@@ -12,7 +12,6 @@ final class XPCHelperClient: NSObject {
     private var remoteService: RemoteXPCService<BoringNotchXPCHelperProtocol>?
     private var connection: NSXPCConnection?
     private var readTickets = AccessibilityReadTickets()
-    private var readChanges = AccessibilityReadChanges()
     private var monitoringTask: Task<Void, Never>?
     
     deinit {
@@ -62,15 +61,9 @@ final class XPCHelperClient: NSObject {
     }
     
     @MainActor
-    var lastRead: AccessibilityRead? {
-        readChanges.last?.read
-    }
-
-    @MainActor
-    private func notifyIfChanged(_ reading: AccessibilityReading) {
-        guard readChanges.record(reading) else { return }
+    private func post(_ reading: AccessibilityReading) {
         NotificationCenter.default.post(
-            name: .accessibilityAuthorizationChanged,
+            name: .accessibilityTrustRead,
             object: nil,
             userInfo: [AccessibilityReading.notificationKey: reading]
         )
@@ -144,7 +137,7 @@ final class XPCHelperClient: NSObject {
             read = await readSystemTrust()
         }
         let reading = AccessibilityReading(read: read, ticket: ticket)
-        await MainActor.run { notifyIfChanged(reading) }
+        await MainActor.run { post(reading) }
         return reading
     }
 
@@ -262,7 +255,7 @@ final class XPCHelperClient: NSObject {
 }
 
 extension Notification.Name {
-    static let accessibilityAuthorizationChanged = Notification.Name("accessibilityAuthorizationChanged")
+    static let accessibilityTrustRead = Notification.Name("accessibilityTrustRead")
 }
 
 
