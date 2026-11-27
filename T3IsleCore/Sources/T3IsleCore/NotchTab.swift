@@ -3,8 +3,10 @@ import Foundation
 public enum NotchTab: String, CaseIterable, Codable, Sendable {
     case home, t3, shelf
 
-    public static func barShown(t3Enabled: Bool, shelfEnabled: Bool, shelfEmpty: Bool, alwaysShowTabs: Bool) -> Bool {
-        t3Enabled || shelfEnabled && (alwaysShowTabs || !shelfEmpty)
+    public static func barShown(t3Enabled: Bool, shelfEnabled: Bool, shelfEmpty: Bool, alwaysShowTabs: Bool,
+                                clipboardHistory: Bool, clipboardEmpty: Bool) -> Bool {
+        let shelfHasContent = !shelfEmpty || clipboardHistory && !clipboardEmpty
+        return t3Enabled || shelfEnabled && (alwaysShowTabs || shelfHasContent)
     }
 
     public static func resolvedOnDisplay(notchOpen: Bool, otherNotchOpen: Bool) -> Bool {

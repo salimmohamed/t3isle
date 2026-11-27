@@ -8,7 +8,7 @@ final class DebugStateTests: XCTestCase {
 
     private func state() throws -> DebugState {
         let t3 = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
-        return DebugState(notch: .closed, tab: .t3, settingsOpen: false, closedActivity: .t3, headphones: nil,
+        return DebugState(notch: .closed, tab: .t3, tabBarShown: true, settingsOpen: false, closedActivity: .t3, headphones: nil,
                           notchViewModels: 1, headphonesMonitor: monitor, hudAccessibility: .unchecked,
                           accessibilityOverride: nil, hudReplacement: false, pomodoro: pomodoro,
                           clipboardHistory: clipboard, t3: t3)
@@ -23,7 +23,7 @@ final class DebugStateTests: XCTestCase {
 
     func testEveryKeyIsPresentEvenWhenEmpty() throws {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(try state())) as? [String: Any])
-        XCTAssertEqual(Set(object.keys), ["notch", "tab", "settingsOpen", "closedActivity", "headphones", "notchViewModels",
+        XCTAssertEqual(Set(object.keys), ["notch", "tab", "tabBarShown", "settingsOpen", "closedActivity", "headphones", "notchViewModels",
                                           "headphonesMonitor", "hudAccessibility", "accessibilityOverride", "hudReplacement", "pomodoro",
                                           "clipboardHistory", "t3"])
         XCTAssertTrue(object["headphones"] is NSNull)
@@ -39,7 +39,7 @@ final class DebugStateTests: XCTestCase {
 
     func testAppFieldsUseFlatNames() throws {
         let headphones = HeadphonesConnect(address: "debug", name: "AirPods Pro", kind: .airpodsPro)
-        let state = DebugState(notch: .open, tab: .shelf, settingsOpen: true, closedActivity: .headphones(headphones),
+        let state = DebugState(notch: .open, tab: .shelf, tabBarShown: false, settingsOpen: true, closedActivity: .headphones(headphones),
                                headphones: headphones, notchViewModels: 2,
                                headphonesMonitor: DebugState.HeadphonesMonitor(bluetooth: .notDetermined, status: .watching),
                                hudAccessibility: .unreachable, accessibilityOverride: .unreachable, hudReplacement: true,
@@ -49,6 +49,7 @@ final class DebugStateTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(state)) as? [String: Any])
         XCTAssertEqual(object["notch"] as? String, "open")
         XCTAssertEqual(object["tab"] as? String, "shelf")
+        XCTAssertEqual(object["tabBarShown"] as? Bool, false)
         XCTAssertEqual(object["settingsOpen"] as? Bool, true)
         XCTAssertEqual(object["closedActivity"] as? String, "headphones")
         XCTAssertEqual(object["headphones"] as? [String: String], ["name": "AirPods Pro", "kind": "airpodsPro"])

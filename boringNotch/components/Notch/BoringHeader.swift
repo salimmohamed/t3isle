@@ -13,11 +13,12 @@ struct BoringHeader: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @StateObject var tvm = ShelfStateViewModel.shared
+    @ObservedObject private var clipboard = T3IsleRuntime.shared.clipboard
     @Default(.pomodoroTimer) private var pomodoroTimer
     var body: some View {
         HStack(spacing: 0) {
             HStack {
-                if T3Tabs.barShown(shelfEmpty: tvm.isEmpty) {
+                if T3Tabs.barShown {
                     TabSelectionView()
                 } else if vm.notchState == .open {
                     EmptyView()

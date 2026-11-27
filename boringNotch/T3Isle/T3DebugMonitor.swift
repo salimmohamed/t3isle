@@ -90,6 +90,7 @@ final class T3DebugMonitor {
         let runtime = T3IsleRuntime.shared
         let state = DebugState(notch: notch.notchState == .open ? .open : .closed,
                                tab: BoringViewCoordinator.shared.currentView,
+                               tabBarShown: T3Tabs.barShown,
                                settingsOpen: SettingsWindowController.shared.window?.isVisible == true,
                                closedActivity: T3Tabs.closedActivity(),
                                headphones: runtime.headphones,
