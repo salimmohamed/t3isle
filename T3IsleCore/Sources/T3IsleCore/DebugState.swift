@@ -47,6 +47,18 @@ public struct DebugState: Codable, Equatable, Sendable {
         }
     }
 
+    public struct Clipboard: Codable, Equatable, Sendable {
+        public let enabled: Bool
+        public let watching: Bool
+        public let items: Int
+
+        public init(enabled: Bool, watching: Bool, items: Int) {
+            self.enabled = enabled
+            self.watching = watching
+            self.items = items
+        }
+    }
+
     public struct T3: Codable, Equatable, Sendable {
         public enum Source: String, Codable, Sendable { case live, demo, replay }
         public enum Connection: String, Codable, Sendable {
@@ -156,11 +168,13 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let accessibilityOverride: AccessibilityRead?
     public let hudReplacement: Bool
     public let pomodoro: Pomodoro
+    public let clipboardHistory: Clipboard
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
                 headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, hudAccessibility: AccessibilityGuidance,
-                accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, pomodoro: Pomodoro, t3: T3) {
+                accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, pomodoro: Pomodoro,
+                clipboardHistory: Clipboard, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen
@@ -172,6 +186,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         self.accessibilityOverride = accessibilityOverride
         self.hudReplacement = hudReplacement
         self.pomodoro = pomodoro
+        self.clipboardHistory = clipboardHistory
         self.t3 = t3
     }
 
@@ -188,6 +203,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         try container.encode(accessibilityOverride, forKey: .accessibilityOverride)
         try container.encode(hudReplacement, forKey: .hudReplacement)
         try container.encode(pomodoro, forKey: .pomodoro)
+        try container.encode(clipboardHistory, forKey: .clipboardHistory)
         try container.encode(t3, forKey: .t3)
     }
 
@@ -201,6 +217,12 @@ public struct DebugState: Codable, Equatable, Sendable {
 extension PomodoroTimer {
     public func debugState(enabled: Bool) -> DebugState.Pomodoro {
         DebugState.Pomodoro(enabled: enabled, phase: phase, running: isRunning)
+    }
+}
+
+extension ClipboardHistory {
+    public func debugState(enabled: Bool) -> DebugState.Clipboard {
+        DebugState.Clipboard(enabled: enabled, watching: isWatching, items: items.count)
     }
 }
 

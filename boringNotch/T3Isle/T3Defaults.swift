@@ -23,6 +23,7 @@ extension Defaults.Keys {
     static let t3HeadphonesActivity = Key<Bool>("t3HeadphonesActivity", default: true)
     static let t3CollapsedSections = Key<Set<String>>("t3CollapsedSections", default: ["snoozed"])
     static let pomodoroTimer = Key<Bool>("pomodoroTimer", default: false)
+    static let clipboardHistory = Key<Bool>("clipboardHistory", default: false)
 }
 
 #if DEBUG

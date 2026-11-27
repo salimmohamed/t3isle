@@ -13,6 +13,7 @@ final class T3IsleRuntime: ObservableObject {
     @Published private(set) var headphones: HeadphonesConnect?
     @Published private(set) var pomodoroRunning = false
     let pomodoro = PomodoroTimer()
+    let clipboard = ClipboardHistory(pasteboard: SystemPasteboard())
     private let headphonesPopup = HeadphonesPopup()
     private lazy var headphonesMonitor = T3HeadphonesMonitor(popup: headphonesPopup)
     private var cancellables: Set<AnyCancellable> = []
@@ -84,6 +85,12 @@ final class T3IsleRuntime: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.pomodoro.reset() }
             .store(in: &cancellables)
+        Defaults.publisher(keys: .clipboardHistory, .boringShelf)
+            .map { Self.clipboardHistoryShown }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.clipboard.setEnabled($0) }
+            .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
 
@@ -141,6 +148,14 @@ final class T3IsleRuntime: ObservableObject {
         guard headphonesMonitor.isSettled, HUDAccessibility.shared.isSettled else { return false }
         guard Defaults[.t3Enabled], let replay = activeReplay else { return !model.isFetchingDetails }
         return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
+    }
+
+    static var clipboardHistoryShown: Bool {
+        Defaults[.clipboardHistory] && Defaults[.boringShelf]
+    }
+
+    var clipboardDebugState: DebugState.Clipboard {
+        clipboard.debugState(enabled: Defaults[.clipboardHistory])
     }
 
     var pomodoroDebugState: DebugState.Pomodoro {

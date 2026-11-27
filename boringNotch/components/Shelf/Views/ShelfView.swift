@@ -5,6 +5,7 @@
 //  Created by Alexander on 2025-09-24.
 //
 
+import Defaults
 import SwiftUI
 import AppKit
 
@@ -13,6 +14,7 @@ struct ShelfView: View {
     @StateObject var tvm = ShelfStateViewModel.shared
     @StateObject var selection = ShelfSelectionModel.shared
     @StateObject private var quickLookService = QuickLookService()
+    @Default(.clipboardHistory) private var clipboardHistory
     private let spacing: CGFloat = 8
 
     var body: some View {
@@ -24,6 +26,9 @@ struct ShelfView: View {
                 .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
                     handleDrop(providers: providers)
                 }
+            if clipboardHistory {
+                ClipboardHistoryColumn()
+            }
         }
         // Bind Quick Look to shelf selection
         .onChange(of: selection.selectedIDs) {
