@@ -305,8 +305,8 @@ public final class T3IsleModel: ObservableObject {
         guard isShown(shell) else { return false }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
-        if mood == .needsYou || shell.id == selectedAgentId { return true }
-        let following = mood == .working || mood == .waiting || finished[shell.id] != nil
+        if mood == .needsYou { return true }
+        let following = shell.id == selectedAgentId || mood == .working || mood == .waiting || finished[shell.id] != nil
         return following && (shell.linkedEnvironment == nil || expanded)
     }
 
@@ -419,6 +419,7 @@ public final class T3IsleModel: ObservableObject {
     private func forgetDetail(_ threadId: String) {
         if details[threadId] != nil { details[threadId] = nil }
         detailPrompts[threadId] = nil
+        scheduledFetch.removeValue(forKey: threadId)?.cancel()
     }
 
     private func showBanner(threadId: String, steps: Int) {

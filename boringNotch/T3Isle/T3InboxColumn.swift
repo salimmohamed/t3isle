@@ -261,6 +261,7 @@ struct ThreadRow: View {
                                 .lineLimit(1)
                             if let environment = thread.environment {
                                 MachineLabel(name: environment.label)
+                                    .layoutPriority(2)
                             }
                         }
                         LiveLine(text: thread.line, attention: !thread.mood.isBusy && !asleep)
