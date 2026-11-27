@@ -353,6 +353,7 @@ public final class T3IsleModel: ObservableObject {
         let fresh = Dictionary((unanswered + read.threads).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for id in linkedShells.keys where fresh[id] == nil && shells[id] == nil { forgetDetail(id) }
         linkedShells = fresh
+        if !expanded { settleLinkedDetails() }
         linkedProjects.merge(read.projects.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         for shell in fresh.values where !InboxBuilder.awaitsAnswer(shell) { detailPrompts[shell.id] = nil }
         for shell in fresh.values where wantsDetail(shell) && (details[shell.id] == nil || asksUnread(shell)) {
@@ -366,10 +367,14 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func scheduleRefresh() {
+        settleLinkedDetails()
+        for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
+    }
+
+    private func settleLinkedDetails() {
         for shell in linkedShells.values where shells[shell.id] == nil && !wantsDetail(shell) {
             if keepsDetail(shell) { holdDetail(shell.id) } else { forgetDetail(shell.id) }
         }
-        for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
     }
 
     private func requestDetail(_ threadId: String, urgent: Bool) {

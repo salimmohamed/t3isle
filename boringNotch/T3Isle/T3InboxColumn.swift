@@ -249,7 +249,7 @@ struct ThreadRow: View {
                 HStack(spacing: 8) {
                     avatar(asleep: asleep)
                     VStack(alignment: .leading, spacing: 1) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 0) {
                             Text(thread.title)
                                 .font(.system(size: 11.5, weight: .semibold))
                                 .foregroundStyle(thread.mood.isBusy || asleep ? T3Theme.secondary : T3Theme.primary)
@@ -258,6 +258,7 @@ struct ThreadRow: View {
                             ProjectLabel(name: thread.project)
                             if let environment = thread.environment {
                                 MachineLabel(name: environment.label)
+                                    .padding(.leading, ProjectLabel.gap)
                                     .layoutPriority(2)
                             }
                         }
@@ -378,11 +379,12 @@ struct ThreadRow: View {
 }
 
 private struct ProjectLabel: View {
+    static let gap: CGFloat = 5
     let name: String
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            Text(name).fixedSize()
+            Text(name).fixedSize().padding(.leading, Self.gap)
             Color.clear.frame(width: 0, height: 0)
         }
         .font(.system(size: 9.5))
@@ -402,6 +404,7 @@ private struct MachineLabel: View {
                     .fixedSize()
                 Label(name, systemImage: "desktopcomputer")
                     .lineLimit(1)
+                    .truncationMode(.middle)
                     .frame(width: Self.widest, alignment: .leading)
                 Image(systemName: "desktopcomputer")
             }
