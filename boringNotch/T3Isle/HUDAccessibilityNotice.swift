@@ -16,14 +16,17 @@ struct HUDAccessibilityNotice: View {
                         .buttonStyle(.borderedProminent)
                     Button("Request Accessibility") { accessibility.request() }
                 }
-            } else {
+            } else if accessibility.trust.guidance.offersRequest {
                 Text("Accessibility access is required to replace the system HUD.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                if accessibility.trust.guidance.offersRequest {
-                    Button("Request Accessibility") { accessibility.request() }
-                        .buttonStyle(.borderedProminent)
-                }
+                Button("Request Accessibility") { accessibility.request() }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                Text("\(accessibility.appName) couldn't check Accessibility because its helper didn't answer. Replace system HUD stays as you left it until the helper answers.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.top, 6)

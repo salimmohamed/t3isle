@@ -20,14 +20,15 @@ public enum AccessibilityGuidance: String, Codable, Sendable {
 
 public enum HUDReplacementEnable: Equatable, Sendable {
     case startInterceptor
-    case turnOff(requestingAccess: Bool)
+    case requestAccessAndTurnOff
+    case keepSaved
 
     public init?(read: AccessibilityRead, cancelled: Bool) {
         guard !cancelled else { return nil }
         switch read {
         case .trusted: self = .startInterceptor
-        case .denied: self = .turnOff(requestingAccess: true)
-        case .unreachable: self = .turnOff(requestingAccess: false)
+        case .denied: self = .requestAccessAndTurnOff
+        case .unreachable: self = .keepSaved
         }
     }
 }
