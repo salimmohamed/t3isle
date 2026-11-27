@@ -10,7 +10,7 @@ public struct EventTapSlot<Tap> {
     public init() {}
 
     public mutating func claim() -> Claim? {
-        guard tap == nil, pending == nil else { return nil }
+        guard tap == nil else { return nil }
         lastClaim += 1
         let claim = Claim(id: lastClaim)
         pending = claim

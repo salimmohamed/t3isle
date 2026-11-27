@@ -2,21 +2,41 @@ import XCTest
 @testable import T3IsleCore
 
 final class EventTapSlotTests: XCTestCase {
-    func testASecondStartWhileTheFirstAwaitsTrustClaimsNothing() {
+    func testASecondStartWhileTheFirstAwaitsTrustTakesOverTheSlot() throws {
         var slot = EventTapSlot<Int>()
-        let first = slot.claim()
-        XCTAssertNotNil(first)
-        XCTAssertNil(slot.claim())
+        let first = try XCTUnwrap(slot.claim())
+        let second = try XCTUnwrap(slot.claim())
+        XCTAssertNotEqual(first, second)
     }
 
-    func testOnlyTheFirstOfTwoOverlappingStartsMakesATap() throws {
+    func testOnlyTheLastOfTwoOverlappingStartsMakesATap() throws {
         var slot = EventTapSlot<Int>()
         var made = 0
         let first = try XCTUnwrap(slot.claim())
-        XCTAssertNil(slot.claim())
-        slot.fill(first) { made += 1; return made }
+        let second = try XCTUnwrap(slot.claim())
+        XCTAssertNil(slot.fill(first) { made += 1; return made })
+        slot.fill(second) { made += 1; return made }
         XCTAssertEqual(made, 1)
+        XCTAssertEqual(slot.tap, 1)
         XCTAssertNil(slot.claim())
+    }
+
+    func testAStaleDeniedReadAfterATrustedOneLeavesTheTap() throws {
+        var slot = EventTapSlot<Int>()
+        let staleDenied = try XCTUnwrap(slot.claim())
+        let trusted = try XCTUnwrap(slot.claim())
+        slot.fill(trusted) { 7 }
+        XCTAssertNil(slot.fill(staleDenied) { nil })
+        XCTAssertEqual(slot.tap, 7)
+    }
+
+    func testAStartThatArrivesWhileADeniedReadIsPendingStillMakesATap() throws {
+        var slot = EventTapSlot<Int>()
+        let staleDenied = try XCTUnwrap(slot.claim())
+        let trusted = try XCTUnwrap(slot.claim())
+        XCTAssertNil(slot.fill(staleDenied) { nil })
+        slot.fill(trusted) { 7 }
+        XCTAssertEqual(slot.tap, 7)
     }
 
     func testStopHandsBackTheTapItMade() throws {
