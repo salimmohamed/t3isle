@@ -637,6 +637,14 @@ final class LinkedEnvironmentModelTests: XCTestCase {
     }
 
     func testALinkedPlanThatFinishedAfterAClosedNotchQuestionRaisesNoLateBanner() async throws {
+        try await finishPlanAfterAClosedNotchQuestion(selecting: "wsl-watching", keepsDetail: false)
+    }
+
+    func testASelectedLinkedPlanThatFinishedAfterAClosedNotchQuestionRaisesNoLateBanner() async throws {
+        try await finishPlanAfterAClosedNotchQuestion(selecting: "wsl-question", keepsDetail: true)
+    }
+
+    private func finishPlanAfterAClosedNotchQuestion(selecting selected: String, keepsDetail: Bool) async throws {
         let source = try source()
         source.linkedRead = try wslRead()
         let projection = try XCTUnwrap(source.projections["wsl-question"])
@@ -644,23 +652,28 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         var calls = source.linkedCalls.makeAsyncIterator()
         var reads = source.linkedDetailReads.makeAsyncIterator()
         await until(model) { model.detail(for: "wsl-question")?.plan?.isComplete == false }
+        model.select(selected)
 
         source.projections = [:]
         source.linkedRead = try wslRead(questionStatus: "running")
         await nextRefresh(&calls)
-        let first = await reads.next()
-        let lastAsking = await reads.next()
-        XCTAssertEqual([first, lastAsking], ["wsl-question", "wsl-question"])
+        await nextRead(of: "wsl-question", &reads)
+        await nextRead(of: "wsl-question", &reads)
         await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .working }
+        XCTAssertEqual(model.selectedCard?.id, selected)
+        XCTAssertEqual(model.detail(for: "wsl-question") != nil, keepsDetail)
 
         source.projections["wsl-question"] = projection
         try completePlan(of: "wsl-question", in: source)
         model.expanded = true
-        await clock.waitForSleepers()
-        clock.advance(by: 1)
+        clock.advance(by: T3IsleModel.linkedInterval)
         await until(model) { model.detail(for: "wsl-question")?.plan?.isComplete == true }
         XCTAssertNil(model.banner)
         model.stop()
+    }
+
+    private func nextRead(of threadId: String, _ reads: inout AsyncStream<String>.Iterator) async {
+        while let read = await reads.next(), read != threadId {}
     }
 
     private func completePlan(of threadId: String, in source: FixtureSource) throws {
