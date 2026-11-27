@@ -1,19 +1,50 @@
 import Foundation
 
+protocol RpcTransport: AnyObject {
+    func resume()
+    func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void)
+    func receive(completion: @escaping @Sendable (Result<URLSessionWebSocketTask.Message, Error>) -> Void)
+    func close()
+}
+
+extension URLSessionWebSocketTask: RpcTransport {
+    func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void) {
+        send(.string(text), completionHandler: completion)
+    }
+
+    func receive(completion: @escaping @Sendable (Result<URLSessionWebSocketTask.Message, Error>) -> Void) {
+        receive(completionHandler: completion)
+    }
+
+    func close() {
+        cancel(with: .normalClosure, reason: nil)
+    }
+}
+
 final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendable {
     enum Event {
         case chunk([Any])
         case exit(Result<Any?, T3Failure>)
     }
 
+    static let pingInterval: TimeInterval = 5
+    static let pongTimeout: TimeInterval = 10
+
+    private let clock: any T3Clock
     private let lock = NSLock()
-    private var task: URLSessionWebSocketTask?
+    private var transport: RpcTransport?
     private var session: URLSession?
     private var nextId = 1
     private var handlers: [String: (Event) -> Void] = [:]
-    private var pingTimer: DispatchSourceTimer?
+    private var pings: Task<Void, Never>?
+    private var unansweredPingSince: Date?
     private var closed = false
     private var onClose: (@Sendable (T3Failure) -> Void)?
+
+    init(clock: any T3Clock = LiveClock()) {
+        self.clock = clock
+        super.init()
+    }
 
     func connect(url: URL, token: String, onClose: @escaping @Sendable (T3Failure) -> Void) {
         var request = URLRequest(url: url)
@@ -21,12 +52,16 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
         let session = URLSession(configuration: .ephemeral, delegate: self, delegateQueue: nil)
         let task = session.webSocketTask(with: request)
         task.maximumMessageSize = 64 * 1024 * 1024
+        open(task, session: session, onClose: onClose)
+    }
+
+    func open(_ transport: RpcTransport, session: URLSession? = nil, onClose: @escaping @Sendable (T3Failure) -> Void) {
         lock.lock()
         self.session = session
-        self.task = task
+        self.transport = transport
         self.onClose = onClose
         lock.unlock()
-        task.resume()
+        transport.resume()
         receive()
         startPings()
     }
@@ -96,19 +131,19 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
               let text = String(data: data, encoding: .utf8)
         else { return }
         lock.lock()
-        let task = self.task
+        let transport = self.transport
         lock.unlock()
-        task?.send(.string(text)) { [weak self] error in
+        transport?.send(text) { [weak self] error in
             if error != nil { self?.finish(.notRunning, notify: true) }
         }
     }
 
     private func receive() {
         lock.lock()
-        let task = self.task
+        let transport = self.transport
         lock.unlock()
-        task?.receive { [weak self] result in
-            guard let self else { return }
+        transport?.receive { [weak self] result in
+            guard let self, !self.isClosed else { return }
             switch result {
             case .success(let message):
                 switch message {
@@ -124,6 +159,7 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
     }
 
     private func handle(_ data: Data) {
+        lock.withLock { unansweredPingSince = nil }
         guard let decoded = try? JSONSerialization.jsonObject(with: data) else { return }
         let messages = (decoded as? [[String: Any]]) ?? [(decoded as? [String: Any]) ?? [:]]
         for message in messages { route(message) }
@@ -173,13 +209,36 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
     }
 
     private func startPings() {
-        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
-        timer.schedule(deadline: .now() + 5, repeating: 5)
-        timer.setEventHandler { [weak self] in self?.send(["_tag": "Ping"]) }
+        let clock = self.clock
+        let pings = Task { [weak self] in
+            while true {
+                do {
+                    try await clock.sleep(until: clock.now.addingTimeInterval(Self.pingInterval))
+                } catch {
+                    return
+                }
+                guard let self, self.pingOrGiveUp() else { return }
+            }
+        }
+        lock.withLock { self.pings = pings }
+    }
+
+    private func pingOrGiveUp() -> Bool {
+        let now = clock.now
         lock.lock()
-        pingTimer = timer
+        if closed {
+            lock.unlock()
+            return false
+        }
+        if let since = unansweredPingSince, now.timeIntervalSince(since) >= Self.pongTimeout {
+            lock.unlock()
+            finish(.notRunning, notify: true)
+            return false
+        }
+        if unansweredPingSince == nil { unansweredPingSince = now }
         lock.unlock()
-        timer.resume()
+        send(["_tag": "Ping"])
+        return true
     }
 
     private func finish(_ failure: T3Failure, notify: Bool) {
@@ -191,13 +250,13 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
         closed = true
         let pending = handlers
         handlers.removeAll()
-        let task = self.task
+        let transport = self.transport
         let session = self.session
         let onClose = self.onClose
-        pingTimer?.cancel()
-        pingTimer = nil
+        pings?.cancel()
+        pings = nil
         lock.unlock()
-        task?.cancel(with: .normalClosure, reason: nil)
+        transport?.close()
         session?.invalidateAndCancel()
         for handler in pending.values { handler(.exit(.failure(failure))) }
         if notify { onClose?(failure) }
