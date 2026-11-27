@@ -23,3 +23,9 @@ extension Defaults.Keys {
     static let t3HeadphonesActivity = Key<Bool>("t3HeadphonesActivity", default: true)
     static let t3CollapsedSections = Key<Set<String>>("t3CollapsedSections", default: ["snoozed"])
 }
+
+#if DEBUG
+extension Defaults.Keys {
+    static let debugAccessibilityTrust = Key<Bool?>("debugAccessibilityTrust")
+}
+#endif
