@@ -38,13 +38,15 @@ final class HUDAccessibility: ObservableObject {
 
     var isSettled: Bool { checksInFlight == 0 }
 
-    func check() {
+    @discardableResult
+    func check() -> Task<Bool, Never> {
         checksInFlight += 1
-        Task { @MainActor in
+        return Task { @MainActor in
             let trusted = await XPCHelperClient.shared.isAccessibilityAuthorized()
             trust.checked(trusted: trusted)
             Self.log.notice("Accessibility trust read \(trusted ? "trusted" : "untrusted", privacy: .public), HUD settings show \(self.trust.guidance.rawValue, privacy: .public)")
             checksInFlight -= 1
+            return trusted
         }
     }
 }

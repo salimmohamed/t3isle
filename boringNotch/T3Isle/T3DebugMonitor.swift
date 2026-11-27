@@ -1,6 +1,7 @@
 #if DEBUG
 import AppKit
 import Combine
+import Defaults
 import T3IsleCore
 
 @MainActor
@@ -95,6 +96,7 @@ final class T3DebugMonitor {
                                notchViewModels: Self.notches.allObjects.count,
                                headphonesMonitor: runtime.headphonesMonitorState,
                                hudAccessibility: HUDAccessibility.shared.trust.guidance,
+                               accessibilityOverride: Defaults[.debugAccessibilityTrust].trusted,
                                t3: runtime.debugState)
         try folders.createLogs()
         try DebugState.encoded(state).write(to: folders.stateFile, options: .atomic)

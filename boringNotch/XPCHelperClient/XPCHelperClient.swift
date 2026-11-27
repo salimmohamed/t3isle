@@ -1,6 +1,7 @@
 import Foundation
 import Cocoa
 import AsyncXPCConnection
+import Defaults
 
 final class XPCHelperClient: NSObject {
     nonisolated static let shared = XPCHelperClient()
@@ -11,9 +12,6 @@ final class XPCHelperClient: NSObject {
     private var connection: NSXPCConnection?
     private var lastKnownAuthorization: Bool?
     private var monitoringTask: Task<Void, Never>?
-    #if DEBUG
-    private var trustOverride: Bool?
-    #endif
     
     deinit {
         connection?.invalidate()
@@ -103,17 +101,15 @@ final class XPCHelperClient: NSObject {
     #if DEBUG
     @MainActor
     func overrideTrust(_ trusted: Bool?) {
-        trustOverride = trusted
+        Defaults[.debugAccessibilityTrust] = AccessibilityTrustOverride(trusted)
     }
     #endif
 
     private nonisolated func overriddenTrust() async -> Bool? {
         #if DEBUG
-        return await MainActor.run { () -> Bool? in
-            guard let trusted = trustOverride else { return nil }
-            notifyAuthorizationChange(trusted)
-            return trusted
-        }
+        guard let trusted = Defaults[.debugAccessibilityTrust].trusted else { return nil }
+        await MainActor.run { notifyAuthorizationChange(trusted) }
+        return trusted
         #else
         return nil
         #endif
