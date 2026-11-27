@@ -13,9 +13,8 @@ final class EventTapSlotTests: XCTestCase {
         var slot = EventTapSlot<Int>()
         var made = 0
         let first = try XCTUnwrap(slot.claim())
-        let second = slot.claim()
+        XCTAssertNil(slot.claim())
         slot.fill(first) { made += 1; return made }
-        if let second { slot.fill(second) { made += 1; return made } }
         XCTAssertEqual(made, 1)
         XCTAssertNil(slot.claim())
     }
