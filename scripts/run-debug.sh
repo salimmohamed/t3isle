@@ -71,6 +71,7 @@ running=$(pids_using_state | head -n 1)
 
 if [ "$build" = 1 ]; then
   mkdir -p "$root/.build"
+  rm -rf "$app" || fail 2 "cannot remove the old build at $app"
   echo "run-debug: building the Debug app, log in $build_log" >&2
   if ! (cd "$root" && xcodebuild build -scheme boringNotch \
     -project boringNotch.xcodeproj \
