@@ -15,7 +15,6 @@ public enum DebugCommand: Equatable, Sendable {
     case airpodsDisconnect
     case bluetoothAccess(BluetoothAccess?)
     case accessibilityTrust(Bool?)
-    case accessibilityRequest
 
     public static let scheme = "t3isle-debug"
     public static let launchFlag = "--debug"
@@ -57,10 +56,6 @@ public enum DebugCommand: Equatable, Sendable {
         Spec(name: "accessibility-trust", arguments: "trusted|untrusted|system",
              summary: "Override the Accessibility trust the app reads and re-check it as if you came back to the app",
              build: accessibilityTrust),
-        Spec(name: "accessibility-request", arguments: "",
-             summary: "Press Request Accessibility in the HUD settings without the system prompt") {
-            $0.isEmpty ? .accessibilityRequest : nil
-        },
     ]
 
     public var tokens: [String] {
@@ -79,7 +74,6 @@ public enum DebugCommand: Equatable, Sendable {
         case .airpodsDisconnect: ["airpods-disconnect"]
         case .bluetoothAccess(let access): ["bluetooth-access", access?.rawValue ?? "system"]
         case .accessibilityTrust(let trusted): ["accessibility-trust", trusted.map { $0 ? "trusted" : "untrusted" } ?? "system"]
-        case .accessibilityRequest: ["accessibility-request"]
         }
     }
 
@@ -97,7 +91,7 @@ public enum DebugCommand: Equatable, Sendable {
         case .airpodsConnect: .airpodsDisconnect
         case .airpodsDisconnect: .airpodsConnect(name: "AirPods Pro", battery: nil, device: nil)
         case .bluetoothAccess: .bluetoothAccess(nil)
-        case .accessibilityTrust, .accessibilityRequest: .accessibilityTrust(nil)
+        case .accessibilityTrust: .accessibilityTrust(nil)
         }
     }
 
