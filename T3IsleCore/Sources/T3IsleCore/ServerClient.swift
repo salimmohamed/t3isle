@@ -18,16 +18,19 @@ public actor T3ServerClient {
     private let signIn: T3SignIn
     private let linkSignIn: T3SignIn?
     private let urlSession: URLSession
+    private let clock: any T3Clock
     private var socket: RpcSocket?
     private var connecting: Task<RpcSocket, Error>?
     private var environmentId: String?
     private var mcpSession: String?
     private var mcpRequestId = 0
+    private var linkBackoff = SessionBackoff()
 
-    public init(home: T3Home, signIn: T3SignIn, linkSignIn: T3SignIn? = nil) {
+    public init(home: T3Home, signIn: T3SignIn, linkSignIn: T3SignIn? = nil, clock: any T3Clock = LiveClock()) {
         self.home = home
         self.signIn = signIn
         self.linkSignIn = linkSignIn
+        self.clock = clock
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
         urlSession = URLSession(configuration: configuration)
@@ -100,7 +103,20 @@ public actor T3ServerClient {
         try Self.decode(type, try McpReply.structuredContent(try await mcp(name, arguments)))
     }
 
-    private func mcp(_ name: String, _ arguments: [String: Any], retried: Bool = false) async throws -> Data {
+    private func mcp(_ name: String, _ arguments: [String: Any]) async throws -> Data {
+        guard linkSignIn != nil else { throw T3Failure.notRunning }
+        guard linkBackoff.allows(at: clock.now) else { throw T3Failure.signedOut }
+        do {
+            let data = try await mcpCall(name, arguments)
+            linkBackoff.accepted()
+            return data
+        } catch T3Failure.signedOut {
+            linkBackoff.rejected(at: clock.now)
+            throw T3Failure.signedOut
+        }
+    }
+
+    private func mcpCall(_ name: String, _ arguments: [String: Any], retried: Bool = false) async throws -> Data {
         guard let linkSignIn else { throw T3Failure.notRunning }
         let session = try await mcpSessionId()
         mcpRequestId += 1
@@ -112,10 +128,10 @@ public actor T3ServerClient {
         case 401 where !retried:
             mcpSession = nil
             await linkSignIn.invalidate()
-            return try await mcp(name, arguments, retried: true)
+            return try await mcpCall(name, arguments, retried: true)
         case 400 where !retried, 404 where !retried:
             mcpSession = nil
-            return try await mcp(name, arguments, retried: true)
+            return try await mcpCall(name, arguments, retried: true)
         case 401:
             throw T3Failure.signedOut
         default:
