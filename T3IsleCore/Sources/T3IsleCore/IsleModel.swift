@@ -313,7 +313,7 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func keepsDetail(_ shell: ThreadShell) -> Bool {
-        shell.id == selectedAgentId && isShown(shell) && InboxBuilder.belongsInInbox(shell)
+        shell.id == selectedCard?.id && isShown(shell) && InboxBuilder.belongsInInbox(shell)
     }
 
     private func refreshProviders() {

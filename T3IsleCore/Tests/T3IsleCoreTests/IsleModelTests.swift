@@ -546,30 +546,35 @@ final class LinkedEnvironmentModelTests: XCTestCase {
     }
 
     func testClosingTheNotchStopsDetailReadsForASelectedLinkedThreadThatDoesNotNeedYou() async throws {
-        let source = try source()
-        var watching = try XCTUnwrap(source.projections["wsl-question"])
-        watching.thread.id = "wsl-watching"
-        source.projections["wsl-watching"] = watching
-        source.linkedRead = try wslRead()
+        let source = try watchingSource(branch: "main")
         let model = model(source)
         var calls = source.linkedCalls.makeAsyncIterator()
         var reads = source.linkedDetailReads.makeAsyncIterator()
-        await calls.next()
-        let first = await reads.next()
-        XCTAssertEqual(first, "wsl-question")
+        await closeOnSelectedWatching(model, &calls, &reads)
 
-        model.expanded = true
-        let shown = await reads.next()
-        XCTAssertEqual(shown, "wsl-watching")
-        model.select("wsl-watching")
-        model.expanded = false
-
-        for _ in 0..<2 {
-            await nextRefresh(&calls)
-            let next = await reads.next()
-            XCTAssertEqual(next, "wsl-question")
-        }
+        await nextRefresh(&calls)
+        let next = await reads.next()
+        XCTAssertEqual(next, "wsl-question")
         XCTAssertNotNil(model.detail(for: "wsl-watching"))
+        model.stop()
+    }
+
+    func testClosingTheNotchKeepsTheDetailOfTheCardShownWithoutATap() async throws {
+        let source = FixtureSource(ShellSnapshot(threads: [], projects: []),
+                                   projections: try source().projections)
+        var watching = try XCTUnwrap(source.projections["wsl-question"])
+        watching.thread.id = "wsl-watching"
+        source.projections["wsl-watching"] = watching
+        source.linkedRead = try wslRead(questionStatus: "running")
+        let model = model(source)
+        model.expanded = true
+        await until(model) { model.allCards.allSatisfy { model.detail(for: $0.id) != nil } && model.allCards.count == 2 }
+        let shown = try XCTUnwrap(model.selectedCard?.id)
+        let other = try XCTUnwrap(model.allCards.first { $0.id != shown }?.id)
+
+        model.expanded = false
+        XCTAssertNotNil(model.detail(for: shown))
+        XCTAssertNil(model.detail(for: other))
         model.stop()
     }
 
