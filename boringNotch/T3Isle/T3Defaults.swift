@@ -25,7 +25,23 @@ extension Defaults.Keys {
 }
 
 #if DEBUG
+enum AccessibilityTrustOverride: String, Defaults.Serializable {
+    case system, trusted, untrusted
+
+    init(_ trusted: Bool?) {
+        self = trusted.map { $0 ? .trusted : .untrusted } ?? .system
+    }
+
+    var trusted: Bool? {
+        switch self {
+        case .system: nil
+        case .trusted: true
+        case .untrusted: false
+        }
+    }
+}
+
 extension Defaults.Keys {
-    static let debugAccessibilityTrust = Key<Bool?>("debugAccessibilityTrust")
+    static let debugAccessibilityTrust = Key<AccessibilityTrustOverride>("debugAccessibilityTrust", default: .system)
 }
 #endif
