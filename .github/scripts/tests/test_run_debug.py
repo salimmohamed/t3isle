@@ -27,7 +27,6 @@ chmod +x "$app/Contents/MacOS/T3 Isle"
 REFUSED_TOOLS = ("codesign", "defaults", "open", "osascript")
 
 
-@unittest.skipUnless(shutil.which("bash") and shutil.which("ps"), "needs bash and ps")
 class RunDebugTests(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp()).resolve()
