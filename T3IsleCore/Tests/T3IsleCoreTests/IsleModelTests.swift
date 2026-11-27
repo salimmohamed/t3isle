@@ -167,6 +167,56 @@ final class ProviderRefreshTests: XCTestCase {
 }
 
 @MainActor
+final class IdlePresenceTests: XCTestCase {
+    private func started(with threads: [ThreadShell]) -> (T3IsleModel, FixtureSource) {
+        let source = FixtureSource(ShellSnapshot(threads: threads, projects: []))
+        let model = T3IsleModel(source: source, clock: TestClock(), opener: { _ in })
+        model.start()
+        return (model, source)
+    }
+
+    func testNothingShowsBeforeTheFirstSnapshot() {
+        let (model, _) = started(with: [])
+        XCTAssertEqual(model.connection, .connecting)
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testConnectedWithNoThreadsIsIdle() async {
+        let (model, _) = started(with: [])
+        await until(model) { model.connection == .live }
+        XCTAssertEqual(model.closedPresence, .idle)
+        model.stop()
+    }
+
+    func testConnectedWithOnlyHiddenSubagentsIsIdle() async throws {
+        let snapshot = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
+        let (model, _) = started(with: snapshot.threads.filter(\.isSubagent))
+        await until(model) { model.connection == .live }
+        XCTAssertTrue(model.threads.isEmpty)
+        XCTAssertEqual(model.closedPresence, .idle)
+        model.stop()
+    }
+
+    func testDisconnectingClearsIdle() async {
+        let (model, source) = started(with: [])
+        await until(model) { model.closedPresence == .idle }
+        source.push(.disconnected(.notRunning))
+        await until(model) { model.connection != .live }
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+
+    func testDisablingClearsIdle() async {
+        let (model, _) = started(with: [])
+        await until(model) { model.closedPresence == .idle }
+        model.apply(T3Preferences(enabled: false))
+        XCTAssertEqual(model.closedPresence, .none)
+        model.stop()
+    }
+}
+
+@MainActor
 final class SubagentVisibilityTests: XCTestCase {
     private var snapshot: ShellSnapshot!
     private var source: FixtureSource!

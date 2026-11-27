@@ -61,7 +61,7 @@ public struct ProjectGroup: Identifiable, Equatable, Sendable {
 }
 
 public enum ClosedPresence: Equatable, Sendable {
-    case none, threads, alert
+    case none, idle, threads, alert
 }
 
 public struct PlanBanner: Identifiable, Equatable, Sendable {
@@ -138,7 +138,8 @@ public final class T3IsleModel: ObservableObject {
     public var closedPresence: ClosedPresence {
         guard preferences.enabled else { return .none }
         if needsAttention || banner != nil { return .alert }
-        return threads.isEmpty ? .none : .threads
+        if !threads.isEmpty { return .threads }
+        return connection == .live ? .idle : .none
     }
     public var allCards: [AgentCard] { agentGroups.flatMap(\.cards) }
 
