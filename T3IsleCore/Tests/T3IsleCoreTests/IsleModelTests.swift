@@ -99,12 +99,16 @@ final class IsleModelTests: XCTestCase {
 
 private final class FixtureSource: T3Source, @unchecked Sendable {
     private let snapshot: ShellSnapshot
-    private let projections: [String: ThreadProjection]
+    private var details: [String: ThreadProjection]
+    var projections: [String: ThreadProjection] {
+        get { lock.withLock { details } }
+        set { lock.withLock { details = newValue } }
+    }
     private var continuation: AsyncStream<ShellUpdate>.Continuation?
 
     init(_ snapshot: ShellSnapshot, projections: [String: ThreadProjection] = [:]) {
         self.snapshot = snapshot
-        self.projections = projections
+        details = projections
     }
 
     func push(_ update: ShellUpdate) {
@@ -119,7 +123,10 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     }
 
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
-        if let environment { lock.withLock { environments[threadId] = environment } }
+        if let environment {
+            lock.withLock { environments[threadId] = environment }
+            linkedDetailRead.yield(threadId)
+        }
         guard let projection = projections[threadId] else { throw CancellationError() }
         return projection
     }
@@ -134,6 +141,7 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     private var environments: [String: String] = [:]
     var detailEnvironments: [String: String] { lock.withLock { environments } }
     let (linkedCalls, linkedCalled) = AsyncStream<Void>.makeStream()
+    let (linkedDetailReads, linkedDetailRead) = AsyncStream<String>.makeStream()
     let (sends, sending) = AsyncStream<String?>.makeStream()
 
     func send(_ command: T3Command, in environment: String?) async throws {
@@ -402,9 +410,13 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         return FixtureSource(local, projections: ["wsl-question": remoteDetail])
     }
 
-    private func wslRead() throws -> LinkedRead {
-        LinkedRead(reachable: [wsl.id], answered: [wsl.id], threads: try LinkedFixtures.threads(in: wsl),
-                   projects: try LinkedFixtures.projects())
+    private func wslRead(questionStatus: String = "waiting") throws -> LinkedRead {
+        let threads = try LinkedFixtures.threads(in: wsl).map { shell in
+            var shell = shell
+            if shell.id == "wsl-question" { shell.status = questionStatus }
+            return shell
+        }
+        return LinkedRead(reachable: [wsl.id], answered: [wsl.id], threads: threads, projects: try LinkedFixtures.projects())
     }
 
     private func nextRefresh(_ calls: inout AsyncStream<Void>.Iterator) async {
@@ -456,6 +468,63 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         model.open("t-working")
         let local = await urls.next()
         XCTAssertEqual(local?.absoluteString, "t3code://threads/env-local/t-working")
+        model.stop()
+    }
+
+    func testAClosedNotchReadsDetailOnlyForTheLinkedThreadThatNeedsYou() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await calls.next()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+
+        await nextRefresh(&calls)
+        let second = await reads.next()
+        XCTAssertEqual(second, "wsl-question")
+
+        model.expanded = true
+        let shown = await reads.next()
+        XCTAssertEqual(shown, "wsl-watching")
+        model.stop()
+    }
+
+    func testClosingTheNotchForgetsDetailOfLinkedThreadsThatNoLongerNeedIt() async throws {
+        let source = try source()
+        var watching = try XCTUnwrap(source.projections["wsl-question"])
+        watching.thread.id = "wsl-watching"
+        source.projections["wsl-watching"] = watching
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        await until(model) { model.detail(for: "wsl-question") != nil }
+
+        model.expanded = true
+        await until(model) { model.detail(for: "wsl-watching") != nil }
+        model.expanded = false
+
+        XCTAssertNil(model.detail(for: "wsl-watching"))
+        XCTAssertNotNil(model.detail(for: "wsl-question"))
+        model.stop()
+    }
+
+    func testAnAnsweredLinkedQuestionDoesNotComeBackWithTheNextOne() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        await until(model) { model.prompts.contains { $0.threadId == "wsl-question" } }
+
+        source.projections = [:]
+        source.linkedRead = try wslRead(questionStatus: "running")
+        await nextRefresh(&calls)
+        await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .working }
+
+        source.linkedRead = try wslRead()
+        await nextRefresh(&calls)
+        await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .needsYou }
+        XCTAssertFalse(model.prompts.contains { $0.threadId == "wsl-question" })
         model.stop()
     }
 

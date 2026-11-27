@@ -303,8 +303,9 @@ public final class T3IsleModel: ObservableObject {
         guard isShown(shell) else { return false }
         guard InboxBuilder.belongsInInbox(shell) else { return false }
         let mood = InboxBuilder.mood(shell)
-        return mood == .needsYou || mood == .working || mood == .waiting || shell.id == selectedAgentId
-            || finished[shell.id] != nil
+        if mood == .needsYou || shell.id == selectedAgentId { return true }
+        let following = mood == .working || mood == .waiting || finished[shell.id] != nil
+        return following && (shell.linkedEnvironment == nil || expanded)
     }
 
     private func refreshProviders() {
@@ -345,11 +346,19 @@ public final class T3IsleModel: ObservableObject {
         for id in linkedShells.keys where fresh[id] == nil && shells[id] == nil { forgetDetail(id) }
         linkedShells = fresh
         linkedProjects.merge(read.projects.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
-        for shell in fresh.values where wantsDetail(shell) && details[shell.id] == nil { requestDetail(shell.id, urgent: true) }
+        for shell in fresh.values where !InboxBuilder.awaitsAnswer(shell) { detailPrompts[shell.id] = nil }
+        for shell in fresh.values where wantsDetail(shell) && (details[shell.id] == nil || asksUnread(shell)) {
+            requestDetail(shell.id, urgent: true)
+        }
         publish()
     }
 
+    private func asksUnread(_ shell: ThreadShell) -> Bool {
+        InboxBuilder.awaitsAnswer(shell) && detailPrompts[shell.id]?.isEmpty != false
+    }
+
     private func scheduleRefresh() {
+        for shell in linkedShells.values where shells[shell.id] == nil && !wantsDetail(shell) { forgetDetail(shell.id) }
         for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
     }
 
@@ -386,7 +395,7 @@ public final class T3IsleModel: ObservableObject {
 
     private func absorb(_ projection: ThreadProjection) {
         let id = projection.thread.id
-        guard let shell = allShells[id], isShown(shell) else {
+        guard let shell = allShells[id], isShown(shell), shell.linkedEnvironment == nil || wantsDetail(shell) else {
             forgetDetail(id)
             return
         }
