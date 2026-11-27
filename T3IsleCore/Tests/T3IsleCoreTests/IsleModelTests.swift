@@ -545,6 +545,53 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         model.stop()
     }
 
+    func testClosingTheNotchStopsDetailReadsForASelectedLinkedThreadThatDoesNotNeedYou() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await calls.next()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+
+        model.expanded = true
+        let shown = await reads.next()
+        XCTAssertEqual(shown, "wsl-watching")
+        model.select("wsl-watching")
+        model.expanded = false
+
+        for _ in 0..<2 {
+            await nextRefresh(&calls)
+            let next = await reads.next()
+            XCTAssertEqual(next, "wsl-question")
+        }
+        model.stop()
+    }
+
+    func testASelectedLinkedThreadThatNeedsYouKeepsItsDetailReadsWithTheNotchClosed() async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await calls.next()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+
+        model.expanded = true
+        let shown = await reads.next()
+        XCTAssertEqual(shown, "wsl-watching")
+        model.select("wsl-question")
+        model.expanded = false
+
+        await nextRefresh(&calls)
+        let next = await reads.next()
+        XCTAssertEqual(next, "wsl-question")
+        XCTAssertNotNil(model.detail(for: "wsl-question"))
+        model.stop()
+    }
+
     func testAnAnsweredLinkedQuestionDoesNotComeBackWithTheNextOne() async throws {
         let source = try source()
         source.linkedRead = try wslRead()
