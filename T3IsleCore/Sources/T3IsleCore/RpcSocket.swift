@@ -28,7 +28,7 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
     }
 
     static let pingInterval: TimeInterval = 5
-    static let pongTimeout: TimeInterval = 10
+    static let pongTimeout: TimeInterval = 30
 
     private let clock: any T3Clock
     private let lock = NSLock()
