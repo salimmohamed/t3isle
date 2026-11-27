@@ -287,6 +287,8 @@ public final class T3IsleModel: ObservableObject {
             projects[id] = nil
         case .disconnected(let failure):
             connection = .offline(failure.localizedDescription)
+        case .unreadable:
+            return
         }
         publish()
     }

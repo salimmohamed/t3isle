@@ -4,20 +4,11 @@ import Network
 
 enum McpTestClient {
     static func make(server: McpTestServer, runner: CountingRunner, clock: any T3Clock) throws -> T3ServerClient {
-        let home = try home(port: server.port)
+        let home = try T3Home.local(port: server.port)
         let linkSignIn = T3SignIn(home: home, store: MemoryTokenStore(), runner: runner, subject: "mcp-client",
                                   clock: TestClock())
         return T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner),
                               linkSignIn: linkSignIn, clock: clock)
-    }
-
-    private static func home(port: UInt16) throws -> T3Home {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let userdata = root.appendingPathComponent("userdata")
-        try FileManager.default.createDirectory(at: userdata, withIntermediateDirectories: true)
-        let runtime = #"{"origin":"http://127.0.0.1:\#(port)"}"#
-        try Data(runtime.utf8).write(to: userdata.appendingPathComponent("server-runtime.json"))
-        return T3Home(root: root)
     }
 }
 
@@ -68,32 +59,26 @@ final class McpTestServer: @unchecked Sendable {
         let reply: Data
     }
 
-    private let listener: NWListener
-    private let queue = DispatchQueue(label: "McpTestServer")
+    private let listener: LocalListener
     private let lock = NSLock()
     private var answered = 0
     private var initializeCount = 0
     private var rejectsAll = true
     private var holdsInitialize = false
     private var held: HeldReply?
-    private var readiness: CheckedContinuation<Void, Error>?
     let (initializeArrivals, initializeArrived) = AsyncStream<Void>.makeStream()
 
     static func start() async throws -> McpTestServer {
         let server = try McpTestServer()
-        try await server.listen()
+        try await server.listener.start { [weak server] connection in server?.read(connection, buffered: Data()) }
         return server
     }
 
     private init() throws {
-        listener = try NWListener(using: .tcp, on: .any)
+        listener = try LocalListener(label: "McpTestServer")
     }
 
-    deinit {
-        listener.cancel()
-    }
-
-    var port: UInt16 { listener.port?.rawValue ?? 0 }
+    var port: UInt16 { listener.port }
 
     var requests: Int { lock.withLock { answered } }
 
@@ -114,34 +99,6 @@ final class McpTestServer: @unchecked Sendable {
             return held
         }
         if let reply { send(reply.reply, on: reply.connection) }
-    }
-
-    private func listen() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            lock.withLock { readiness = continuation }
-            listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
-            listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-            listener.start(queue: queue)
-        }
-    }
-
-    private func changed(_ state: NWListener.State) {
-        let result: Result<Void, Error>
-        switch state {
-        case .ready: result = .success(())
-        case .failed(let error): result = .failure(error)
-        default: return
-        }
-        let waiter: CheckedContinuation<Void, Error>? = lock.withLock {
-            defer { readiness = nil }
-            return readiness
-        }
-        waiter?.resume(with: result)
-    }
-
-    private func accept(_ connection: NWConnection) {
-        connection.start(queue: queue)
-        read(connection, buffered: Data())
     }
 
     private func read(_ connection: NWConnection, buffered: Data) {

@@ -5,7 +5,7 @@ import XCTest
 final class ServerClientTests: XCTestCase {
     func testDisconnectDuringConnectClosesSocket() async throws {
         let server = try await SocketServer.start()
-        let home = try Self.home(port: server.port)
+        let home = try T3Home.local(port: server.port)
         let runner = HeldRunner()
         let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner))
 
@@ -23,15 +23,6 @@ final class ServerClientTests: XCTestCase {
         }
         XCTAssertTrue(disconnected, "stream ended without reporting the disconnect")
         await server.idle()
-    }
-
-    private static func home(port: UInt16) throws -> T3Home {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let userdata = root.appendingPathComponent("userdata")
-        try FileManager.default.createDirectory(at: userdata, withIntermediateDirectories: true)
-        let runtime = #"{"origin":"http://127.0.0.1:\#(port)"}"#
-        try Data(runtime.utf8).write(to: userdata.appendingPathComponent("server-runtime.json"))
-        return T3Home(root: root)
     }
 }
 
@@ -64,28 +55,22 @@ private final class HeldRunner: CommandRunner, @unchecked Sendable {
 }
 
 private final class SocketServer: @unchecked Sendable {
-    private let listener: NWListener
-    private let queue = DispatchQueue(label: "SocketServer")
+    private let listener: LocalListener
     private let lock = NSLock()
     private var openCount = 0
-    private var readiness: CheckedContinuation<Void, Error>?
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
 
     static func start() async throws -> SocketServer {
         let server = try SocketServer()
-        try await server.listen()
+        try await server.listener.start { [weak server] connection in server?.accept(connection) }
         return server
     }
 
     private init() throws {
-        listener = try NWListener(using: .tcp, on: .any)
+        listener = try LocalListener(label: "SocketServer")
     }
 
-    var port: UInt16 { listener.port?.rawValue ?? 0 }
-
-    deinit {
-        listener.cancel()
-    }
+    var port: UInt16 { listener.port }
 
     func idle() async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -98,34 +83,10 @@ private final class SocketServer: @unchecked Sendable {
         }
     }
 
-    private func listen() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            lock.withLock { readiness = continuation }
-            listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
-            listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-            listener.start(queue: queue)
-        }
-    }
-
-    private func changed(_ state: NWListener.State) {
-        let result: Result<Void, Error>
-        switch state {
-        case .ready: result = .success(())
-        case .failed(let error): result = .failure(error)
-        default: return
-        }
-        let waiter: CheckedContinuation<Void, Error>? = lock.withLock {
-            defer { readiness = nil }
-            return readiness
-        }
-        waiter?.resume(with: result)
-    }
-
     private func accept(_ connection: NWConnection) {
         lock.lock()
         openCount += 1
         lock.unlock()
-        connection.start(queue: queue)
         drain(connection)
     }
 

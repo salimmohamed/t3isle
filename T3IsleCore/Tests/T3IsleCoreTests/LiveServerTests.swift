@@ -42,6 +42,7 @@ final class LiveModelTests: XCTestCase {
         model.start()
         defer { model.stop() }
         await until(model) { model.connection != .connecting }
+        XCTAssertNil(source.unreadable)
         XCTAssertEqual(model.connection, .live)
         let snapshot = try XCTUnwrap(source.firstSnapshot)
         XCTAssertFalse(snapshot.threads.isEmpty)
@@ -52,6 +53,7 @@ private final class SnapshotRecorder: T3Source, @unchecked Sendable {
     private let base: T3Source
     private let lock = NSLock()
     private var recorded: ShellSnapshot?
+    private var rejected: String?
 
     init(_ base: T3Source) {
         self.base = base
@@ -59,12 +61,14 @@ private final class SnapshotRecorder: T3Source, @unchecked Sendable {
 
     var firstSnapshot: ShellSnapshot? { lock.withLock { recorded } }
 
+    var unreadable: String? { lock.withLock { rejected } }
+
     func updates() async -> AsyncStream<ShellUpdate> {
         let upstream = await base.updates()
         let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()
         let forward = Task {
             for await update in upstream {
-                if case .snapshot(let snapshot) = update { record(snapshot) }
+                record(update)
                 continuation.yield(update)
             }
             continuation.finish()
@@ -73,8 +77,14 @@ private final class SnapshotRecorder: T3Source, @unchecked Sendable {
         return stream
     }
 
-    private func record(_ snapshot: ShellSnapshot) {
-        lock.withLock { if recorded == nil { recorded = snapshot } }
+    private func record(_ update: ShellUpdate) {
+        lock.withLock {
+            switch update {
+            case .snapshot(let snapshot) where recorded == nil: recorded = snapshot
+            case .unreadable(let item, let reason) where rejected == nil: rejected = "\(item.rawValue): \(reason)"
+            default: break
+            }
+        }
     }
 
     func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {

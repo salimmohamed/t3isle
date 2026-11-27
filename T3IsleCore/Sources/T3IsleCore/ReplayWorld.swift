@@ -38,7 +38,7 @@ struct ReplayWorld: Sendable {
             Self.upsert(project, into: &projects)
         case .projectRemoved(let id):
             projects.removeAll { $0.id == id }
-        case .disconnected:
+        case .disconnected, .unreadable:
             break
         }
     }

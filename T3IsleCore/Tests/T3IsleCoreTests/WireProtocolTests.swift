@@ -59,6 +59,30 @@ final class WireProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.threads.count, 10)
     }
 
+    func testUnreadableShellItemsCarryTheDecodeError() {
+        let snapshot: [String: Any] = ["kind": "snapshot", "snapshot": ["snapshotSequence": 1, "threads": [] as [Any]]]
+        let updates = T3ServerClient.shellUpdates(snapshot)
+        XCTAssertEqual(updates.count, 2)
+        guard case .unreadable(.snapshot, let reason)? = updates.first else {
+            return XCTFail("unreadable snapshot expected, got \(updates)")
+        }
+        XCTAssertTrue(reason.contains("projects"), reason)
+        guard case .disconnected(.unreadable)? = updates.last else {
+            return XCTFail("an unreadable snapshot should end the stream, got \(updates)")
+        }
+        let thread: [String: Any] = ["kind": "thread.updated", "thread": ["id": "t"]]
+        let threadUpdates = T3ServerClient.shellUpdates(thread)
+        XCTAssertEqual(threadUpdates.count, 1)
+        guard case .unreadable(.threadUpdated, _)? = threadUpdates.first else {
+            return XCTFail("unreadable thread.updated expected")
+        }
+        let enrichment: [String: Any] = ["kind": "snapshot", "resolvedRepositoryIdentityRoots": [] as [Any],
+                                         "snapshot": ["projects": [["id": "p"]]]]
+        guard case .unreadable(.enrichment, _)? = T3ServerClient.shellUpdates(enrichment).first else {
+            return XCTFail("unreadable enrichment expected")
+        }
+    }
+
     func testEnrichmentSnapshotOnlyUpdatesProjects() {
         let enrichment: [String: Any] = [
             "kind": "snapshot",
