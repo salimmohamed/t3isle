@@ -1,12 +1,16 @@
 import XCTest
 @testable import T3IsleCore
 
+private func liveTokenStore() throws -> MemoryTokenStore {
+    guard let token = ProcessInfo.processInfo.environment["T3ISLE_TOKEN"], !token.isEmpty else {
+        throw XCTSkip("Set T3ISLE_TOKEN to run against a live T3 server.")
+    }
+    return MemoryTokenStore(StoredToken(token: token, expiresAt: .distantFuture))
+}
+
 final class LiveServerTests: XCTestCase {
     private func liveClient() throws -> T3ServerClient {
-        guard let token = ProcessInfo.processInfo.environment["T3ISLE_TOKEN"], !token.isEmpty else {
-            throw XCTSkip("Set T3ISLE_TOKEN to run against a live T3 server.")
-        }
-        let store = MemoryTokenStore(StoredToken(token: token, expiresAt: .distantFuture))
+        let store = try liveTokenStore()
         let home = T3Home()
         return T3ServerClient(home: home, signIn: T3SignIn(home: home, store: store))
     }
@@ -31,11 +35,8 @@ final class LiveServerTests: XCTestCase {
 
 @MainActor
 final class LiveModelTests: XCTestCase {
-    func testModelListsLiveInbox() async throws {
-        guard let token = ProcessInfo.processInfo.environment["T3ISLE_TOKEN"], !token.isEmpty else {
-            throw XCTSkip("Set T3ISLE_TOKEN to run against a live T3 server.")
-        }
-        let store = MemoryTokenStore(StoredToken(token: token, expiresAt: .distantFuture))
+    func testModelGoesLiveWithThreadsInFirstSnapshot() async throws {
+        let store = try liveTokenStore()
         let source = SnapshotRecorder(LiveSource(tokenStore: store))
         let model = T3IsleModel(source: source, opener: { _ in })
         model.start()
