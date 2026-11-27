@@ -102,9 +102,6 @@ final class XPCHelperClient: NSObject {
     
     #if DEBUG
     @MainActor
-    var isTrustOverridden: Bool { trustOverride != nil }
-
-    @MainActor
     func overrideTrust(_ trusted: Bool?) {
         trustOverride = trusted
     }
