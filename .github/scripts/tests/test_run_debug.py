@@ -111,6 +111,7 @@ class RunDebugTests(unittest.TestCase):
         self.running_copy()
         state = self.repo / ".build" / "second-state"
         result = self.run_debug("--no-build", "--state-dir", str(state))
+        self.assertEqual(result.returncode, 3, result.stderr)
         self.assertIn("open could not launch", result.stderr)
         self.assertEqual(
             self.calls()[-1],
