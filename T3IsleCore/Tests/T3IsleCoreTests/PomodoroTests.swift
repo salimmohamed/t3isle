@@ -123,6 +123,52 @@ final class PomodoroTests: XCTestCase {
         XCTAssertEqual(timer.endsAt, clock.now + PomodoroTimer.focusLength)
     }
 
+    func testAJumpPastTheFocusEndLandsInTheBreakWithTheRightTimeLeft() async {
+        let clock = TestClock()
+        let timer = PomodoroTimer(clock: clock)
+        timer.start()
+        await clock.waitForSleepers()
+        let breakEnd = clock.now + PomodoroTimer.focusLength + PomodoroTimer.breakLength
+
+        clock.advance(by: PomodoroTimer.focusLength + 2 * 60)
+        await until(timer) { timer.phase == .rest }
+        XCTAssertTrue(timer.isRunning)
+        XCTAssertEqual(timer.endsAt, breakEnd)
+        XCTAssertEqual(timer.countdown(at: clock.now), "3:00")
+        await clock.waitForSleepers()
+        XCTAssertEqual(clock.deadlines, [breakEnd])
+    }
+
+    func testAJumpPastTheFocusAndTheBreakLandsIdle() async {
+        let clock = TestClock()
+        let timer = PomodoroTimer(clock: clock)
+        timer.start()
+        await clock.waitForSleepers()
+
+        clock.advance(by: 3 * 60 * 60)
+        await until(timer) { timer.phase == .idle }
+        XCTAssertFalse(timer.isRunning)
+        XCTAssertNil(timer.pausedLeft)
+        XCTAssertTrue(clock.deadlines.isEmpty)
+    }
+
+    func testAJumpWhilePausedChangesNothing() async {
+        let clock = TestClock()
+        let timer = PomodoroTimer(clock: clock)
+        timer.start()
+        await clock.waitForSleepers()
+        clock.advance(by: 10 * 60)
+        let running = timer.phaseEnd
+        timer.pause()
+        await running?.value
+
+        clock.advance(by: 3 * 60 * 60)
+        XCTAssertEqual(timer.phase, .focus)
+        XCTAssertFalse(timer.isRunning)
+        XCTAssertEqual(timer.pausedLeft, 15 * 60)
+        XCTAssertTrue(clock.deadlines.isEmpty)
+    }
+
     func testDebugStateNamesThePhaseAndWhetherItRuns() {
         let clock = TestClock()
         let timer = PomodoroTimer(clock: clock)
