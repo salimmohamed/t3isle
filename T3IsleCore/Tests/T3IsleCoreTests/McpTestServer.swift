@@ -114,15 +114,12 @@ final class McpTestServer: @unchecked Sendable {
         if let reply { send(reply.reply, on: reply.connection) }
     }
 
-    func dropHeldCalls() {
-        let unanswered: [NWConnection] = lock.withLock {
-            defer {
-                held = nil
-                unpairedToolCall = nil
-            }
-            return [held?.connection, unpairedToolCall].compactMap { $0 }
+    func dropHeldToolCall() {
+        let unanswered: NWConnection? = lock.withLock {
+            defer { unpairedToolCall = nil }
+            return unpairedToolCall
         }
-        for connection in unanswered { connection.cancel() }
+        unanswered?.cancel()
     }
 
     private func read(_ connection: NWConnection, buffered: Data) {

@@ -64,13 +64,21 @@ final class McpSessionTests: XCTestCase {
         server.rejecting = false
         server.rejectsToolCallsInPairs = true
         let client = try McpTestClient.make(server: server, runner: CountingRunner(), clock: TestClock())
-        var arrivals = server.arrivals.makeAsyncIterator()
-        async let read = client.linkedRead()
-        while let method = await arrivals.next(), method != "tools/call" {}
+        let (steps, step) = AsyncStream<String>.makeStream()
+        Task { for await method in server.arrivals { step.yield(method ?? "unknown") } }
+        let read = Task {
+            let links = await client.linkedRead()
+            step.yield("read ended")
+            return links
+        }
+        var progress = steps.makeAsyncIterator()
+        while let next = await progress.next(), next != "tools/call" {
+            guard next != "read ended" else { return XCTFail("the read ended before its tool call reached the server") }
+        }
 
         server.rejectsToolCallsInPairs = false
-        server.dropHeldCalls()
-        let answered = await read
+        server.dropHeldToolCall()
+        let answered = await read.value
         XCTAssertNotNil(answered, "the held tool call should get its rejection, then the retry should read the links")
         XCTAssertEqual(server.initializes, 2)
     }
