@@ -135,10 +135,10 @@ class BoringViewCoordinator: ObservableObject {
                             switch HUDReplacementEnable(read: read, cancelled: Task.isCancelled) {
                             case .startInterceptor?:
                                 await MediaKeyInterceptor.shared.start()
-                            case .turnOff(let requestingAccess)?:
-                                if requestingAccess { HUDAccessibility.shared.request() }
+                            case .requestAccessAndTurnOff?:
+                                HUDAccessibility.shared.request()
                                 Defaults[.hudReplacement] = false
-                            case nil:
+                            case .keepSaved?, nil:
                                 return
                             }
                         }

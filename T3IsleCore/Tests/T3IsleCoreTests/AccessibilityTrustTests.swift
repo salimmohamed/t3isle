@@ -66,10 +66,13 @@ final class AccessibilityTrustTests: XCTestCase {
         XCTAssertNil(HUDReplacementEnable(read: .trusted, cancelled: true))
     }
 
-    func testEnableRequestsAccessOnlyAfterADenial() {
+    func testEnableRequestsAccessAndTurnsOffOnlyAfterADenial() {
         XCTAssertEqual(HUDReplacementEnable(read: .trusted, cancelled: false), .startInterceptor)
-        XCTAssertEqual(HUDReplacementEnable(read: .denied, cancelled: false), .turnOff(requestingAccess: true))
-        XCTAssertEqual(HUDReplacementEnable(read: .unreachable, cancelled: false), .turnOff(requestingAccess: false))
+        XCTAssertEqual(HUDReplacementEnable(read: .denied, cancelled: false), .requestAccessAndTurnOff)
+    }
+
+    func testUnreachableReadKeepsTheSavedSwitch() {
+        XCTAssertEqual(HUDReplacementEnable(read: .unreachable, cancelled: false), .keepSaved)
     }
 
     func testAGoodReadAfterAnUnreachableOneCountsAsAChange() {

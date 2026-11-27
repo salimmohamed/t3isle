@@ -15,7 +15,9 @@ public enum ShellItem: String, Sendable {
     case snapshot
     case enrichment
     case threadUpdated = "thread.updated"
+    case threadRemoved = "thread.removed"
     case projectUpdated = "project.updated"
+    case projectRemoved = "project.removed"
 }
 
 public actor T3ServerClient {
@@ -137,7 +139,10 @@ public actor T3ServerClient {
             dropMcpSession(session)
             return try await mcpCall(name, arguments, retried: true)
         case 401:
-            linkBackoff.rejected(at: clock.now)
+            if dropMcpSession(session) {
+                linkBackoff.rejected(at: clock.now)
+                await linkSignIn.invalidate()
+            }
             throw T3Failure.signedOut
         default:
             throw T3Failure.http(status, nil)
@@ -293,6 +298,7 @@ public actor T3ServerClient {
         if let connecting { return try await connecting.value }
         let signIn = signIn
         let home = home
+        let clock = clock
         let task = Task { [weak self] () throws -> RpcSocket in
             let token = try await signIn.token()
             guard let origin = home.serverOrigin() else { throw T3Failure.notRunning }
@@ -300,7 +306,7 @@ public actor T3ServerClient {
             components?.scheme = origin.scheme == "https" ? "wss" : "ws"
             components?.queryItems = [URLQueryItem(name: "orchestrationProtocol", value: Self.protocolVersion)]
             guard let url = components?.url else { throw T3Failure.notRunning }
-            let socket = RpcSocket()
+            let socket = RpcSocket(clock: clock)
             socket.connect(url: url, token: token) { [weak self] failure in
                 Task { await self?.socketClosed(socket, failure) }
             }
@@ -401,12 +407,14 @@ public actor T3ServerClient {
                 .threadUpdated($0.thread, archived: $0.location == "archive")
             }
         case "thread.removed":
-            return (object["threadId"] as? String).map { .threadRemoved($0) }
+            struct Envelope: Decodable { let threadId: String }
+            return decoded(Envelope.self, as: .threadRemoved, from: data) { .threadRemoved($0.threadId) }
         case "project.updated":
             struct Envelope: Decodable { let project: ProjectShell }
             return decoded(Envelope.self, as: .projectUpdated, from: data) { .projectUpdated($0.project) }
         case "project.removed":
-            return (object["projectId"] as? String).map { .projectRemoved($0) }
+            struct Envelope: Decodable { let projectId: String }
+            return decoded(Envelope.self, as: .projectRemoved, from: data) { .projectRemoved($0.projectId) }
         default:
             return nil
         }

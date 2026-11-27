@@ -37,6 +37,28 @@ final class McpSessionTests: XCTestCase {
         XCTAssertEqual(server.requests, 2)
     }
 
+    func testConcurrentCallsRejectedAgainCountOneRejection() async throws {
+        let server = try await McpTestServer.start()
+        server.rejecting = false
+        server.rejectsToolCallsInPairs = true
+        let client = try McpTestClient.make(server: server, runner: CountingRunner(), clock: TestClock())
+        async let first = client.linkedRead()
+        async let second = client.linkedRead()
+        let reads = await (first, second)
+        XCTAssertNil(reads.0)
+        XCTAssertNil(reads.1)
+        XCTAssertEqual(server.initializes, 2)
+
+        server.rejectsToolCallsInPairs = false
+        server.rejecting = true
+        let requests = server.requests
+        _ = await client.linkedRead()
+        XCTAssertEqual(server.requests, requests + 1)
+
+        _ = await client.linkedRead()
+        XCTAssertEqual(server.requests, requests + 1)
+    }
+
     private static func readTwiceDuringOneInitialize(_ server: McpTestServer) async throws
         -> ((LinkedRead?, LinkedRead?), CountingRunner) {
         let clock = WatchedClock()

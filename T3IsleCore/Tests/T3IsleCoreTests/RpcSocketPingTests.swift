@@ -65,6 +65,30 @@ final class RpcSocketPingTests: XCTestCase {
         XCTAssertEqual(harness.transport.receiveCount, receivesAtClose)
         XCTAssertTrue(harness.clock.deadlines.isEmpty)
     }
+
+    func testASocketClosedByTheClientIsFreedWhileItsCloseHandlerHoldsIt() {
+        weak var freed: RpcSocket?
+        do {
+            let socket = RpcSocket(clock: TestClock())
+            socket.open(FakeTransport()) { _ in withExtendedLifetime(socket) {} }
+            freed = socket
+            socket.close()
+        }
+        XCTAssertNil(freed)
+    }
+
+    func testASocketClosedByTheServerIsFreedWhileItsCloseHandlerHoldsIt() {
+        weak var freed: RpcSocket?
+        let transport = FakeTransport()
+        do {
+            let socket = RpcSocket(clock: TestClock())
+            socket.open(transport) { _ in withExtendedLifetime(socket) {} }
+            freed = socket
+        }
+        XCTAssertNotNil(freed)
+        transport.dropConnection()
+        XCTAssertNil(freed)
+    }
 }
 
 private final class Harness: @unchecked Sendable {
@@ -132,10 +156,17 @@ private final class FakeTransport: RpcTransport, @unchecked Sendable {
     }
 
     func deliver(_ text: String) {
-        let receiver = lock.withLock {
+        takeReceiver()?(.success(.string(text)))
+    }
+
+    func dropConnection() {
+        takeReceiver()?(.failure(URLError(.networkConnectionLost)))
+    }
+
+    private func takeReceiver() -> Receiver? {
+        lock.withLock {
             defer { self.receiver = nil }
             return self.receiver
         }
-        receiver?(.success(.string(text)))
     }
 }

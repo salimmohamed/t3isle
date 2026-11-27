@@ -154,12 +154,13 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let headphonesMonitor: HeadphonesMonitor
     public let hudAccessibility: AccessibilityGuidance
     public let accessibilityOverride: AccessibilityRead?
+    public let hudReplacement: Bool
     public let pomodoro: Pomodoro
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
                 headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, hudAccessibility: AccessibilityGuidance,
-                accessibilityOverride: AccessibilityRead?, pomodoro: Pomodoro, t3: T3) {
+                accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, pomodoro: Pomodoro, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen
@@ -169,6 +170,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         self.headphonesMonitor = headphonesMonitor
         self.hudAccessibility = hudAccessibility
         self.accessibilityOverride = accessibilityOverride
+        self.hudReplacement = hudReplacement
         self.pomodoro = pomodoro
         self.t3 = t3
     }
@@ -184,6 +186,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         try container.encode(headphonesMonitor, forKey: .headphonesMonitor)
         try container.encode(hudAccessibility, forKey: .hudAccessibility)
         try container.encode(accessibilityOverride, forKey: .accessibilityOverride)
+        try container.encode(hudReplacement, forKey: .hudReplacement)
         try container.encode(pomodoro, forKey: .pomodoro)
         try container.encode(t3, forKey: .t3)
     }

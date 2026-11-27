@@ -97,6 +97,7 @@ final class T3DebugMonitor {
                                headphonesMonitor: runtime.headphonesMonitorState,
                                hudAccessibility: HUDAccessibility.shared.trust.guidance,
                                accessibilityOverride: Defaults[.debugAccessibilityTrust],
+                               hudReplacement: Defaults[.hudReplacement],
                                pomodoro: runtime.pomodoroDebugState,
                                t3: runtime.debugState)
         try folders.createLogs()
