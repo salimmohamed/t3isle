@@ -20,8 +20,8 @@ final class LocalListener: @unchecked Sendable {
 
     private enum Readiness {
         case idle
-        case waiting(CheckedContinuation<Void, Error>)
-        case settled
+        case waiting(owner: UUID, CheckedContinuation<Void, Error>)
+        case settled(owner: UUID)
     }
 
     private let listener: NWListener
@@ -43,9 +43,10 @@ final class LocalListener: @unchecked Sendable {
     func start(accepting accept: @escaping @Sendable (NWConnection) -> Void) async throws {
         let queue = queue
         let listener = listener
+        let caller = UUID()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                guard claim(continuation) else { return }
+                guard claim(continuation, for: caller) else { return }
                 listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
                 listener.newConnectionHandler = { connection in
                     connection.start(queue: queue)
@@ -54,15 +55,24 @@ final class LocalListener: @unchecked Sendable {
                 listener.start(queue: queue)
             }
         } onCancel: {
-            listener.cancel()
+            if owns(caller) { listener.cancel() }
         }
     }
 
-    private func claim(_ continuation: CheckedContinuation<Void, Error>) -> Bool {
+    private func owns(_ caller: UUID) -> Bool {
+        lock.withLock {
+            switch readiness {
+            case .idle: false
+            case .waiting(let owner, _), .settled(let owner): owner == caller
+            }
+        }
+    }
+
+    private func claim(_ continuation: CheckedContinuation<Void, Error>, for caller: UUID) -> Bool {
         enum Claim { case claimed, taken, cancelled }
         let claim: Claim = lock.withLock {
             guard case .idle = readiness else { return .taken }
-            readiness = .waiting(continuation)
+            readiness = .waiting(owner: caller, continuation)
             return Task.isCancelled ? .cancelled : .claimed
         }
         switch claim {
@@ -82,8 +92,8 @@ final class LocalListener: @unchecked Sendable {
         default: return
         }
         let waiter: CheckedContinuation<Void, Error>? = lock.withLock {
-            guard case .waiting(let continuation) = readiness else { return nil }
-            readiness = .settled
+            guard case .waiting(let owner, let continuation) = readiness else { return nil }
+            readiness = .settled(owner: owner)
             return continuation
         }
         waiter?.resume(with: result)

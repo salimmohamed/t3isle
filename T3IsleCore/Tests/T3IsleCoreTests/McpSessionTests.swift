@@ -59,6 +59,30 @@ final class McpSessionTests: XCTestCase {
         XCTAssertEqual(server.requests, requests + 1)
     }
 
+    func testTurningPairingOffAnswersTheHeldToolCall() async throws {
+        let server = try await McpTestServer.start()
+        server.rejecting = false
+        server.rejectsToolCallsInPairs = true
+        let client = try McpTestClient.make(server: server, runner: CountingRunner(), clock: TestClock())
+        let (steps, step) = AsyncStream<String>.makeStream()
+        Task { for await method in server.arrivals { step.yield(method ?? "unknown") } }
+        let read = Task {
+            let links = await client.linkedRead()
+            step.yield("read ended")
+            return links
+        }
+        var progress = steps.makeAsyncIterator()
+        while let next = await progress.next(), next != "tools/call" {
+            guard next != "read ended" else { return XCTFail("the read ended before its tool call reached the server") }
+        }
+
+        server.rejectsToolCallsInPairs = false
+        server.dropHeldToolCall()
+        let answered = await read.value
+        XCTAssertNotNil(answered, "the held tool call should get its rejection, then the retry should read the links")
+        XCTAssertEqual(server.initializes, 2)
+    }
+
     private static func readTwiceDuringOneInitialize(_ server: McpTestServer) async throws
         -> ((LinkedRead?, LinkedRead?), CountingRunner) {
         let clock = WatchedClock()
@@ -71,7 +95,7 @@ final class McpSessionTests: XCTestCase {
                                   clock: WatchedClock) async throws -> (LinkedRead?, LinkedRead?) {
         server.holdNextInitialize()
         var checks = clock.reads.makeAsyncIterator()
-        var arrivals = server.initializeArrivals.makeAsyncIterator()
+        var arrivals = server.arrivals.makeAsyncIterator()
         async let first = client.linkedRead()
         await checks.next()
         await arrivals.next()
