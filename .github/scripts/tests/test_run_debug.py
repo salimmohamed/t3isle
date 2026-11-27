@@ -96,6 +96,29 @@ class RunDebugTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
         self.assertTrue(marker.exists())
 
+    def test_refuses_to_build_with_no_arguments_while_a_copy_from_the_checkout_runs(self) -> None:
+        marker = self.old_build()
+        copy = self.running_copy()
+        result = self.run_debug()
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertIn(f"stop it with scripts/stop-debug.sh {copy.pid} or pass --no-build", result.stderr)
+        self.assertEqual(json.loads(result.stdout)["pid"], copy.pid)
+        self.assertEqual(self.calls(), [])
+        self.assertTrue(marker.exists())
+
+    def test_no_build_launches_while_a_copy_from_the_checkout_runs(self) -> None:
+        marker = self.old_build()
+        self.running_copy()
+        state = self.repo / ".build" / "second-state"
+        result = self.run_debug("--no-build", "--state-dir", str(state))
+        self.assertIn("open could not launch", result.stderr)
+        self.assertEqual(
+            self.calls()[-1],
+            f"open -n -g -a {self.repo / APP} --args --state-dir {state}",
+        )
+        self.assertFalse(any(call.startswith("xcodebuild") for call in self.calls()))
+        self.assertTrue(marker.exists())
+
     def test_no_build_fails_after_a_failed_build(self) -> None:
         self.old_build()
         failed = self.run_debug("--build-only", RUN_DEBUG_TEST_BUILD_FAILS="1")
