@@ -7,12 +7,15 @@ struct HUDAccessibilityNotice: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if accessibility.trust.guidance == .stale {
-                Text("\(accessibility.appName) still can't use Accessibility. Turn it on in Privacy & Security > Accessibility. If it's already on, the entry may be stale, so remove \(accessibility.appName) and add it again.")
+                Text("\(accessibility.appName) can't use Accessibility. Turn it on in Privacy & Security > Accessibility. If it's already on, the entry may be stale, so remove \(accessibility.appName) and add it again.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Open Accessibility Settings") { accessibility.openSystemSettings() }
-                    .buttonStyle(.borderedProminent)
+                HStack {
+                    Button("Open Accessibility Settings") { accessibility.openSystemSettings() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Request Accessibility") { accessibility.request() }
+                }
             } else {
                 Text("Accessibility access is required to replace the system HUD.")
                     .font(.subheadline)

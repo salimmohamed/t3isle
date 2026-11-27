@@ -1,13 +1,14 @@
 import AppKit
 import Combine
-import Defaults
+import OSLog
 import T3IsleCore
 
 @MainActor
 final class HUDAccessibility: ObservableObject {
     static let shared = HUDAccessibility()
+    private static let log = Logger(subsystem: bundleIdentifier, category: "accessibility")
 
-    @Published private(set) var trust = AccessibilityTrust(asked: Defaults[.hudAccessibilityRequested])
+    @Published private(set) var trust = AccessibilityTrust()
     private var checksInFlight = 0
     private var cancellables: Set<AnyCancellable> = []
 
@@ -18,7 +19,7 @@ final class HUDAccessibility: ObservableObject {
         NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)
             .compactMap { $0.userInfo?["granted"] as? Bool }
             .receive(on: RunLoop.main)
-            .sink { [weak self] granted in self?.update { $0.checked(trusted: granted) } }
+            .sink { [weak self] granted in self?.trust.checked(trusted: granted) }
             .store(in: &cancellables)
     }
 
@@ -35,17 +36,13 @@ final class HUDAccessibility: ObservableObject {
     }
 
     func request() {
-        update { $0.requested() }
+        trust.requested()
         XPCHelperClient.shared.requestAccessibilityAuthorization()
     }
 
     #if DEBUG
     func requestWithoutPrompt() {
-        update { $0.requested() }
-    }
-
-    func forgetRequest() {
-        update { $0.forgetRequest() }
+        trust.requested()
     }
     #endif
 
@@ -60,13 +57,9 @@ final class HUDAccessibility: ObservableObject {
         checksInFlight += 1
         Task { @MainActor in
             let trusted = await XPCHelperClient.shared.isAccessibilityAuthorized()
-            update { apply(&$0, trusted) }
+            apply(&trust, trusted)
+            Self.log.notice("Accessibility trust read \(trusted ? "trusted" : "untrusted", privacy: .public), HUD settings show \(self.trust.guidance.rawValue, privacy: .public)")
             checksInFlight -= 1
         }
-    }
-
-    private func update(_ change: (inout AccessibilityTrust) -> Void) {
-        change(&trust)
-        Defaults[.hudAccessibilityRequested] = trust.asked
     }
 }

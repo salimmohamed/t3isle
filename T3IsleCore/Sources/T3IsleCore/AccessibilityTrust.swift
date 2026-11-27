@@ -8,34 +8,25 @@ public struct AccessibilityTrust: Equatable, Sendable {
     public static let settingsAddress = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 
     public private(set) var trusted: Bool?
-    public private(set) var asked: Bool
     public private(set) var awaitingReturn = false
 
-    public init(asked: Bool) {
-        self.asked = asked
-    }
+    public init() {}
 
     public var guidance: AccessibilityGuidance {
         switch trusted {
         case true?: .trusted
-        case false? where asked && !awaitingReturn: .stale
+        case false? where !awaitingReturn: .stale
         default: .untrusted
         }
     }
 
     public mutating func requested() {
-        asked = true
         awaitingReturn = true
-    }
-
-    public mutating func forgetRequest() {
-        asked = false
-        awaitingReturn = false
     }
 
     public mutating func checked(trusted: Bool) {
         self.trusted = trusted
-        if trusted { forgetRequest() }
+        if trusted { awaitingReturn = false }
     }
 
     public mutating func appBecameActive(trusted: Bool) {
