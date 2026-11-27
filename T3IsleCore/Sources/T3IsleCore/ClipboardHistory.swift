@@ -38,8 +38,10 @@ public final class ClipboardHistory: ObservableObject {
         record(text)
     }
 
+    public static let previewLength = 300
+
     public static func preview(_ text: String) -> String {
-        text.split(whereSeparator: \.isNewline)
+        text.prefix(previewLength).split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -67,11 +69,18 @@ public final class ClipboardHistory: ObservableObject {
     private func check() {
         let change = pasteboard.changeCount
         guard change != seenChange else { return }
+        guard isRecordable, let text = pasteboard.string() else {
+            seenChange = change
+            return
+        }
+        guard pasteboard.changeCount == change else { return }
         seenChange = change
-        guard Self.skippedTypes.isDisjoint(with: pasteboard.types),
-              let text = pasteboard.string(),
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard isRecordable, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         record(text)
+    }
+
+    private var isRecordable: Bool {
+        Self.skippedTypes.isDisjoint(with: pasteboard.types)
     }
 
     private func record(_ text: String) {

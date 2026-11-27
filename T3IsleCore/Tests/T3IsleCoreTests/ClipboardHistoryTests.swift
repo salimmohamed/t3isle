@@ -6,6 +6,7 @@ final class FakePasteboard: ClipboardSource {
     private(set) var changeCount = 0
     private var contents: (types: [String], text: String?) = ([], nil)
     private(set) var reads = 0
+    var whileReadingText: (() -> Void)?
 
     var types: [String] {
         reads += 1
@@ -14,7 +15,14 @@ final class FakePasteboard: ClipboardSource {
 
     func string() -> String? {
         reads += 1
-        return contents.text
+        let text = contents.text
+        whileReadingText?()
+        whileReadingText = nil
+        return text
+    }
+
+    func mark(_ type: String) {
+        contents.types.append(type)
     }
 
     func setString(_ string: String) {
@@ -78,6 +86,28 @@ final class ClipboardHistoryTests: XCTestCase {
         pasteboard.copy("one-time code", types: ["org.nspasteboard.TransientType", "public.utf8-plain-text"])
         await poll()
         XCTAssertEqual(history.items, ["visible"])
+    }
+
+    func testSkipsTextThatTurnsConcealedWhileItIsRead() async {
+        await turnOn()
+        pasteboard.copy("hunter2")
+        pasteboard.whileReadingText = { [pasteboard] in pasteboard.mark("org.nspasteboard.ConcealedType") }
+        await poll()
+        await poll()
+        XCTAssertTrue(history.items.isEmpty)
+    }
+
+    func testRereadsWhenANewCopyLandsWhileTheTextIsRead() async {
+        await turnOn()
+        pasteboard.copy("plain copy")
+        pasteboard.whileReadingText = { [pasteboard] in
+            pasteboard.copy("hunter2", types: ["public.utf8-plain-text", "org.nspasteboard.ConcealedType"])
+        }
+        await poll()
+        await poll()
+        XCTAssertTrue(history.items.isEmpty)
+        await copyAndPoll("next")
+        XCTAssertEqual(history.items, ["next"])
     }
 
     func testSkipsCopiesWithoutTextAndBlankText() async {
@@ -144,6 +174,7 @@ final class ClipboardHistoryTests: XCTestCase {
     func testPreviewPutsALongCopyOnOneLine() {
         XCTAssertEqual(ClipboardHistory.preview("  first line\n\n   second\r\nthird  "), "first line second third")
         XCTAssertEqual(ClipboardHistory.preview("plain"), "plain")
+        XCTAssertEqual(ClipboardHistory.preview(String(repeating: "a", count: 10_000)).count, ClipboardHistory.previewLength)
     }
 
     func testDebugStateCountsItemsAndWhetherItWatches() async {
