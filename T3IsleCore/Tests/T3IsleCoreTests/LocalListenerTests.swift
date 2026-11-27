@@ -48,6 +48,14 @@ final class LocalListenerTests: XCTestCase {
         let arrival = await outcomes.next()
         client.cancel()
         XCTAssertEqual(arrival, "accepted")
+
+        listener.stop()
+        var changes: [LocalListener.Event] = []
+        for await change in listener.events {
+            changes.append(change)
+            if change == .cancelled { break }
+        }
+        XCTAssertEqual(changes, [.ready, .stopped, .cancelled])
     }
 
     private static func outcome(_ start: () async throws -> Void) async -> String {

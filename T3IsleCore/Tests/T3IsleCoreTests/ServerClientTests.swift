@@ -28,16 +28,27 @@ final class ServerClientTests: XCTestCase {
     func testTheClientClockTimesOutAnUnansweredSocket() async throws {
         let server = try await SocketServer.start()
         let home = try T3Home.local(port: server.port)
-        let clock = TestClock()
+        let pings = PingWatch()
         let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: CountingRunner()),
-                                    clock: clock)
+                                    clock: pings.recordingClock)
+        let rest = PingEvent.asleep(for: RpcSocket.pingInterval)
 
         var updates = await client.shellUpdates().makeAsyncIterator()
-        for _ in 0...RpcSocket.pingsBeforeTimeout {
-            await clock.waitForSleepers()
-            clock.advance(by: RpcSocket.pingInterval)
+        let firstRest = await pings.untilAsleep()
+        XCTAssertEqual(firstRest, rest)
+        guard let (socket, pingLoop) = try await client.openSocket() else {
+            return XCTFail("the client's ping loop runs without a socket")
+        }
+        pings.watch(pingLoop)
+        for _ in 0..<RpcSocket.pingsBeforeTimeout {
+            let event = await pings.tick()
+            XCTAssertEqual(event, rest)
+            guard event == rest else { return }
         }
 
+        let timedOut = await pings.tick()
+        XCTAssertEqual(timedOut, .pingsStopped)
+        guard socket.isClosed else { return XCTFail("the ping loop ended without closing the socket") }
         guard case .disconnected(.notRunning)? = await updates.next() else {
             return XCTFail("an unanswered socket should disconnect on the client's clock")
         }

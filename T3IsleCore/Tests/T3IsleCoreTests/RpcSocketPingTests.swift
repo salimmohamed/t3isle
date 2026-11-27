@@ -2,14 +2,10 @@ import Foundation
 import XCTest
 @testable import T3IsleCore
 
-extension RpcSocket {
-    static let pingsBeforeTimeout = Int(pongTimeout / pingInterval)
-}
-
 final class RpcSocketPingTests: XCTestCase {
-    private let ping = SocketEvent.sent(#"{"_tag":"Ping"}"#)
+    private let ping = PingEvent.sent(#"{"_tag":"Ping"}"#)
     private let pong = #"{"_tag":"Pong"}"#
-    private let closed = SocketEvent.closed(.notRunning)
+    private let closed = PingEvent.closed(.notRunning)
 
     func testMissingPongPastTheTimeoutClosesTheSocket() async {
         let harness = Harness()
@@ -96,102 +92,42 @@ final class RpcSocketPingTests: XCTestCase {
     }
 }
 
-private enum SocketEvent: Equatable {
-    case sent(String)
-    case closed(T3Failure)
-    case asleep(for: TimeInterval)
-    case pingsStopped
-}
-
-private final class PingLoopEnd: Sendable {
-    @TaskLocal static var current: PingLoopEnd?
-
-    private let ended: @Sendable () -> Void
-
-    init(_ ended: @escaping @Sendable () -> Void) {
-        self.ended = ended
-    }
-
-    deinit {
-        ended()
-    }
-}
-
-private final class SleepRecordingClock: T3Clock, @unchecked Sendable {
-    private let base: TestClock
-    private let asleep: @Sendable (TimeInterval) -> Void
-
-    init(_ base: TestClock, asleep: @escaping @Sendable (TimeInterval) -> Void) {
-        self.base = base
-        self.asleep = asleep
-    }
-
-    var now: Date { base.now }
-
-    func sleep(until deadline: Date) async throws {
-        asleep(deadline.timeIntervalSince(base.now))
-        try await base.sleep(until: deadline)
-    }
-}
-
 private final class Harness: @unchecked Sendable {
-    let clock = TestClock()
+    let pings: PingWatch
     let transport: FakeTransport
     let socket: RpcSocket
-    private var events: AsyncStream<SocketEvent>.Iterator
-    private var pendingRest: SocketEvent?
-    private var pingsStopped = false
     private let lock = NSLock()
     private var closed = 0
 
     init() {
-        let (events, recorded) = AsyncStream.makeStream(of: SocketEvent.self)
-        self.events = events.makeAsyncIterator()
-        transport = FakeTransport { recorded.yield(.sent($0)) }
-        socket = RpcSocket(clock: SleepRecordingClock(clock) { recorded.yield(.asleep(for: $0)) })
-        PingLoopEnd.$current.withValue(PingLoopEnd { recorded.yield(.pingsStopped) }) {
-            socket.open(transport) { [weak self] failure in
-                self?.countClose()
-                recorded.yield(.closed(failure))
-            }
+        let pings = PingWatch()
+        self.pings = pings
+        transport = FakeTransport { pings.record(.sent($0)) }
+        socket = RpcSocket(clock: pings.recordingClock)
+        socket.open(transport) { [weak self] failure in
+            self?.countClose()
+            pings.record(.closed(failure))
         }
+        pings.watch(socket.pingLoop)
     }
 
     deinit {
         socket.close()
     }
 
+    var clock: TestClock { pings.clock }
     var closeCount: Int { lock.withLock { closed } }
 
     private func countClose() {
         lock.withLock { closed += 1 }
     }
 
-    func tick() async -> SocketEvent? {
-        let rest = await untilAsleep()
-        guard rest == .asleep(for: RpcSocket.pingInterval) else { return rest }
-        pendingRest = nil
-        await clock.waitForSleepers()
-        clock.advance(by: RpcSocket.pingInterval)
-        return await nextNotingRest()
+    func tick() async -> PingEvent? {
+        await pings.tick()
     }
 
-    func untilAsleep() async -> SocketEvent? {
-        if let pendingRest { return pendingRest }
-        return await nextNotingRest()
-    }
-
-    private func nextNotingRest() async -> SocketEvent? {
-        let event = await next()
-        if case .asleep = event { pendingRest = event }
-        return event
-    }
-
-    private func next() async -> SocketEvent? {
-        guard !pingsStopped else { return .pingsStopped }
-        let event = await events.next()
-        pingsStopped = event == .pingsStopped
-        return event
+    func untilAsleep() async -> PingEvent? {
+        await pings.untilAsleep()
     }
 }
 
