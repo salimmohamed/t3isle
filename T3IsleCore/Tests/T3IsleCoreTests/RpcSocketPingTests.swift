@@ -108,7 +108,7 @@ private final class Harness: @unchecked Sendable {
             self?.countClose()
             pings.record(.closed(failure))
         }
-        pings.watch(socket)
+        pings.watch(socket.pingLoop)
     }
 
     deinit {

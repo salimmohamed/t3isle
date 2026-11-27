@@ -10,10 +10,11 @@ extension RpcSocket {
 }
 
 extension T3ServerClient {
-    func openSocket() async throws -> RpcSocket? {
+    func openSocket() async throws -> (socket: RpcSocket, pingLoop: Task<Void, Never>?)? {
         let fields = Mirror(reflecting: self)
-        if let socket = fields.descendant("socket") as? RpcSocket { return socket }
-        return try await (fields.descendant("connecting") as? Task<RpcSocket, Error>)?.value
+        if let socket = fields.descendant("socket") as? RpcSocket { return (socket, socket.pingLoop) }
+        guard let socket = try await (fields.descendant("connecting") as? Task<RpcSocket, Error>)?.value else { return nil }
+        return (socket, socket.pingLoop)
     }
 }
 
@@ -44,9 +45,9 @@ final class PingWatch: @unchecked Sendable {
         recorded.yield(event)
     }
 
-    func watch(_ socket: RpcSocket) {
+    func watch(_ pingLoop: Task<Void, Never>?) {
         let recorded = recorded
-        guard let loop = socket.pingLoop else {
+        guard let loop = pingLoop else {
             recorded.yield(.noPingLoop)
             return
         }
@@ -60,7 +61,6 @@ final class PingWatch: @unchecked Sendable {
         let rest = await untilAsleep()
         guard rest == .asleep(for: RpcSocket.pingInterval) else { return rest }
         pendingRest = nil
-        await clock.waitForSleepers()
         clock.advance(by: RpcSocket.pingInterval)
         return await nextNotingRest()
     }

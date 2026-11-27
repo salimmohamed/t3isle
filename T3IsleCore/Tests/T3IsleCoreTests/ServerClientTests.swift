@@ -36,8 +36,10 @@ final class ServerClientTests: XCTestCase {
         var updates = await client.shellUpdates().makeAsyncIterator()
         let firstRest = await pings.untilAsleep()
         XCTAssertEqual(firstRest, rest)
-        guard let socket = try await client.openSocket() else { return XCTFail("the client's ping loop runs without a socket") }
-        pings.watch(socket)
+        guard let (socket, pingLoop) = try await client.openSocket() else {
+            return XCTFail("the client's ping loop runs without a socket")
+        }
+        pings.watch(pingLoop)
         for _ in 0..<RpcSocket.pingsBeforeTimeout {
             let event = await pings.tick()
             XCTAssertEqual(event, rest)
