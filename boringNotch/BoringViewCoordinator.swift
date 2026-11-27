@@ -9,6 +9,7 @@ import AppKit
 import Combine
 import Defaults
 import SwiftUI
+import T3IsleCore
 
 enum SneakContentType {
     case brightness
@@ -130,14 +131,15 @@ class BoringViewCoordinator: ObservableObject {
 
                     if change.newValue {
                         self.hudEnableTask = Task { @MainActor in
-                            let trusted = await HUDAccessibility.shared.check().value
-                            if !trusted { HUDAccessibility.shared.request() }
-                            if Task.isCancelled { return }
-
-                            if trusted {
+                            let read = await HUDAccessibility.shared.check().value
+                            switch HUDReplacementEnable(read: read, cancelled: Task.isCancelled) {
+                            case .startInterceptor?:
                                 await MediaKeyInterceptor.shared.start()
-                            } else {
+                            case .turnOff(let requestingAccess)?:
+                                if requestingAccess { HUDAccessibility.shared.request() }
                                 Defaults[.hudReplacement] = false
+                            case nil:
+                                return
                             }
                         }
                     } else {

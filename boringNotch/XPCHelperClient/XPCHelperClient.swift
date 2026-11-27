@@ -11,7 +11,7 @@ final class XPCHelperClient: NSObject {
     
     private var remoteService: RemoteXPCService<BoringNotchXPCHelperProtocol>?
     private var connection: NSXPCConnection?
-    private var lastKnownAuthorization: Bool?
+    private var readChanges = AccessibilityReadChanges()
     private var monitoringTask: Task<Void, Never>?
     
     deinit {
@@ -61,13 +61,12 @@ final class XPCHelperClient: NSObject {
     }
     
     @MainActor
-    private func notifyAuthorizationChange(_ granted: Bool) {
-        guard lastKnownAuthorization != granted else { return }
-        lastKnownAuthorization = granted
+    private func notifyIfChanged(_ read: AccessibilityRead) {
+        guard readChanges.record(read) else { return }
         NotificationCenter.default.post(
             name: .accessibilityAuthorizationChanged,
             object: nil,
-            userInfo: ["granted": granted]
+            userInfo: [AccessibilityRead.notificationKey: read]
         )
     }
 
@@ -106,13 +105,9 @@ final class XPCHelperClient: NSObject {
     }
     #endif
 
-    private nonisolated func overriddenTrust() async -> AccessibilityRead? {
+    private nonisolated func overriddenTrust() -> AccessibilityRead? {
         #if DEBUG
-        guard let read = Defaults[.debugAccessibilityTrust] else { return nil }
-        if let granted = read.granted {
-            await MainActor.run { notifyAuthorizationChange(granted) }
-        }
-        return read
+        Defaults[.debugAccessibilityTrust]
         #else
         return nil
         #endif
@@ -120,7 +115,7 @@ final class XPCHelperClient: NSObject {
 
     nonisolated func requestAccessibilityAuthorization() {
         Task {
-            guard await overriddenTrust() == nil else { return }
+            guard overriddenTrust() == nil else { return }
             let service = await MainActor.run {
                 ensureRemoteService()
             }
@@ -135,7 +130,17 @@ final class XPCHelperClient: NSObject {
     }
 
     nonisolated func readAccessibilityTrust() async -> AccessibilityRead {
-        if let read = await overriddenTrust() { return read }
+        let read: AccessibilityRead
+        if let overridden = overriddenTrust() {
+            read = overridden
+        } else {
+            read = await readSystemTrust()
+        }
+        await MainActor.run { notifyIfChanged(read) }
+        return read
+    }
+
+    private nonisolated func readSystemTrust() async -> AccessibilityRead {
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -144,9 +149,6 @@ final class XPCHelperClient: NSObject {
                 service.isAccessibilityAuthorized { authorized in
                     continuation.resume(returning: authorized)
                 }
-            }
-            await MainActor.run {
-                notifyAuthorizationChange(result)
             }
             return AccessibilityRead(granted: result)
         } catch {
