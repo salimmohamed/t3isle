@@ -98,7 +98,7 @@ final class IsleModelTests: XCTestCase {
 }
 
 private final class FixtureSource: T3Source, @unchecked Sendable {
-    private let opening: ShellUpdate
+    private let opening: [ShellUpdate]
     private var details: [String: ThreadProjection]
     var projections: [String: ThreadProjection] {
         get { lock.withLock { details } }
@@ -107,11 +107,11 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     private var continuation: AsyncStream<ShellUpdate>.Continuation?
 
     init(_ snapshot: ShellSnapshot, projections: [String: ThreadProjection] = [:]) {
-        opening = .snapshot(snapshot)
+        opening = [.snapshot(snapshot)]
         details = projections
     }
 
-    init(opening: ShellUpdate) {
+    init(opening: [ShellUpdate]) {
         self.opening = opening
         details = [:]
     }
@@ -123,7 +123,7 @@ private final class FixtureSource: T3Source, @unchecked Sendable {
     func updates() async -> AsyncStream<ShellUpdate> {
         let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()
         self.continuation = continuation
-        continuation.yield(opening)
+        for update in opening { continuation.yield(update) }
         return stream
     }
 
@@ -184,12 +184,12 @@ final class ProviderRefreshTests: XCTestCase {
 final class UnreadableSnapshotTests: XCTestCase {
     func testUnreadableSnapshotTakesTheModelOffline() async throws {
         let broken: [String: Any] = ["kind": "snapshot", "snapshot": ["snapshotSequence": 1, "threads": [] as [Any]]]
-        let update = try XCTUnwrap(T3ServerClient.shellUpdate(broken))
-        guard case .unreadable(kind: "snapshot", let reason) = update else {
-            return XCTFail("unreadable snapshot expected, got \(update)")
+        let updates = T3ServerClient.shellUpdates(broken)
+        guard case .unreadable(.snapshot, let reason)? = updates.first else {
+            return XCTFail("unreadable snapshot expected, got \(updates)")
         }
         XCTAssertTrue(reason.contains("projects"), reason)
-        let model = T3IsleModel(source: FixtureSource(opening: update), clock: TestClock(), opener: { _ in })
+        let model = T3IsleModel(source: FixtureSource(opening: updates), clock: TestClock(), opener: { _ in })
         model.start()
         await until(model) { model.connection != .connecting }
         XCTAssertEqual(model.connection, .offline(T3Failure.unreadable.localizedDescription))
@@ -203,7 +203,7 @@ final class UnreadableSnapshotTests: XCTestCase {
         await until(model) { model.connection == .live }
         let fixture = try WireDecoder.make().decode(ShellSnapshot.self, from: Fixture.data("shell.json"))
         let shell = try XCTUnwrap(fixture.threads.first { !$0.isSubagent && !$0.isSideChat })
-        source.push(.unreadable(kind: "thread.updated", reason: "missing title"))
+        source.push(.unreadable(.threadUpdated, reason: "missing title"))
         source.push(.threadUpdated(shell, archived: false))
         await until(model) { !model.threads.isEmpty }
         XCTAssertEqual(model.connection, .live)

@@ -8,7 +8,14 @@ public enum ShellUpdate: Sendable {
     case projectUpdated(ProjectShell)
     case projectRemoved(String)
     case disconnected(T3Failure)
-    case unreadable(kind: String, reason: String)
+    case unreadable(ShellItem, reason: String)
+}
+
+public enum ShellItem: String, Sendable {
+    case snapshot
+    case enrichment
+    case threadUpdated = "thread.updated"
+    case projectUpdated = "project.updated"
 }
 
 public actor T3ServerClient {
@@ -250,14 +257,21 @@ public actor T3ServerClient {
         do {
             let socket = try await connectedSocket()
             socket.request("orchestration.subscribeShell",
-                           payload: ["omitIdleSubagents": true, "omitOlderSettled": true]) { event in
+                           payload: ["omitIdleSubagents": true, "omitOlderSettled": true]) { [weak socket] event in
                 switch event {
                 case .chunk(let values):
                     for update in values.flatMap(Self.shellUpdates) {
-                        if case .unreadable(let kind, let reason) = update {
-                            Self.log.error("Couldn't read \(kind, privacy: .public) update: \(reason, privacy: .public)")
-                        }
                         continuation.yield(update)
+                        switch update {
+                        case .unreadable(let item, let reason):
+                            Self.log.error("Couldn't read \(item.rawValue, privacy: .public) update: \(reason, privacy: .public)")
+                        case .disconnected:
+                            continuation.finish()
+                            socket?.close()
+                            return
+                        default:
+                            break
+                        }
                     }
                 case .exit(let result):
                     if case .failure(let failure) = result {
@@ -362,14 +376,14 @@ public actor T3ServerClient {
     static func shellUpdates(_ value: Any) -> [ShellUpdate] {
         guard let object = value as? [String: Any], object["kind"] as? String == "snapshot",
               object["resolvedRepositoryIdentityRoots"] != nil
-        else { return shellUpdate(value).map { [$0] } ?? [] }
+        else { return shellUpdate(value).map(Self.endingOnUnreadableSnapshot) ?? [] }
         struct Enrichment: Decodable { let snapshot: Projects }
         struct Projects: Decodable { let projects: [ProjectShell] }
         guard let data = try? JSONSerialization.data(withJSONObject: object) else { return [] }
         do {
             return try WireDecoder.make().decode(Enrichment.self, from: data).snapshot.projects.map { .projectUpdated($0) }
         } catch {
-            return [.unreadable(kind: "enrichment", reason: String(describing: error))]
+            return [.unreadable(.enrichment, reason: String(describing: error))]
         }
     }
 
@@ -380,17 +394,17 @@ public actor T3ServerClient {
         switch kind {
         case "snapshot":
             struct Envelope: Decodable { let snapshot: ShellSnapshot }
-            return decoded(Envelope.self, kind: kind, from: data) { .snapshot($0.snapshot) }
+            return decoded(Envelope.self, as: .snapshot, from: data) { .snapshot($0.snapshot) }
         case "thread.updated":
             struct Envelope: Decodable { let thread: ThreadShell; let location: String? }
-            return decoded(Envelope.self, kind: kind, from: data) {
+            return decoded(Envelope.self, as: .threadUpdated, from: data) {
                 .threadUpdated($0.thread, archived: $0.location == "archive")
             }
         case "thread.removed":
             return (object["threadId"] as? String).map { .threadRemoved($0) }
         case "project.updated":
             struct Envelope: Decodable { let project: ProjectShell }
-            return decoded(Envelope.self, kind: kind, from: data) { .projectUpdated($0.project) }
+            return decoded(Envelope.self, as: .projectUpdated, from: data) { .projectUpdated($0.project) }
         case "project.removed":
             return (object["projectId"] as? String).map { .projectRemoved($0) }
         default:
@@ -398,12 +412,17 @@ public actor T3ServerClient {
         }
     }
 
-    private static func decoded<Envelope: Decodable>(_ type: Envelope.Type, kind: String, from data: Data,
+    private static func endingOnUnreadableSnapshot(_ update: ShellUpdate) -> [ShellUpdate] {
+        guard case .unreadable(.snapshot, _) = update else { return [update] }
+        return [update, .disconnected(.unreadable)]
+    }
+
+    private static func decoded<Envelope: Decodable>(_ type: Envelope.Type, as item: ShellItem, from data: Data,
                                                      _ update: (Envelope) -> ShellUpdate) -> ShellUpdate {
         do {
             return update(try WireDecoder.make().decode(type, from: data))
         } catch {
-            return .unreadable(kind: kind, reason: String(describing: error))
+            return .unreadable(item, reason: String(describing: error))
         }
     }
 }

@@ -81,7 +81,7 @@ private final class SnapshotRecorder: T3Source, @unchecked Sendable {
         lock.withLock {
             switch update {
             case .snapshot(let snapshot) where recorded == nil: recorded = snapshot
-            case .unreadable(let kind, let reason) where rejected == nil: rejected = "\(kind): \(reason)"
+            case .unreadable(let item, let reason) where rejected == nil: rejected = "\(item.rawValue): \(reason)"
             default: break
             }
         }
