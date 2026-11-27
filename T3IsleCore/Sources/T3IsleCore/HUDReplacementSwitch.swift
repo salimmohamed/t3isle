@@ -36,10 +36,6 @@ public struct AccessibilityReading: Equatable, Sendable {
         self.read = read
         self.ticket = ticket
     }
-
-    func isNewer(than other: AccessibilityReading?) -> Bool {
-        other.map { ticket > $0.ticket } ?? true
-    }
 }
 
 public enum AccessibilityGuidance: String, Codable, Sendable {
@@ -64,7 +60,7 @@ public final class HUDReplacementSwitch {
     static let firstRetryWait: TimeInterval = 1
     static let longestRetryWait: TimeInterval = 30
 
-    private var newest: AccessibilityReading?
+    private var lastRead: AccessibilityRead?
     @ObservationIgnored public var apply: @MainActor (Output) -> Void = { _ in }
     @ObservationIgnored private let clock: any T3Clock
     @ObservationIgnored private let read: @MainActor () async -> AccessibilityReading
@@ -72,6 +68,7 @@ public final class HUDReplacementSwitch {
     @ObservationIgnored private var paneIsOpen = false
     @ObservationIgnored private var lastSwitchOn = 0
     @ObservationIgnored private var undecidedSwitchOn: Int?
+    @ObservationIgnored private var newestTicket: AccessibilityReadTicket?
     @ObservationIgnored private var lastReadID = 0
     @ObservationIgnored private var readsInFlight: [Int: Task<Void, Never>] = [:]
     @ObservationIgnored private var unreachableReads = 0
@@ -82,8 +79,6 @@ public final class HUDReplacementSwitch {
         self.clock = clock
         self.read = read
     }
-
-    private var lastRead: AccessibilityRead? { newest?.read }
 
     public var guidance: AccessibilityGuidance {
         switch lastRead {
@@ -123,9 +118,10 @@ public final class HUDReplacementSwitch {
     }
 
     public func landed(_ reading: AccessibilityReading) {
-        guard reading.isNewer(than: newest) else { return }
-        let previous = newest?.read
-        newest = reading
+        guard newestTicket.map({ reading.ticket > $0 }) ?? true else { return }
+        newestTicket = reading.ticket
+        let previous = lastRead
+        lastRead = reading.read
         retryIfUnreachable(reading.read)
         guard isOn, undecidedSwitchOn == nil, reading.read != previous else { return }
         follow(reading.read)
@@ -178,11 +174,12 @@ public final class HUDReplacementSwitch {
     private var wantsRetry: Bool { isOn || paneIsOpen }
 
     private func retryIfUnreachable(_ read: AccessibilityRead) {
-        cancelRetry()
         guard read == .unreachable, wantsRetry else {
+            cancelRetry()
             unreachableReads = 0
             return
         }
+        guard retry == nil else { return }
         let deadline = clock.now + Self.retryWait(after: unreachableReads)
         unreachableReads += 1
         nextRetry = deadline

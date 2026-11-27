@@ -1,3 +1,4 @@
+import Observation
 import XCTest
 @testable import T3IsleCore
 
@@ -49,16 +50,33 @@ final class HUDReplacementSwitchTests: XCTestCase {
         XCTAssertEqual(rig.outputs, [.startInterceptor])
     }
 
-    func testTheSameReadArrivingTwiceLandsOnce() async {
+    func testAnotherUnreachableReadLeavesTheArmedRetryAlone() async {
         let rig = Rig()
-        rig.hudSwitch.switched(isOn: true)
-        await rig.answer(1, .trusted)
-        let unreachable = rig.trust.reading(.unreachable)
+        rig.hudSwitch.hudPane(isOpen: true)
+        await rig.answer(1, .unreachable)
+        XCTAssertEqual(rig.hudSwitch.nextRetry, rig.clock.now + 1)
 
-        rig.hudSwitch.landed(unreachable)
-        rig.hudSwitch.landed(unreachable)
+        rig.hudSwitch.landed(rig.trust.reading(.unreachable))
+        rig.hudSwitch.landed(rig.trust.reading(.unreachable))
 
         XCTAssertEqual(rig.hudSwitch.nextRetry, rig.clock.now + 1)
+    }
+
+    func testTheSameReadAgainLeavesGuidanceObserversAlone() {
+        let rig = Rig()
+        rig.hudSwitch.landed(rig.trust.reading(.trusted))
+        let changed = Flag()
+        withObservationTracking {
+            _ = rig.hudSwitch.guidance
+        } onChange: {
+            changed.raise()
+        }
+
+        rig.hudSwitch.landed(rig.trust.reading(.trusted))
+        XCTAssertFalse(changed.isRaised)
+
+        rig.hudSwitch.landed(rig.trust.reading(.denied))
+        XCTAssertTrue(changed.isRaised)
     }
 
     func testSwitchingOnWhileTrustedStartsTheInterceptor() async {
@@ -244,7 +262,7 @@ final class HUDReplacementSwitchTests: XCTestCase {
 
         rig.hudSwitch.hudPane(isOpen: false)
 
-        XCTAssertEqual(rig.clock.deadlines, [rig.clock.now + 2])
+        XCTAssertEqual(rig.clock.deadlines, [rig.clock.now + 1])
     }
 
     func testAnUnreachableReadAfterSwitchingOffIsNotRetried() async {
@@ -327,5 +345,16 @@ private final class TrustReads {
         await arrived(number)
         let ticket = callTickets[number - 1]
         waiting.removeValue(forKey: number)?.resume(returning: AccessibilityReading(read: read, ticket: ticket))
+    }
+}
+
+private final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var raised = false
+
+    var isRaised: Bool { lock.withLock { raised } }
+
+    func raise() {
+        lock.withLock { raised = true }
     }
 }

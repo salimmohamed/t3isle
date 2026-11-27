@@ -572,11 +572,9 @@ struct HUD: View {
         .accentColor(.effectiveAccent)
         .navigationTitle("HUDs")
         .onAppear {
-            accessibility.hudSwitch.hudPane(isOpen: true)
             XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
         }
         .onDisappear {
-            accessibility.hudSwitch.hudPane(isOpen: false)
             XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
         }
     }
