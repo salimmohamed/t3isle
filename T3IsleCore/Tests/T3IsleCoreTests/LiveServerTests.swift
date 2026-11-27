@@ -36,11 +36,55 @@ final class LiveModelTests: XCTestCase {
             throw XCTSkip("Set T3ISLE_TOKEN to run against a live T3 server.")
         }
         let store = MemoryTokenStore(StoredToken(token: token, expiresAt: .distantFuture))
-        let model = T3IsleModel(source: LiveSource(tokenStore: store), opener: { _ in })
+        let source = SnapshotRecorder(LiveSource(tokenStore: store))
+        let model = T3IsleModel(source: source, opener: { _ in })
         model.start()
         await until(model) { model.connection != .connecting }
         XCTAssertEqual(model.connection, .live)
-        XCTAssertFalse(model.threads.isEmpty)
+        let snapshot = try XCTUnwrap(source.firstSnapshot)
+        XCTAssertFalse(snapshot.threads.isEmpty)
         model.stop()
     }
+}
+
+private final class SnapshotRecorder: T3Source, @unchecked Sendable {
+    private let base: T3Source
+    private let lock = NSLock()
+    private var recorded: ShellSnapshot?
+
+    init(_ base: T3Source) {
+        self.base = base
+    }
+
+    var firstSnapshot: ShellSnapshot? { lock.withLock { recorded } }
+
+    func updates() async -> AsyncStream<ShellUpdate> {
+        let upstream = await base.updates()
+        let (stream, continuation) = AsyncStream<ShellUpdate>.makeStream()
+        let forward = Task {
+            for await update in upstream {
+                if case .snapshot(let snapshot) = update { record(snapshot) }
+                continuation.yield(update)
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in forward.cancel() }
+        return stream
+    }
+
+    private func record(_ snapshot: ShellSnapshot) {
+        lock.withLock { if recorded == nil { recorded = snapshot } }
+    }
+
+    func detail(threadId: String, in environment: String?) async throws -> ThreadProjection {
+        try await base.detail(threadId: threadId, in: environment)
+    }
+
+    func send(_ command: T3Command, in environment: String?) async throws {
+        try await base.send(command, in: environment)
+    }
+
+    func linked() async -> LinkedRead? { await base.linked() }
+    func environmentId() async -> String? { await base.environmentId() }
+    func providers() -> [ProviderLimits] { base.providers() }
 }
