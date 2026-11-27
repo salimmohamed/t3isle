@@ -629,17 +629,61 @@ final class LinkedEnvironmentModelTests: XCTestCase {
         await closeOnSelectedWatching(model, &calls, &reads)
         XCTAssertEqual(model.detail(for: "wsl-watching")?.plan?.isComplete, false)
 
-        var finished = try XCTUnwrap(source.projections["wsl-watching"])
+        try completePlan(of: "wsl-watching", in: source)
+        model.expanded = true
+        await until(model) { model.detail(for: "wsl-watching")?.plan?.isComplete == true }
+        XCTAssertNil(model.banner)
+        model.stop()
+    }
+
+    func testALinkedPlanThatFinishedAfterAClosedNotchQuestionRaisesNoLateBanner() async throws {
+        try await finishPlanAfterAClosedNotchQuestion(selecting: "wsl-watching", keepsDetail: false)
+    }
+
+    func testASelectedLinkedPlanThatFinishedAfterAClosedNotchQuestionRaisesNoLateBanner() async throws {
+        try await finishPlanAfterAClosedNotchQuestion(selecting: "wsl-question", keepsDetail: true)
+    }
+
+    private func finishPlanAfterAClosedNotchQuestion(selecting selected: String, keepsDetail: Bool) async throws {
+        let source = try source()
+        source.linkedRead = try wslRead()
+        let projection = try XCTUnwrap(source.projections["wsl-question"])
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await until(model) { model.detail(for: "wsl-question")?.plan?.isComplete == false }
+        model.select(selected)
+
+        source.projections = [:]
+        source.linkedRead = try wslRead(questionStatus: "running")
+        await nextRefresh(&calls)
+        await nextRead(of: "wsl-question", &reads)
+        await nextRead(of: "wsl-question", &reads)
+        await until(model) { model.threads.first { $0.id == "wsl-question" }?.mood == .working }
+        XCTAssertEqual(model.selectedCard?.id, selected)
+        XCTAssertEqual(model.detail(for: "wsl-question") != nil, keepsDetail)
+
+        source.projections["wsl-question"] = projection
+        try completePlan(of: "wsl-question", in: source)
+        model.expanded = true
+        clock.advance(by: T3IsleModel.linkedInterval)
+        await until(model) { model.detail(for: "wsl-question")?.plan?.isComplete == true }
+        XCTAssertNil(model.banner)
+        model.stop()
+    }
+
+    private func nextRead(of threadId: String, _ reads: inout AsyncStream<String>.Iterator) async {
+        while let read = await reads.next(), read != threadId {}
+    }
+
+    private func completePlan(of threadId: String, in source: FixtureSource) throws {
+        var finished = try XCTUnwrap(source.projections[threadId])
         finished.plans = finished.plans.map { plan in
             var plan = plan
             plan.steps = plan.steps?.map { PlanStep(id: $0.id, text: $0.text, status: "completed") }
             return plan
         }
-        source.projections["wsl-watching"] = finished
-        model.expanded = true
-        await until(model) { model.detail(for: "wsl-watching")?.plan?.isComplete == true }
-        XCTAssertNil(model.banner)
-        model.stop()
+        source.projections[threadId] = finished
     }
 
     func testASelectedLinkedThreadThatNeedsYouKeepsItsDetailReadsWithTheNotchClosed() async throws {
