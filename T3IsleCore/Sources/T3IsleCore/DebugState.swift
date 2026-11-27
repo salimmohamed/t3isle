@@ -140,12 +140,12 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let notchViewModels: Int
     public let headphonesMonitor: HeadphonesMonitor
     public let hudAccessibility: AccessibilityGuidance
-    public let accessibilityOverride: Bool?
+    public let accessibilityOverride: AccessibilityRead?
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
                 headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, hudAccessibility: AccessibilityGuidance,
-                accessibilityOverride: Bool?, t3: T3) {
+                accessibilityOverride: AccessibilityRead?, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen

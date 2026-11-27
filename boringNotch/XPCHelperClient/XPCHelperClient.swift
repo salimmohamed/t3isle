@@ -2,6 +2,7 @@ import Foundation
 import Cocoa
 import AsyncXPCConnection
 import Defaults
+import T3IsleCore
 
 final class XPCHelperClient: NSObject {
     nonisolated static let shared = XPCHelperClient()
@@ -100,16 +101,18 @@ final class XPCHelperClient: NSObject {
     
     #if DEBUG
     @MainActor
-    func overrideTrust(_ trusted: Bool?) {
-        Defaults[.debugAccessibilityTrust] = AccessibilityTrustOverride(trusted)
+    func overrideTrust(_ read: AccessibilityRead?) {
+        Defaults[.debugAccessibilityTrust] = read
     }
     #endif
 
-    private nonisolated func overriddenTrust() async -> Bool? {
+    private nonisolated func overriddenTrust() async -> AccessibilityRead? {
         #if DEBUG
-        guard let trusted = Defaults[.debugAccessibilityTrust].trusted else { return nil }
-        await MainActor.run { notifyAuthorizationChange(trusted) }
-        return trusted
+        guard let read = Defaults[.debugAccessibilityTrust] else { return nil }
+        if let granted = read.granted {
+            await MainActor.run { notifyAuthorizationChange(granted) }
+        }
+        return read
         #else
         return nil
         #endif
@@ -128,7 +131,11 @@ final class XPCHelperClient: NSObject {
     }
     
     nonisolated func isAccessibilityAuthorized() async -> Bool {
-        if let trusted = await overriddenTrust() { return trusted }
+        await readAccessibilityTrust() == .trusted
+    }
+
+    nonisolated func readAccessibilityTrust() async -> AccessibilityRead {
+        if let read = await overriddenTrust() { return read }
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -141,9 +148,9 @@ final class XPCHelperClient: NSObject {
             await MainActor.run {
                 notifyAuthorizationChange(result)
             }
-            return result
+            return AccessibilityRead(granted: result)
         } catch {
-            return false
+            return .unreachable
         }
     }
     
