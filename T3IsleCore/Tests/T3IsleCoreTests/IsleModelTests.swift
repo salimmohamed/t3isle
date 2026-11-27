@@ -569,7 +569,71 @@ final class LinkedEnvironmentModelTests: XCTestCase {
             let next = await reads.next()
             XCTAssertEqual(next, "wsl-question")
         }
-        XCTAssertNil(model.detail(for: "wsl-watching"))
+        XCTAssertNotNil(model.detail(for: "wsl-watching"))
+        model.stop()
+    }
+
+    private func closeOnSelectedWatching(_ model: T3IsleModel, _ calls: inout AsyncStream<Void>.Iterator,
+                                         _ reads: inout AsyncStream<String>.Iterator) async {
+        await calls.next()
+        let first = await reads.next()
+        XCTAssertEqual(first, "wsl-question")
+        model.expanded = true
+        let shown = await reads.next()
+        XCTAssertEqual(shown, "wsl-watching")
+        await until(model) { model.detail(for: "wsl-watching") != nil }
+        model.select("wsl-watching")
+        model.expanded = false
+        await nextRefresh(&calls)
+        let closed = await reads.next()
+        XCTAssertEqual(closed, "wsl-question")
+    }
+
+    private func watchingSource(branch: String) throws -> FixtureSource {
+        let source = try source()
+        var watching = try XCTUnwrap(source.projections["wsl-question"])
+        watching.thread.id = "wsl-watching"
+        watching.thread.branch = branch
+        source.projections["wsl-watching"] = watching
+        source.linkedRead = try wslRead()
+        return source
+    }
+
+    func testReopeningTheNotchKeepsTheSelectedLinkedCardUntilItsRefetchReturns() async throws {
+        let source = try watchingSource(branch: "before")
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await closeOnSelectedWatching(model, &calls, &reads)
+        XCTAssertEqual(model.detail(for: "wsl-watching")?.branch, "before")
+
+        source.projections["wsl-watching"]?.thread.branch = "after"
+        model.expanded = true
+        XCTAssertEqual(model.detail(for: "wsl-watching")?.branch, "before")
+        let refetch = await reads.next()
+        XCTAssertEqual(refetch, "wsl-watching")
+        await until(model) { model.detail(for: "wsl-watching")?.branch == "after" }
+        model.stop()
+    }
+
+    func testAPlanThatFinishedWhileTheNotchWasClosedRaisesNoLateBanner() async throws {
+        let source = try watchingSource(branch: "main")
+        let model = model(source)
+        var calls = source.linkedCalls.makeAsyncIterator()
+        var reads = source.linkedDetailReads.makeAsyncIterator()
+        await closeOnSelectedWatching(model, &calls, &reads)
+        XCTAssertEqual(model.detail(for: "wsl-watching")?.plan?.isComplete, false)
+
+        var finished = try XCTUnwrap(source.projections["wsl-watching"])
+        finished.plans = finished.plans.map { plan in
+            var plan = plan
+            plan.steps = plan.steps?.map { PlanStep(id: $0.id, text: $0.text, status: "completed") }
+            return plan
+        }
+        source.projections["wsl-watching"] = finished
+        model.expanded = true
+        await until(model) { model.detail(for: "wsl-watching")?.plan?.isComplete == true }
+        XCTAssertNil(model.banner)
         model.stop()
     }
 

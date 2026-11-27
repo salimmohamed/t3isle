@@ -97,6 +97,7 @@ public final class T3IsleModel: ObservableObject {
     private let opener: (URL) -> Void
     @Published private var preferences = T3Preferences()
     @Published private var details: [String: AgentDetail] = [:]
+    private var heldDetails: Set<String> = []
     private var shells: [String: ThreadShell] = [:]
     private var projects: [String: ProjectShell] = [:]
     private var linkedShells: [String: ThreadShell] = [:]
@@ -202,6 +203,7 @@ public final class T3IsleModel: ObservableObject {
         linkedRefreshedAt = nil
         readingLinked = false
         details = [:]
+        heldDetails = []
         detailPrompts = [:]
         lastFetch = [:]
         fetching = []
@@ -310,6 +312,10 @@ public final class T3IsleModel: ObservableObject {
         return following && (shell.linkedEnvironment == nil || expanded)
     }
 
+    private func keepsDetail(_ shell: ThreadShell) -> Bool {
+        shell.id == selectedAgentId && isShown(shell) && InboxBuilder.belongsInInbox(shell)
+    }
+
     private func refreshProviders() {
         let fresh = source.providers()
         if fresh != providers { providers = fresh }
@@ -360,7 +366,9 @@ public final class T3IsleModel: ObservableObject {
     }
 
     private func scheduleRefresh() {
-        for shell in linkedShells.values where shells[shell.id] == nil && !wantsDetail(shell) { forgetDetail(shell.id) }
+        for shell in linkedShells.values where shells[shell.id] == nil && !wantsDetail(shell) {
+            if keepsDetail(shell) { holdDetail(shell.id) } else { forgetDetail(shell.id) }
+        }
         for shell in allShells.values where wantsDetail(shell) { requestDetail(shell.id, urgent: true) }
     }
 
@@ -398,11 +406,11 @@ public final class T3IsleModel: ObservableObject {
     private func absorb(_ projection: ThreadProjection) {
         let id = projection.thread.id
         guard let shell = allShells[id], isShown(shell), shell.linkedEnvironment == nil || wantsDetail(shell) else {
-            forgetDetail(id)
+            if !heldDetails.contains(id) { forgetDetail(id) }
             return
         }
         let detail = DetailBuilder.detail(projection)
-        let previous = details[id]
+        let previous = heldDetails.remove(id) == nil ? details[id] : nil
         if let plan = detail.plan, plan.isComplete, let before = previous?.plan, before.planId == plan.planId, !before.isComplete {
             showBanner(threadId: id, steps: plan.steps.count)
         }
@@ -416,7 +424,13 @@ public final class T3IsleModel: ObservableObject {
         publish()
     }
 
+    private func holdDetail(_ threadId: String) {
+        scheduledFetch.removeValue(forKey: threadId)?.cancel()
+        if details[threadId] != nil { heldDetails.insert(threadId) }
+    }
+
     private func forgetDetail(_ threadId: String) {
+        heldDetails.remove(threadId)
         if details[threadId] != nil { details[threadId] = nil }
         detailPrompts[threadId] = nil
         scheduledFetch.removeValue(forKey: threadId)?.cancel()
