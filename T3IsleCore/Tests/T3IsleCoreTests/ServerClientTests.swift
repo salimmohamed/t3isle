@@ -43,6 +43,7 @@ final class ServerClientTests: XCTestCase {
         }
         await server.idle()
     }
+
     func testADispatchInFlightWhenABadSnapshotClosesTheSocketIsSentAgainAfterTheReconnect() async throws {
         let server = try await RpcServer.start()
         let home = try T3Home.local(port: server.port)
@@ -84,6 +85,28 @@ final class ServerClientTests: XCTestCase {
         for await update in updates { shell.append(String(describing: update)) }
         XCTAssertEqual(shell.last, String(describing: ShellUpdate.disconnected(.unreadable)))
         await client.disconnect()
+    }
+
+    func testADispatchInFlightDuringADisconnectFailsWithoutAResend() async throws {
+        let server = try await RpcServer.start()
+        let home = try T3Home.local(port: server.port)
+        let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: CountingRunner()),
+                                    clock: TestClock())
+        var events = server.events.makeAsyncIterator()
+
+        Task {
+            do {
+                server.record(.dispatched(try await client.dispatch(.settle(threadId: "thread-1"))))
+            } catch {
+                server.record(.failed(error as? T3Failure))
+            }
+        }
+        guard case .request(let sent)? = await events.next() else { return XCTFail("the dispatch never arrived") }
+        XCTAssertEqual(sent.tag, "orchestration.dispatchCommand")
+
+        await client.disconnect()
+        let afterTheDisconnect = await events.next()
+        XCTAssertEqual(afterTheDisconnect, .failed(.notRunning))
     }
 }
 

@@ -113,8 +113,8 @@ private final class Harness: @unchecked Sendable {
         self.events = events.makeAsyncIterator()
         transport = FakeTransport { recorded.yield(.sent($0)) }
         socket = RpcSocket(clock: clock)
-        socket.open(transport) { [self] failure in
-            lock.withLock { closed += 1 }
+        socket.open(transport) { [weak self] failure in
+            self?.countClose()
             recorded.yield(.closed(failure))
         }
     }
@@ -124,6 +124,10 @@ private final class Harness: @unchecked Sendable {
     }
 
     var closeCount: Int { lock.withLock { closed } }
+
+    private func countClose() {
+        lock.withLock { closed += 1 }
+    }
 
     func tick() async -> SocketEvent? {
         await clock.waitForSleepers()
@@ -157,6 +161,7 @@ private final class FakeTransport: RpcTransport, @unchecked Sendable {
         onSend(text)
         completion(nil)
     }
+
     func receive(completion: @escaping Receiver) {
         lock.withLock {
             receives += 1

@@ -66,8 +66,8 @@ final class RpcSocket: NSObject, URLSessionWebSocketDelegate, @unchecked Sendabl
         startPings()
     }
 
-    func close() {
-        finish(.notRunning, notify: false)
+    func close(_ failure: T3Failure = .notRunning) {
+        finish(failure, notify: false)
     }
 
     var isClosed: Bool {
