@@ -113,7 +113,7 @@ final class WireProtocolTests: XCTestCase {
     }
 
     func testRequestOnClosedSocketFailsImmediately() {
-        let socket = RpcSocket()
+        let socket = RpcSocket(clock: TestClock())
         socket.close()
         var outcome: T3Failure?
         socket.request("orchestration.subscribeShell", payload: [:]) { event in

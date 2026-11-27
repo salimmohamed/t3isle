@@ -139,7 +139,10 @@ public actor T3ServerClient {
             dropMcpSession(session)
             return try await mcpCall(name, arguments, retried: true)
         case 401:
-            if dropMcpSession(session) { linkBackoff.rejected(at: clock.now) }
+            if dropMcpSession(session) {
+                linkBackoff.rejected(at: clock.now)
+                await linkSignIn.invalidate()
+            }
             throw T3Failure.signedOut
         default:
             throw T3Failure.http(status, nil)
