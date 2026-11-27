@@ -18,6 +18,13 @@ final class LocalListener: @unchecked Sendable {
         case alreadyStarted
     }
 
+    enum Event: Equatable {
+        case ready
+        case cancelledByItsStart
+        case stopped
+        case cancelled
+    }
+
     private enum Readiness {
         case idle
         case waiting(owner: UUID, CheckedContinuation<Void, Error>)
@@ -28,10 +35,13 @@ final class LocalListener: @unchecked Sendable {
     private let queue: DispatchQueue
     private let lock = NSLock()
     private var readiness = Readiness.idle
+    private let recorder: AsyncStream<Event>.Continuation
+    let events: AsyncStream<Event>
 
     init(label: String, parameters: NWParameters = .tcp) throws {
         listener = try NWListener(using: parameters, on: .any)
         queue = DispatchQueue(label: label)
+        (events, recorder) = AsyncStream.makeStream(of: Event.self)
     }
 
     deinit {
@@ -40,6 +50,10 @@ final class LocalListener: @unchecked Sendable {
 
     var port: UInt16 { listener.port?.rawValue ?? 0 }
 
+    func stop() {
+        cancel(as: .stopped)
+    }
+
     func start(accepting accept: @escaping @Sendable (NWConnection) -> Void) async throws {
         let queue = queue
         let listener = listener
@@ -47,7 +61,10 @@ final class LocalListener: @unchecked Sendable {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 guard claim(continuation, for: caller) else { return }
-                listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
+                listener.stateUpdateHandler = { [weak self] state in
+                    self?.record(state)
+                    self?.changed(state)
+                }
                 listener.newConnectionHandler = { connection in
                     connection.start(queue: queue)
                     accept(connection)
@@ -55,7 +72,20 @@ final class LocalListener: @unchecked Sendable {
                 listener.start(queue: queue)
             }
         } onCancel: {
-            if owns(caller) { listener.cancel() }
+            if owns(caller) { cancel(as: .cancelledByItsStart) }
+        }
+    }
+
+    private func cancel(as request: Event) {
+        recorder.yield(request)
+        listener.cancel()
+    }
+
+    private func record(_ state: NWListener.State) {
+        switch state {
+        case .ready: recorder.yield(.ready)
+        case .cancelled: recorder.yield(.cancelled)
+        default: break
         }
     }
 
