@@ -20,7 +20,7 @@ public final class LiveSource: T3Source {
         let signIn = T3SignIn(home: home, store: tokenStore, runner: runner, clock: clock)
         let linkSignIn = T3SignIn(home: home, store: linkTokenStore, runner: runner,
                                   label: "\(StateFolders.appName()) links", subject: "mcp-client", clock: clock)
-        client = T3ServerClient(home: home, signIn: signIn, linkSignIn: linkSignIn)
+        client = T3ServerClient(home: home, signIn: signIn, linkSignIn: linkSignIn, clock: clock)
         limits = UsageLimitsReader(home: home)
     }
 
