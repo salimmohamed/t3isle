@@ -29,6 +29,9 @@ final class DebugCommandTests: XCTestCase {
         (["accessibility-trust", "denied"], .accessibilityTrust(.denied)),
         (["accessibility-trust", "unreachable"], .accessibilityTrust(.unreachable)),
         (["accessibility-trust", "system"], .accessibilityTrust(nil)),
+        (["pomodoro", "Start"], .pomodoro(.start)),
+        (["pomodoro", "pause"], .pomodoro(.pause)),
+        (["pomodoro", "reset"], .pomodoro(.reset)),
     ]
 
     func testParsesEveryCommandFromTokens() throws {
@@ -81,6 +84,8 @@ final class DebugCommandTests: XCTestCase {
             (["bluetooth-access", "granted"], "bluetooth-access not-determined|restricted|denied|allowed|system"),
             (["accessibility-trust"], "accessibility-trust trusted|denied|unreachable|system"),
             (["accessibility-trust", "untrusted"], "accessibility-trust trusted|denied|unreachable|system"),
+            (["pomodoro"], "pomodoro start|pause|reset"),
+            (["pomodoro", "stop"], "pomodoro start|pause|reset"),
         ]
         for (tokens, usage) in bad {
             XCTAssertThrowsError(try DebugCommand.parse(tokens)) { XCTAssertEqual($0 as? DebugCommandError, .usage(usage)) }

@@ -266,6 +266,8 @@ struct GeneralSettings: View {
             NotchBehaviour()
 
             gestureControls()
+
+            PomodoroSettings()
         }
         .toolbar {
             Button("Quit app") {

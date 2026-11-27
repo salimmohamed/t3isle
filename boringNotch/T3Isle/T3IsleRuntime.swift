@@ -11,6 +11,8 @@ final class T3IsleRuntime: ObservableObject {
     let model: T3IsleModel
     @Published private(set) var presence: ClosedPresence = .none
     @Published private(set) var headphones: HeadphonesConnect?
+    @Published private(set) var pomodoroActive = false
+    let pomodoro = PomodoroTimer()
     private let headphonesPopup = HeadphonesPopup()
     private lazy var headphonesMonitor = T3HeadphonesMonitor(popup: headphonesPopup)
     private var cancellables: Set<AnyCancellable> = []
@@ -67,6 +69,20 @@ final class T3IsleRuntime: ObservableObject {
             .map(\.newValue)
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.headphonesMonitor.setEnabled($0) }
+            .store(in: &cancellables)
+        pomodoro.$phase
+            .map { $0 != .idle }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] active in
+                withAnimation(active ? T3Theme.liveActivityIn : T3Theme.liveActivityOut) { self?.pomodoroActive = active }
+            }
+            .store(in: &cancellables)
+        Defaults.publisher(.pomodoroTimer)
+            .map(\.newValue)
+            .filter { !$0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.pomodoro.reset() }
             .store(in: &cancellables)
         if Defaults[.t3Enabled] { model.start() }
     }
@@ -127,6 +143,10 @@ final class T3IsleRuntime: ObservableObject {
         return replay.current?.finished == true && model.isCaughtUp(threads: replay.threads, providers: replay.providers())
     }
 
+    var pomodoroDebugState: DebugState.Pomodoro {
+        pomodoro.debugState(enabled: Defaults[.pomodoroTimer])
+    }
+
     var debugState: DebugState.T3 {
         model.debugState(enabled: Defaults[.t3Enabled], source: sourceKind, replay: replayStatus)
     }
@@ -183,6 +203,7 @@ enum T3Tabs {
         let music = MusicManager.shared
         return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
                                       headphones: runtime.headphones,
+                                      pomodoro: Defaults[.pomodoroTimer] && runtime.pomodoroActive,
                                       nowPlaying: (music.isPlaying || !music.isPlayerIdle)
                                           && BoringViewCoordinator.shared.musicLiveActivityEnabled)
     }

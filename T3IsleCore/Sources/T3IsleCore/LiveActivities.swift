@@ -6,10 +6,13 @@ public enum ClosedActivity: Equatable, Sendable {
     case t3
     case nowPlaying
     case headphones(HeadphonesConnect)
+    case pomodoro
 
-    public static func resolve(t3: ClosedPresence, headphones: HeadphonesConnect?, nowPlaying: Bool) -> ClosedActivity {
+    public static func resolve(t3: ClosedPresence, headphones: HeadphonesConnect?, pomodoro: Bool = false,
+                               nowPlaying: Bool) -> ClosedActivity {
         if t3 == .alert { return .t3 }
         if let headphones { return .headphones(headphones) }
+        if pomodoro { return .pomodoro }
         if nowPlaying { return .nowPlaying }
         return t3 == .none ? .none : .t3
     }

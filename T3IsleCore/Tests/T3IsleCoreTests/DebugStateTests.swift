@@ -3,12 +3,13 @@ import XCTest
 
 final class DebugStateTests: XCTestCase {
     private let monitor = DebugState.HeadphonesMonitor(bluetooth: .denied, status: .listening)
+    private let pomodoro = DebugState.Pomodoro(enabled: false, phase: .idle, running: false)
 
     private func state() throws -> DebugState {
         let t3 = try JSONDecoder().decode(DebugState.T3.self, from: Fixture.data("debug-state-question.json"))
         return DebugState(notch: .closed, tab: .t3, settingsOpen: false, closedActivity: .t3, headphones: nil,
                           notchViewModels: 1, headphonesMonitor: monitor, hudAccessibility: .unchecked,
-                          accessibilityOverride: nil, t3: t3)
+                          accessibilityOverride: nil, pomodoro: pomodoro, t3: t3)
     }
 
     func testEncodingIsByteStableAndRoundTrips() throws {
@@ -21,10 +22,11 @@ final class DebugStateTests: XCTestCase {
     func testEveryKeyIsPresentEvenWhenEmpty() throws {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(try state())) as? [String: Any])
         XCTAssertEqual(Set(object.keys), ["notch", "tab", "settingsOpen", "closedActivity", "headphones", "notchViewModels",
-                                          "headphonesMonitor", "hudAccessibility", "accessibilityOverride", "t3"])
+                                          "headphonesMonitor", "hudAccessibility", "accessibilityOverride", "pomodoro", "t3"])
         XCTAssertTrue(object["headphones"] is NSNull)
         XCTAssertTrue(object["accessibilityOverride"] is NSNull)
         XCTAssertEqual(object["closedActivity"] as? String, "t3")
+        XCTAssertEqual(object["pomodoro"] as? NSDictionary, ["enabled": false, "phase": "idle", "running": false])
         let t3 = try XCTUnwrap(object["t3"] as? [String: Any])
         XCTAssertEqual(Set(t3.keys), ["enabled", "source", "replay", "connection", "presence", "threads", "prompts", "agents",
                                       "banner", "providers"])
@@ -36,7 +38,8 @@ final class DebugStateTests: XCTestCase {
         let state = DebugState(notch: .open, tab: .shelf, settingsOpen: true, closedActivity: .headphones(headphones),
                                headphones: headphones, notchViewModels: 2,
                                headphonesMonitor: DebugState.HeadphonesMonitor(bluetooth: .notDetermined, status: .watching),
-                               hudAccessibility: .unreachable, accessibilityOverride: .unreachable, t3: try state().t3)
+                               hudAccessibility: .unreachable, accessibilityOverride: .unreachable,
+                               pomodoro: DebugState.Pomodoro(enabled: true, phase: .rest, running: true), t3: try state().t3)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: DebugState.encoded(state)) as? [String: Any])
         XCTAssertEqual(object["notch"] as? String, "open")
         XCTAssertEqual(object["tab"] as? String, "shelf")
@@ -47,6 +50,8 @@ final class DebugStateTests: XCTestCase {
         XCTAssertEqual(object["headphonesMonitor"] as? [String: String], ["bluetooth": "not-determined", "status": "watching"])
         XCTAssertEqual(object["hudAccessibility"] as? String, "unreachable")
         XCTAssertEqual(object["accessibilityOverride"] as? String, "unreachable")
+        XCTAssertEqual(object["pomodoro"] as? NSDictionary, ["enabled": true, "phase": "break", "running": true])
+        XCTAssertEqual(DebugState.Activity(.pomodoro).rawValue, "pomodoro")
     }
 }
 
