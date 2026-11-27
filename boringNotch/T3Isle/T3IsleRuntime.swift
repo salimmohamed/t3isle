@@ -11,7 +11,7 @@ final class T3IsleRuntime: ObservableObject {
     let model: T3IsleModel
     @Published private(set) var presence: ClosedPresence = .none
     @Published private(set) var headphones: HeadphonesConnect?
-    @Published private(set) var pomodoroActive = false
+    @Published private(set) var pomodoroRunning = false
     let pomodoro = PomodoroTimer()
     private let headphonesPopup = HeadphonesPopup()
     private lazy var headphonesMonitor = T3HeadphonesMonitor(popup: headphonesPopup)
@@ -70,12 +70,12 @@ final class T3IsleRuntime: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.headphonesMonitor.setEnabled($0) }
             .store(in: &cancellables)
-        pomodoro.$phase
-            .map { $0 != .idle }
+        pomodoro.$endsAt
+            .map { $0 != nil }
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] active in
-                withAnimation(active ? T3Theme.liveActivityIn : T3Theme.liveActivityOut) { self?.pomodoroActive = active }
+            .sink { [weak self] running in
+                withAnimation(running ? T3Theme.liveActivityIn : T3Theme.liveActivityOut) { self?.pomodoroRunning = running }
             }
             .store(in: &cancellables)
         Defaults.publisher(.pomodoroTimer)
@@ -203,7 +203,7 @@ enum T3Tabs {
         let music = MusicManager.shared
         return ClosedActivity.resolve(t3: Defaults[.t3Enabled] ? runtime.presence : .none,
                                       headphones: runtime.headphones,
-                                      pomodoro: Defaults[.pomodoroTimer] && runtime.pomodoroActive,
+                                      pomodoro: Defaults[.pomodoroTimer] && runtime.pomodoroRunning,
                                       nowPlaying: (music.isPlaying || !music.isPlayerIdle)
                                           && BoringViewCoordinator.shared.musicLiveActivityEnabled)
     }

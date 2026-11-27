@@ -48,13 +48,14 @@ final class PomodoroTests: XCTestCase {
         timer.start()
         await clock.waitForSleepers()
         clock.advance(by: 10 * 60)
+        let running = timer.phaseEnd
 
         timer.pause()
         XCTAssertEqual(timer.phase, .focus)
         XCTAssertTrue(timer.isActive)
         XCTAssertFalse(timer.isRunning)
         XCTAssertEqual(timer.pausedLeft, 15 * 60)
-        await timer.phaseEnd?.value
+        await running?.value
         XCTAssertTrue(clock.deadlines.isEmpty)
 
         clock.advance(by: 60 * 60)

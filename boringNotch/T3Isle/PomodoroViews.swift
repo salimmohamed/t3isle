@@ -7,30 +7,33 @@ struct PomodoroControl: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            PomodoroTime(timer: timer)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(timer.isActive ? timer.phase.tint : T3Theme.primary)
-                .help(timer.phase.title)
             Button(action: toggle) {
-                Image(systemName: timer.isRunning ? "pause.fill" : "play.fill")
-                    .frame(width: 14)
+                if timer.isActive {
+                    PomodoroTime(timer: timer)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(timer.isRunning ? timer.phase.tint : T3Theme.secondary)
+                } else {
+                    Image(systemName: "timer")
+                }
             }
-            .help(timer.isRunning ? "Pause" : timer.isActive ? "Resume" : "Start a 25-minute focus block")
-            if timer.isActive {
+            .help(timer.isRunning ? "\(timer.phase.title), click to pause"
+                  : timer.isActive ? "Paused, click to resume" : "Start a 25-minute focus block")
+            if timer.isActive && !timer.isRunning {
                 Button(action: timer.reset) {
                     Image(systemName: "arrow.counterclockwise")
+                        .imageScale(.small)
                 }
                 .help("Reset")
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
-        .imageScale(.small)
         .buttonStyle(.plain)
         .foregroundStyle(T3Theme.primary)
         .padding(.horizontal, 6)
-        .frame(height: 30)
+        .frame(minWidth: 30, minHeight: 30)
         .background(Capsule().fill(.black))
         .animation(T3Theme.liveActivityIn, value: timer.isActive)
+        .animation(T3Theme.liveActivityIn, value: timer.isRunning)
     }
 
     private func toggle() {
@@ -46,7 +49,7 @@ struct PomodoroClosedActivity: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Image(systemName: timer.isRunning ? timer.phase.symbol : "pause.fill")
+            Image(systemName: timer.phase.symbol)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(timer.phase.tint)
                 .frame(width: earWidth)
@@ -55,7 +58,7 @@ struct PomodoroClosedActivity: View {
                 .frame(width: vm.closedNotchSize.width - cornerRadiusInsets.closed.top)
             PomodoroTime(timer: timer)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(timer.isRunning ? T3Theme.primary : T3Theme.secondary)
+                .foregroundStyle(T3Theme.primary)
                 .frame(width: earWidth)
         }
         .frame(height: vm.effectiveClosedNotchHeight)
