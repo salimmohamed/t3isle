@@ -1,9 +1,9 @@
 import Foundation
 
 struct SessionBackoff: Sendable {
-    static let rejectionsBeforeWaiting = 2
+    static let rejectionsUntilWait = 2
     static let firstWait: TimeInterval = 60
-    static let longestWait: TimeInterval = 1800
+    static let longestWait: TimeInterval = 300
 
     private(set) var rejections = 0
     private(set) var retryAt: Date?
@@ -13,6 +13,7 @@ struct SessionBackoff: Sendable {
     }
 
     mutating func rejected(at now: Date) {
+        guard allows(at: now) else { return }
         rejections += 1
         retryAt = Self.wait(after: rejections).map { now + $0 }
     }
@@ -23,8 +24,8 @@ struct SessionBackoff: Sendable {
     }
 
     static func wait(after rejections: Int) -> TimeInterval? {
-        let doublings = rejections - rejectionsBeforeWaiting
+        let doublings = rejections - rejectionsUntilWait
         guard doublings >= 0 else { return nil }
-        return min(firstWait * pow(2, Double(min(doublings, 16))), longestWait)
+        return min(firstWait * pow(2, Double(doublings)), longestWait)
     }
 }

@@ -61,7 +61,7 @@ public actor T3ServerClient {
             return
         }
         let tool = try LinkedCommand.tool(for: command, in: environment)
-        _ = try McpReply.structuredContent(try await mcp(tool.name, tool.arguments))
+        _ = try McpReply.structuredContent(try await mcp(tool.name, tool.arguments, waitsOutBackoff: false))
     }
 
     public func linkedRead() async -> LinkedRead? {
@@ -103,9 +103,8 @@ public actor T3ServerClient {
         try Self.decode(type, try McpReply.structuredContent(try await mcp(name, arguments)))
     }
 
-    private func mcp(_ name: String, _ arguments: [String: Any]) async throws -> Data {
-        guard linkSignIn != nil else { throw T3Failure.notRunning }
-        guard linkBackoff.allows(at: clock.now) else { throw T3Failure.signedOut }
+    private func mcp(_ name: String, _ arguments: [String: Any], waitsOutBackoff: Bool = true) async throws -> Data {
+        guard !waitsOutBackoff || linkBackoff.allows(at: clock.now) else { throw T3Failure.signedOut }
         do {
             let data = try await mcpCall(name, arguments)
             linkBackoff.accepted()

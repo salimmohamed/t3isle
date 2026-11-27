@@ -10,13 +10,26 @@ final class SessionBackoffTests: XCTestCase {
         backoff.rejected(at: clock.now)
         XCTAssertTrue(backoff.allows(at: clock.now))
 
-        for wait: TimeInterval in [60, 120, 240, 480, 960, 1800, 1800] {
+        for wait: TimeInterval in [60, 120, 240, 300, 300] {
             backoff.rejected(at: clock.now)
             clock.advance(by: wait - 1)
             XCTAssertFalse(backoff.allows(at: clock.now))
             clock.advance(by: 1)
             XCTAssertTrue(backoff.allows(at: clock.now))
         }
+    }
+
+    func testRejectionDuringTheWaitIsIgnored() {
+        let clock = TestClock()
+        var backoff = SessionBackoff()
+        backoff.rejected(at: clock.now)
+        backoff.rejected(at: clock.now)
+        clock.advance(by: 30)
+
+        backoff.rejected(at: clock.now)
+
+        XCTAssertEqual(backoff.rejections, 2)
+        XCTAssertEqual(backoff.retryAt, clock.now + 30)
     }
 
     func testSuccessResetsBackoff() {
@@ -36,12 +49,9 @@ final class SessionBackoffTests: XCTestCase {
 
     func testNoSessionIsIssuedWhileBackingOff() async throws {
         let server = try await RejectingServer.start()
-        let home = try Self.home(port: server.port)
         let clock = TestClock()
         let runner = CountingRunner()
-        let linkSignIn = T3SignIn(home: home, store: MemoryTokenStore(), runner: runner, subject: "mcp-client", clock: clock)
-        let client = T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner),
-                                    linkSignIn: linkSignIn, clock: clock)
+        let client = try Self.client(server: server, runner: runner, clock: clock)
 
         _ = await client.linkedRead()
         _ = await client.linkedRead()
@@ -63,6 +73,56 @@ final class SessionBackoffTests: XCTestCase {
         clock.advance(by: 60)
         _ = await client.linkedRead()
         XCTAssertEqual(runner.issued, 3)
+        XCTAssertEqual(server.requests, 3)
+    }
+
+    func testSuccessfulCallEndsTheBackoff() async throws {
+        let server = try await RejectingServer.start()
+        let clock = TestClock()
+        let runner = CountingRunner()
+        let client = try Self.client(server: server, runner: runner, clock: clock)
+        _ = await client.linkedRead()
+        _ = await client.linkedRead()
+        clock.advance(by: 60)
+        server.rejecting = false
+
+        let read = await client.linkedRead()
+
+        XCTAssertNotNil(read)
+        XCTAssertEqual(runner.issued, 3)
+        server.rejecting = true
+        _ = await client.linkedRead()
+        _ = await client.linkedRead()
+        XCTAssertEqual(runner.issued, 5)
+        _ = await client.linkedRead()
+        XCTAssertEqual(runner.issued, 5)
+    }
+
+    func testLinkedCommandStillTriesWhileBackingOff() async throws {
+        let server = try await RejectingServer.start()
+        let clock = TestClock()
+        let runner = CountingRunner()
+        let client = try Self.client(server: server, runner: runner, clock: clock)
+        _ = await client.linkedRead()
+        _ = await client.linkedRead()
+
+        do {
+            try await client.dispatch(.settle(threadId: "thread"), in: "environment")
+            XCTFail("a rejected session should fail the command")
+        } catch {
+            XCTAssertEqual(error as? T3Failure, .signedOut)
+        }
+
+        XCTAssertEqual(runner.issued, 3)
+        _ = await client.linkedRead()
+        XCTAssertEqual(runner.issued, 3)
+    }
+
+    private static func client(server: RejectingServer, runner: CountingRunner, clock: TestClock) throws -> T3ServerClient {
+        let home = try home(port: server.port)
+        let linkSignIn = T3SignIn(home: home, store: MemoryTokenStore(), runner: runner, subject: "mcp-client", clock: clock)
+        return T3ServerClient(home: home, signIn: T3SignIn(home: home, store: MemoryTokenStore(), runner: runner),
+                              linkSignIn: linkSignIn, clock: clock)
     }
 
     private static func home(port: UInt16) throws -> T3Home {
@@ -91,12 +151,23 @@ private final class CountingRunner: CommandRunner, @unchecked Sendable {
 }
 
 private final class RejectingServer: @unchecked Sendable {
-    private static let reply = Data("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+    private static let rejection = response("401 Unauthorized")
+    private static let acceptance = response("202 Accepted")
+    private static let initialized = response("200 OK", session: "mcp-session",
+                                              body: #"{"jsonrpc":"2.0","id":0,"result":{}}"#)
+    private static let noLinks = response("200 OK", body: #"{"jsonrpc":"2.0","id":1,"result":{"structuredContent":{"links":[]}}}"#)
+
+    private static func response(_ status: String, session: String? = nil, body: String = "") -> Data {
+        var head = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n"
+        if let session { head += "MCP-Session-Id: \(session)\r\n" }
+        return Data((head + "Connection: close\r\n\r\n" + body).utf8)
+    }
 
     private let listener: NWListener
     private let queue = DispatchQueue(label: "RejectingServer")
     private let lock = NSLock()
     private var answered = 0
+    private var rejectsAll = true
     private var readiness: CheckedContinuation<Void, Error>?
 
     static func start() async throws -> RejectingServer {
@@ -116,6 +187,11 @@ private final class RejectingServer: @unchecked Sendable {
     var port: UInt16 { listener.port?.rawValue ?? 0 }
 
     var requests: Int { lock.withLock { answered } }
+
+    var rejecting: Bool {
+        get { lock.withLock { rejectsAll } }
+        set { lock.withLock { rejectsAll = newValue } }
+    }
 
     private func listen() async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -150,14 +226,23 @@ private final class RejectingServer: @unchecked Sendable {
             guard let self else { return }
             let received = buffered + (chunk ?? Data())
             if Self.isWholeRequest(received) {
-                self.lock.withLock { self.answered += 1 }
-                connection.send(content: Self.reply, completion: .contentProcessed { _ in connection.cancel() })
+                let reply = self.lock.withLock {
+                    self.answered += 1
+                    return self.rejectsAll ? Self.rejection : Self.reply(to: received)
+                }
+                connection.send(content: reply, completion: .contentProcessed { _ in connection.cancel() })
             } else if isComplete || error != nil {
                 connection.cancel()
             } else {
                 self.read(connection, buffered: received)
             }
         }
+    }
+
+    private static func reply(to request: Data) -> Data {
+        let text = String(decoding: request, as: UTF8.self)
+        if text.contains("notifications") { return acceptance }
+        return text.contains("tools") ? noLinks : initialized
     }
 
     private static func isWholeRequest(_ data: Data) -> Bool {
