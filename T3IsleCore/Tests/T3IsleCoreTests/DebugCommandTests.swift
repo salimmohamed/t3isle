@@ -25,8 +25,9 @@ final class DebugCommandTests: XCTestCase {
         (["bluetooth-access", "not-determined"], .bluetoothAccess(.notDetermined)),
         (["bluetooth-access", "allowed"], .bluetoothAccess(.allowed)),
         (["bluetooth-access", "system"], .bluetoothAccess(nil)),
-        (["accessibility-trust", "Trusted"], .accessibilityTrust(true)),
-        (["accessibility-trust", "untrusted"], .accessibilityTrust(false)),
+        (["accessibility-trust", "Trusted"], .accessibilityTrust(.trusted)),
+        (["accessibility-trust", "denied"], .accessibilityTrust(.denied)),
+        (["accessibility-trust", "unreachable"], .accessibilityTrust(.unreachable)),
         (["accessibility-trust", "system"], .accessibilityTrust(nil)),
     ]
 
@@ -53,7 +54,7 @@ final class DebugCommandTests: XCTestCase {
         XCTAssertEqual(DebugCommand.replay("question").reverse, .replayOff)
         XCTAssertEqual(DebugCommand.openSettings(pane: "t3").reverse, .closeSettings)
         XCTAssertEqual(DebugCommand.bluetoothAccess(.allowed).reverse, .bluetoothAccess(nil))
-        XCTAssertEqual(DebugCommand.accessibilityTrust(false).reverse, .accessibilityTrust(nil))
+        XCTAssertEqual(DebugCommand.accessibilityTrust(.denied).reverse, .accessibilityTrust(nil))
         XCTAssertEqual(DebugCommand.airpodsConnect(name: "AirPods Max", battery: 64, device: nil).line, "airpods-connect AirPods Max 64")
         XCTAssertEqual(DebugCommand.airpodsConnect(name: "Pill", battery: nil, device: .speaker).line, "airpods-connect Pill speaker")
     }
@@ -78,8 +79,8 @@ final class DebugCommandTests: XCTestCase {
             (["airpods-connect", "AirPods", "50", "car", "car"], airpodsUsage),
             (["bluetooth-access"], "bluetooth-access not-determined|restricted|denied|allowed|system"),
             (["bluetooth-access", "granted"], "bluetooth-access not-determined|restricted|denied|allowed|system"),
-            (["accessibility-trust"], "accessibility-trust trusted|untrusted|system"),
-            (["accessibility-trust", "stale"], "accessibility-trust trusted|untrusted|system"),
+            (["accessibility-trust"], "accessibility-trust trusted|denied|unreachable|system"),
+            (["accessibility-trust", "untrusted"], "accessibility-trust trusted|denied|unreachable|system"),
         ]
         for (tokens, usage) in bad {
             XCTAssertThrowsError(try DebugCommand.parse(tokens)) { XCTAssertEqual($0 as? DebugCommandError, .usage(usage)) }

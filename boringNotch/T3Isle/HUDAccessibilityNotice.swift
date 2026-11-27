@@ -6,7 +6,7 @@ struct HUDAccessibilityNotice: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if accessibility.trust.guidance == .stale {
+            if accessibility.trust.guidance.showsReAddHint {
                 Text("\(accessibility.appName) can't use Accessibility. Turn it on in Privacy & Security > Accessibility. If it's already on, the entry may be stale, so remove \(accessibility.appName) and add it again.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

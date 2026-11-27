@@ -26,19 +26,13 @@ extension Defaults.Keys {
 
 #if DEBUG
 enum AccessibilityTrustOverride: String, Defaults.Serializable {
-    case system, trusted, untrusted
+    case system, trusted, denied, unreachable
 
-    init(_ trusted: Bool?) {
-        self = trusted.map { $0 ? .trusted : .untrusted } ?? .system
+    init(_ read: AccessibilityRead?) {
+        self = read.flatMap { Self(rawValue: $0.rawValue) } ?? .system
     }
 
-    var trusted: Bool? {
-        switch self {
-        case .system: nil
-        case .trusted: true
-        case .untrusted: false
-        }
-    }
+    var read: AccessibilityRead? { AccessibilityRead(rawValue: rawValue) }
 }
 
 extension Defaults.Keys {

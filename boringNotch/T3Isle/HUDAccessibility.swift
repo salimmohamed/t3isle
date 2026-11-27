@@ -19,7 +19,7 @@ final class HUDAccessibility: ObservableObject {
         NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)
             .compactMap { $0.userInfo?["granted"] as? Bool }
             .receive(on: RunLoop.main)
-            .sink { [weak self] granted in self?.trust.checked(trusted: granted) }
+            .sink { [weak self] granted in self?.trust.checked(AccessibilityRead(granted: granted)) }
             .store(in: &cancellables)
     }
 
@@ -36,17 +36,26 @@ final class HUDAccessibility: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    private func log(_ read: AccessibilityRead) {
+        let guidance = trust.guidance.rawValue
+        if read == .unreachable {
+            Self.log.error("Accessibility trust read failed because the XPC helper didn't answer, HUD settings show \(guidance, privacy: .public)")
+        } else {
+            Self.log.notice("Accessibility trust read \(read.rawValue, privacy: .public), HUD settings show \(guidance, privacy: .public)")
+        }
+    }
+
     var isSettled: Bool { checksInFlight == 0 }
 
     @discardableResult
     func check() -> Task<Bool, Never> {
         checksInFlight += 1
         return Task { @MainActor in
-            let trusted = await XPCHelperClient.shared.isAccessibilityAuthorized()
-            trust.checked(trusted: trusted)
-            Self.log.notice("Accessibility trust read \(trusted ? "trusted" : "untrusted", privacy: .public), HUD settings show \(self.trust.guidance.rawValue, privacy: .public)")
+            let read = await XPCHelperClient.shared.readAccessibilityTrust()
+            trust.checked(read)
+            log(read)
             checksInFlight -= 1
-            return trusted
+            return read == .trusted
         }
     }
 }
