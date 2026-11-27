@@ -2,57 +2,43 @@ import Foundation
 import XCTest
 @testable import T3IsleCore
 
+extension RpcSocket {
+    static let pingsBeforeTimeout = Int(pongTimeout / pingInterval)
+}
+
 final class RpcSocketPingTests: XCTestCase {
-    private let ping = #"{"_tag":"Ping"}"#
+    private let ping = SocketEvent.sent(#"{"_tag":"Ping"}"#)
     private let pong = #"{"_tag":"Pong"}"#
-    private let pingsBeforeTimeout = Int(RpcSocket.pongTimeout / RpcSocket.pingInterval)
+    private let closed = SocketEvent.closed(.notRunning)
 
     func testMissingPongPastTheTimeoutClosesTheSocket() async {
         let harness = Harness()
-        var sent = harness.transport.sent.makeAsyncIterator()
-        var closes = harness.closes.makeAsyncIterator()
-
-        for _ in 0..<pingsBeforeTimeout {
-            await harness.tick()
-            let sentPing = await sent.next()
-            XCTAssertEqual(sentPing, ping)
+        for _ in 0..<RpcSocket.pingsBeforeTimeout {
+            let event = await harness.tick()
+            XCTAssertEqual(event, ping)
         }
         XCTAssertFalse(harness.socket.isClosed)
 
-        await harness.tick()
-        let failure = await closes.next()
-        XCTAssertEqual(failure, .notRunning)
+        let event = await harness.tick()
+        XCTAssertEqual(event, closed)
         XCTAssertTrue(harness.socket.isClosed)
         XCTAssertTrue(harness.transport.isClosed)
-        XCTAssertEqual(harness.transport.sentCount, pingsBeforeTimeout)
+        XCTAssertEqual(harness.transport.sentCount, RpcSocket.pingsBeforeTimeout)
     }
 
     func testPongInTimeKeepsTheSocketOpen() async {
-        let harness = Harness()
-        var sent = harness.transport.sent.makeAsyncIterator()
+        await assertTheSocketStaysOpen(after: pong)
+    }
 
-        await harness.tick()
-        let firstPing = await sent.next()
-        XCTAssertEqual(firstPing, ping)
-        harness.transport.deliver(pong)
-
-        for _ in 0..<pingsBeforeTimeout {
-            await harness.tick()
-            let sentPing = await sent.next()
-            XCTAssertEqual(sentPing, ping)
-        }
-
-        await harness.clock.waitForSleepers()
-        XCTAssertFalse(harness.socket.isClosed)
-        XCTAssertEqual(harness.closeCount, 0)
-        harness.socket.close()
+    func testAnyServerMessageCountsAsTheReply() async {
+        await assertTheSocketStaysOpen(after: #"{"_tag":"Exit","requestId":"404","exit":{"_tag":"Success"}}"#)
     }
 
     func testLatePongAfterTheCloseDoesNothing() async {
         let harness = Harness()
-        var closes = harness.closes.makeAsyncIterator()
-        for _ in 0...pingsBeforeTimeout { await harness.tick() }
-        _ = await closes.next()
+        for _ in 0..<RpcSocket.pingsBeforeTimeout { _ = await harness.tick() }
+        let event = await harness.tick()
+        guard event == closed else { return XCTFail("the socket should close past the pong timeout, got \(event)") }
         let sentAtClose = harness.transport.sentCount
         let receivesAtClose = harness.transport.receiveCount
 
@@ -64,6 +50,24 @@ final class RpcSocketPingTests: XCTestCase {
         XCTAssertEqual(harness.transport.sentCount, sentAtClose)
         XCTAssertEqual(harness.transport.receiveCount, receivesAtClose)
         XCTAssertTrue(harness.clock.deadlines.isEmpty)
+    }
+
+    private func assertTheSocketStaysOpen(after reply: String,
+                                          file: StaticString = #filePath, line: UInt = #line) async {
+        let harness = Harness()
+        let firstPing = await harness.tick()
+        XCTAssertEqual(firstPing, ping, file: file, line: line)
+        harness.transport.deliver(reply)
+
+        for _ in 0..<RpcSocket.pingsBeforeTimeout {
+            let event = await harness.tick()
+            XCTAssertEqual(event, ping, file: file, line: line)
+            guard event == ping else { return }
+        }
+
+        await harness.clock.waitForSleepers()
+        XCTAssertFalse(harness.socket.isClosed, file: file, line: line)
+        XCTAssertEqual(harness.closeCount, 0, file: file, line: line)
     }
 
     func testASocketClosedByTheClientIsFreedWhileItsCloseHandlerHoldsIt() {
@@ -91,45 +95,55 @@ final class RpcSocketPingTests: XCTestCase {
     }
 }
 
+private enum SocketEvent: Equatable {
+    case sent(String)
+    case closed(T3Failure)
+}
+
 private final class Harness: @unchecked Sendable {
     let clock = TestClock()
-    let transport = FakeTransport()
+    let transport: FakeTransport
     let socket: RpcSocket
-    let closes: AsyncStream<T3Failure>
-    private let closeContinuation: AsyncStream<T3Failure>.Continuation
+    private var events: AsyncStream<SocketEvent>.Iterator
     private let lock = NSLock()
     private var closed = 0
 
     init() {
+        let (events, recorded) = AsyncStream.makeStream(of: SocketEvent.self)
+        self.events = events.makeAsyncIterator()
+        transport = FakeTransport { recorded.yield(.sent($0)) }
         socket = RpcSocket(clock: clock)
-        (closes, closeContinuation) = AsyncStream.makeStream(of: T3Failure.self)
         socket.open(transport) { [self] failure in
             lock.withLock { closed += 1 }
-            closeContinuation.yield(failure)
+            recorded.yield(.closed(failure))
         }
+    }
+
+    deinit {
+        socket.close()
     }
 
     var closeCount: Int { lock.withLock { closed } }
 
-    func tick() async {
+    func tick() async -> SocketEvent? {
         await clock.waitForSleepers()
         clock.advance(by: RpcSocket.pingInterval)
+        return await events.next()
     }
 }
 
 private final class FakeTransport: RpcTransport, @unchecked Sendable {
     typealias Receiver = @Sendable (Result<URLSessionWebSocketTask.Message, Error>) -> Void
 
-    let sent: AsyncStream<String>
-    private let sentContinuation: AsyncStream<String>.Continuation
+    private let onSend: @Sendable (String) -> Void
     private let lock = NSLock()
     private var receiver: Receiver?
     private var sends = 0
     private var receives = 0
     private var closed = false
 
-    init() {
-        (sent, sentContinuation) = AsyncStream.makeStream(of: String.self)
+    init(onSend: @escaping @Sendable (String) -> Void = { _ in }) {
+        self.onSend = onSend
     }
 
     var sentCount: Int { lock.withLock { sends } }
@@ -140,10 +154,9 @@ private final class FakeTransport: RpcTransport, @unchecked Sendable {
 
     func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void) {
         lock.withLock { sends += 1 }
-        sentContinuation.yield(text)
+        onSend(text)
         completion(nil)
     }
-
     func receive(completion: @escaping Receiver) {
         lock.withLock {
             receives += 1

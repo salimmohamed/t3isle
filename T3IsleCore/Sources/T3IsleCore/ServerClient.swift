@@ -232,12 +232,20 @@ public actor T3ServerClient {
     public func dispatch(_ command: T3Command) async throws -> Int? {
         let payload = try Self.jsonObject(command.payload(commandId: UUID().uuidString.lowercased()))
         do {
-            let value = try await connectedSocket().call("orchestration.dispatchCommand", payload: payload)
-            return (value as? [String: Any])?["sequence"] as? Int
+            return try await dispatch(payload, resendsOnADroppedSocket: true)
         } catch T3Failure.signedOut {
             await signIn.invalidate()
-            let value = try await connectedSocket().call("orchestration.dispatchCommand", payload: payload)
+            return try await dispatch(payload, resendsOnADroppedSocket: false)
+        }
+    }
+
+    private func dispatch(_ payload: [String: Any], resendsOnADroppedSocket: Bool) async throws -> Int? {
+        let socket = try await connectedSocket()
+        do {
+            let value = try await socket.call("orchestration.dispatchCommand", payload: payload)
             return (value as? [String: Any])?["sequence"] as? Int
+        } catch T3Failure.notRunning where resendsOnADroppedSocket {
+            return try await dispatch(payload, resendsOnADroppedSocket: false)
         }
     }
 

@@ -91,7 +91,15 @@ final class McpTestServer: @unchecked Sendable {
 
     var rejectsToolCallsInPairs: Bool {
         get { lock.withLock { pairsRejections } }
-        set { lock.withLock { pairsRejections = newValue } }
+        set {
+            let unpaired: NWConnection? = lock.withLock {
+                pairsRejections = newValue
+                guard !newValue else { return nil }
+                defer { unpairedToolCall = nil }
+                return unpairedToolCall
+            }
+            if let unpaired { send(Self.rejection, on: unpaired) }
+        }
     }
 
     func holdNextInitialize() {
@@ -121,13 +129,13 @@ final class McpTestServer: @unchecked Sendable {
     }
 
     private func answer(_ request: Data, on connection: NWConnection) {
-        let text = String(decoding: request, as: UTF8.self)
-        let isInitialize = text.contains(#""initialize""#)
+        let method = Self.method(of: request)
+        let isInitialize = method == "initialize"
         let replies: [HeldReply] = lock.withLock {
             answered += 1
             if isInitialize { initializeCount += 1 }
-            if pairsRejections, !isInitialize, text.contains("tools") { return pairRejection(of: connection) }
-            let reply = HeldReply(connection: connection, reply: rejectsAll ? Self.rejection : reply(to: text))
+            if pairsRejections, method == "tools/call" { return pairRejection(of: connection) }
+            let reply = HeldReply(connection: connection, reply: rejectsAll ? Self.rejection : reply(to: method))
             guard isInitialize, holdsInitialize else { return [reply] }
             holdsInitialize = false
             held = reply
@@ -150,11 +158,18 @@ final class McpTestServer: @unchecked Sendable {
         connection.send(content: reply, completion: .contentProcessed { _ in connection.cancel() })
     }
 
-    private func reply(to text: String) -> Data {
-        if text.contains("notifications") { return Self.acceptance }
-        guard !text.contains("tools") else { return Self.noLinks }
+    private func reply(to method: String?) -> Data {
+        if method?.hasPrefix("notifications/") == true { return Self.acceptance }
+        guard method != "tools/call" else { return Self.noLinks }
         return Self.response("200 OK", session: "mcp-session-\(initializeCount)",
                              body: #"{"jsonrpc":"2.0","id":0,"result":{}}"#)
+    }
+
+    private static func method(of request: Data) -> String? {
+        guard let end = request.range(of: Data("\r\n\r\n".utf8)),
+              let body = try? JSONSerialization.jsonObject(with: request[end.upperBound...]) as? [String: Any]
+        else { return nil }
+        return body["method"] as? String
     }
 
     private static func isWholeRequest(_ data: Data) -> Bool {
