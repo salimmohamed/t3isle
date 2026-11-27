@@ -255,7 +255,7 @@ scripts/run-debug.sh --no-build --state-dir "$PWD/.build/debug-b" --debug tab t3
 {"app":"…/.build/DerivedData/Build/Products/Debug/T3 Isle.app","pid":4242,"log":"…/.build/debug-state/logs/events.ndjson","state":"…/.build/debug-state/logs/state.json","stateDir":"…/.build/debug-state"}
 ```
 
-`--build-only` stops after the build and signing without launching. On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
+Each build first removes the old app, because Xcode's incremental build can fail in CopySwiftLibs on an app the script already re-signed. So the script refuses to build while any copy from this checkout runs, whatever its state folder, and a failed build leaves no app for `--no-build`. `--build-only` stops after the build and signing without launching. On failure the line also has an `error` field, and the script exits with 2 when the build or signing failed and 3 when the app did not launch. A new state folder starts past onboarding. The script refuses to start a second copy on a state folder that is already in use.
 
 To keep macOS permissions across builds, set a signing identity (a certificate's SHA-1 or name) in your shell, never in the repo. Without one, the app keeps its build signature.
 

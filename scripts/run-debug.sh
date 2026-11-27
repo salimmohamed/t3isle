@@ -45,6 +45,15 @@ pids_using_state() {
     }'
 }
 
+pids_using_app() {
+  ps -axww -o pid=,args= | awk -v exe="$executable" '
+    {
+      pid = $1
+      sub(/^ *[0-9]+ /, "")
+      if ($0 == exe || index($0, exe " ") == 1) print pid
+    }'
+}
+
 has_window() {
   [ -n "$(osascript -l JavaScript "$root/scripts/lib/windows.js" "$1" 2>/dev/null)" ]
 }
@@ -71,6 +80,9 @@ running=$(pids_using_state | head -n 1)
 
 if [ "$build" = 1 ]; then
   mkdir -p "$root/.build"
+  in_use=$(pids_using_app | head -n 1)
+  [ -z "$in_use" ] || fail 3 "a copy of this build still runs, stop it with scripts/stop-debug.sh $in_use or pass --no-build" "$in_use"
+  rm -rf "$app" || fail 2 "cannot remove the old build at $app"
   echo "run-debug: building the Debug app, log in $build_log" >&2
   if ! (cd "$root" && xcodebuild build -scheme boringNotch \
     -project boringNotch.xcodeproj \
