@@ -96,6 +96,13 @@ enum T3DebugCommands {
         case .accessibilityTrust(let read):
             XPCHelperClient.shared.overrideTrust(read)
             HUDAccessibility.shared.check()
+        case .pomodoro(let action):
+            guard Defaults[.pomodoroTimer] else { throw Failure("The Pomodoro timer is turned off in Settings") }
+            switch action {
+            case .start: runtime.pomodoro.start()
+            case .pause: runtime.pomodoro.pause()
+            case .reset: runtime.pomodoro.reset()
+            }
         }
     }
 

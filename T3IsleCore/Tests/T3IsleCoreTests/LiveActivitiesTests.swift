@@ -30,6 +30,27 @@ final class LiveActivitiesTests: XCTestCase {
         XCTAssertEqual(ClosedActivity.resolve(t3: .idle, headphones: pods, nowPlaying: false), .headphones(pods))
     }
 
+    func testPomodoroYieldsToQuestionsAndHeadphonesButBeatsMusicAndFaces() {
+        XCTAssertEqual(ClosedActivity.resolve(t3: .alert, headphones: nil, pomodoro: true, nowPlaying: true), .t3)
+        XCTAssertEqual(ClosedActivity.resolve(t3: .threads, headphones: pods, pomodoro: true, nowPlaying: true), .headphones(pods))
+        XCTAssertEqual(ClosedActivity.resolve(t3: .threads, headphones: nil, pomodoro: true, nowPlaying: true), .pomodoro)
+        XCTAssertEqual(ClosedActivity.resolve(t3: .idle, headphones: nil, pomodoro: true, nowPlaying: false), .pomodoro)
+        XCTAssertEqual(ClosedActivity.resolve(t3: .none, headphones: nil, pomodoro: true, nowPlaying: false), .pomodoro)
+    }
+
+    func testNoPomodoroLeavesEveryOtherActivityAsItWas() {
+        for presence in [ClosedPresence.none, .idle, .threads, .alert] {
+            for headphones in [pods, nil] {
+                for nowPlaying in [true, false] {
+                    XCTAssertEqual(ClosedActivity.resolve(t3: presence, headphones: headphones, pomodoro: false, nowPlaying: nowPlaying),
+                                   ClosedActivity.resolve(t3: presence, headphones: headphones, nowPlaying: nowPlaying))
+                    XCTAssertNotEqual(ClosedActivity.resolve(t3: presence, headphones: headphones, pomodoro: false,
+                                                             nowPlaying: nowPlaying), .pomodoro)
+                }
+            }
+        }
+    }
+
     func testBluetoothAccessReadsEachAuthorization() {
         let authorizations: [CBManagerAuthorization] = [.notDetermined, .restricted, .denied, .allowedAlways]
         XCTAssertEqual(authorizations.map(BluetoothAccess.init), [.notDetermined, .restricted, .denied, .allowed])

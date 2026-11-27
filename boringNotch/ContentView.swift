@@ -299,6 +299,8 @@ struct ContentView: View {
                           T3ClosedActivity()
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && !vm.hideOnClosed, let headphones = closedActivity.headphones {
                           T3HeadphonesActivity(connect: headphones)
+                      } else if !coordinator.expandingView.show && vm.notchState == .closed && !vm.hideOnClosed && closedActivity == .pomodoro {
+                          PomodoroClosedActivity()
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)

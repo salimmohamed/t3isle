@@ -5,7 +5,7 @@ public struct DebugState: Codable, Equatable, Sendable {
     public enum Notch: String, Codable, Sendable { case open, closed }
 
     public enum Activity: String, Codable, Sendable {
-        case none, t3, nowPlaying, headphones
+        case none, t3, nowPlaying, headphones, pomodoro
 
         public init(_ activity: ClosedActivity) {
             switch activity {
@@ -13,6 +13,7 @@ public struct DebugState: Codable, Equatable, Sendable {
             case .t3: self = .t3
             case .nowPlaying: self = .nowPlaying
             case .headphones: self = .headphones
+            case .pomodoro: self = .pomodoro
             }
         }
     }
@@ -31,6 +32,18 @@ public struct DebugState: Codable, Equatable, Sendable {
         public init(bluetooth: BluetoothAccess, status: Status) {
             self.bluetooth = bluetooth
             self.status = status
+        }
+    }
+
+    public struct Pomodoro: Codable, Equatable, Sendable {
+        public let enabled: Bool
+        public let phase: PomodoroPhase
+        public let running: Bool
+
+        public init(enabled: Bool, phase: PomodoroPhase, running: Bool) {
+            self.enabled = enabled
+            self.phase = phase
+            self.running = running
         }
     }
 
@@ -142,11 +155,12 @@ public struct DebugState: Codable, Equatable, Sendable {
     public let hudAccessibility: AccessibilityGuidance
     public let accessibilityOverride: AccessibilityRead?
     public let hudReplacement: Bool
+    public let pomodoro: Pomodoro
     public let t3: T3
 
     public init(notch: Notch, tab: NotchTab, settingsOpen: Bool, closedActivity: ClosedActivity,
                 headphones: HeadphonesConnect?, notchViewModels: Int, headphonesMonitor: HeadphonesMonitor, hudAccessibility: AccessibilityGuidance,
-                accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, t3: T3) {
+                accessibilityOverride: AccessibilityRead?, hudReplacement: Bool, pomodoro: Pomodoro, t3: T3) {
         self.notch = notch
         self.tab = tab
         self.settingsOpen = settingsOpen
@@ -157,6 +171,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         self.hudAccessibility = hudAccessibility
         self.accessibilityOverride = accessibilityOverride
         self.hudReplacement = hudReplacement
+        self.pomodoro = pomodoro
         self.t3 = t3
     }
 
@@ -172,6 +187,7 @@ public struct DebugState: Codable, Equatable, Sendable {
         try container.encode(hudAccessibility, forKey: .hudAccessibility)
         try container.encode(accessibilityOverride, forKey: .accessibilityOverride)
         try container.encode(hudReplacement, forKey: .hudReplacement)
+        try container.encode(pomodoro, forKey: .pomodoro)
         try container.encode(t3, forKey: .t3)
     }
 
@@ -179,6 +195,12 @@ public struct DebugState: Codable, Equatable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(value)
+    }
+}
+
+extension PomodoroTimer {
+    public func debugState(enabled: Bool) -> DebugState.Pomodoro {
+        DebugState.Pomodoro(enabled: enabled, phase: phase, running: isRunning)
     }
 }
 
