@@ -255,10 +255,7 @@ struct ThreadRow: View {
                                 .foregroundStyle(thread.mood.isBusy || asleep ? T3Theme.secondary : T3Theme.primary)
                                 .lineLimit(1)
                                 .layoutPriority(1)
-                            Text(thread.project)
-                                .font(.system(size: 9.5))
-                                .foregroundStyle(T3Theme.muted)
-                                .lineLimit(1)
+                            ProjectLabel(name: thread.project)
                             if let environment = thread.environment {
                                 MachineLabel(name: environment.label)
                                     .layoutPriority(2)
@@ -380,21 +377,58 @@ struct ThreadRow: View {
     }
 }
 
-private struct MachineLabel: View {
+private struct ProjectLabel: View {
     let name: String
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            Label(name, systemImage: "desktopcomputer")
-                .lineLimit(1)
-                .fixedSize()
-            Image(systemName: "desktopcomputer")
+            Text(name).fixedSize()
+            Color.clear.frame(width: 0, height: 0)
+        }
+        .font(.system(size: 9.5))
+        .foregroundStyle(T3Theme.muted)
+    }
+}
+
+private struct MachineLabel: View {
+    static let widest: CGFloat = 64
+    let name: String
+
+    var body: some View {
+        WidthCap(widest: Self.widest) {
+            ViewThatFits(in: .horizontal) {
+                Label(name, systemImage: "desktopcomputer")
+                    .lineLimit(1)
+                    .fixedSize()
+                Label(name, systemImage: "desktopcomputer")
+                    .lineLimit(1)
+                    .frame(width: Self.widest, alignment: .leading)
+                Image(systemName: "desktopcomputer")
+            }
         }
         .font(.system(size: 9))
         .foregroundStyle(T3Theme.muted)
         .help(name)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(name)
+    }
+}
+
+private struct WidthCap: Layout {
+    let widest: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let capped = ProposedViewSize(width: min(proposal.width ?? widest, widest), height: proposal.height)
+        return subviews.first?.sizeThatFits(capped) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+    }
+
+    func explicitAlignment(of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+                           subviews: Subviews, cache: inout ()) -> CGFloat? {
+        subviews.first.map { bounds.minY + $0.dimensions(in: ProposedViewSize(bounds.size))[guide] }
     }
 }
 
