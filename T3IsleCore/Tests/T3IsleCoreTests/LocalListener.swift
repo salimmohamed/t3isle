@@ -14,13 +14,23 @@ extension T3Home {
 }
 
 final class LocalListener: @unchecked Sendable {
+    enum StartError: Error {
+        case alreadyStarted
+    }
+
+    private enum Readiness {
+        case idle
+        case waiting(CheckedContinuation<Void, Error>)
+        case settled
+    }
+
     private let listener: NWListener
     private let queue: DispatchQueue
     private let lock = NSLock()
-    private var readiness: CheckedContinuation<Void, Error>?
+    private var readiness = Readiness.idle
 
-    init(label: String) throws {
-        listener = try NWListener(using: .tcp, on: .any)
+    init(label: String, parameters: NWParameters = .tcp) throws {
+        listener = try NWListener(using: parameters, on: .any)
         queue = DispatchQueue(label: label)
     }
 
@@ -32,15 +42,35 @@ final class LocalListener: @unchecked Sendable {
 
     func start(accepting accept: @escaping @Sendable (NWConnection) -> Void) async throws {
         let queue = queue
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            lock.withLock { readiness = continuation }
-            listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
-            listener.newConnectionHandler = { connection in
-                connection.start(queue: queue)
-                accept(connection)
+        let listener = listener
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard claim(continuation) else { return }
+                listener.stateUpdateHandler = { [weak self] state in self?.changed(state) }
+                listener.newConnectionHandler = { connection in
+                    connection.start(queue: queue)
+                    accept(connection)
+                }
+                listener.start(queue: queue)
             }
-            listener.start(queue: queue)
+        } onCancel: {
+            listener.cancel()
         }
+    }
+
+    private func claim(_ continuation: CheckedContinuation<Void, Error>) -> Bool {
+        enum Claim { case claimed, taken, cancelled }
+        let claim: Claim = lock.withLock {
+            guard case .idle = readiness else { return .taken }
+            readiness = .waiting(continuation)
+            return Task.isCancelled ? .cancelled : .claimed
+        }
+        switch claim {
+        case .claimed: return true
+        case .taken: continuation.resume(throwing: StartError.alreadyStarted)
+        case .cancelled: changed(.cancelled)
+        }
+        return false
     }
 
     private func changed(_ state: NWListener.State) {
@@ -48,11 +78,13 @@ final class LocalListener: @unchecked Sendable {
         switch state {
         case .ready: result = .success(())
         case .failed(let error): result = .failure(error)
+        case .cancelled: result = .failure(CancellationError())
         default: return
         }
         let waiter: CheckedContinuation<Void, Error>? = lock.withLock {
-            defer { readiness = nil }
-            return readiness
+            guard case .waiting(let continuation) = readiness else { return nil }
+            readiness = .settled
+            return continuation
         }
         waiter?.resume(with: result)
     }

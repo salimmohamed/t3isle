@@ -232,12 +232,20 @@ public actor T3ServerClient {
     public func dispatch(_ command: T3Command) async throws -> Int? {
         let payload = try Self.jsonObject(command.payload(commandId: UUID().uuidString.lowercased()))
         do {
-            let value = try await connectedSocket().call("orchestration.dispatchCommand", payload: payload)
-            return (value as? [String: Any])?["sequence"] as? Int
+            return try await dispatch(payload, resendsAfterAnUnreadableClose: true)
         } catch T3Failure.signedOut {
             await signIn.invalidate()
-            let value = try await connectedSocket().call("orchestration.dispatchCommand", payload: payload)
+            return try await dispatch(payload, resendsAfterAnUnreadableClose: false)
+        }
+    }
+
+    private func dispatch(_ payload: [String: Any], resendsAfterAnUnreadableClose: Bool) async throws -> Int? {
+        let socket = try await connectedSocket()
+        do {
+            let value = try await socket.call("orchestration.dispatchCommand", payload: payload)
             return (value as? [String: Any])?["sequence"] as? Int
+        } catch T3Failure.unreadable where resendsAfterAnUnreadableClose && socket.isClosed {
+            return try await dispatch(payload, resendsAfterAnUnreadableClose: false)
         }
     }
 
@@ -270,9 +278,9 @@ public actor T3ServerClient {
                         switch update {
                         case .unreadable(let item, let reason):
                             Self.log.error("Couldn't read \(item.rawValue, privacy: .public) update: \(reason, privacy: .public)")
-                        case .disconnected:
+                        case .disconnected(let failure):
                             continuation.finish()
-                            socket?.close()
+                            socket?.close(failure)
                             return
                         default:
                             break
